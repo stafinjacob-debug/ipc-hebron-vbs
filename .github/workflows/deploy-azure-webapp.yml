@@ -35,6 +35,8 @@ jobs:
           cache-dependency-path: web/package-lock.json
 
       - name: Install dependencies
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: npm ci
 
       - name: Apply Prisma migrations
