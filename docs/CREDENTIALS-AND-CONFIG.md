@@ -86,6 +86,8 @@ node server.js
 
 Set the **startup directory** / working directory to the root of the deployed package (the standalone output root that contains `server.js`). If the zip root is wrong, the process will not find `server.js`.
 
+**Pre-built zip (GitHub Actions / `az webapp deploy`):** Set **`SCM_DO_BUILD_DURING_DEPLOYMENT=false`** (and optionally **`ENABLE_ORYX_BUILD=false`**) so App Service does not run Oryx “optimize” / `npm install` on your artifact. Otherwise the site can sit in “Starting…” until timeout. The standalone output includes a `.deployment` file with this flag; the app setting enforces it on the resource.
+
 ### 3c. Azure Key Vault (recommended progression)
 
 1. Create a Key Vault in the same subscription.  

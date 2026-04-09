@@ -1,4 +1,4 @@
-import { cpSync, existsSync, mkdirSync } from "fs";
+import { cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import { join } from "path";
 
 const root = process.cwd();
@@ -19,5 +19,21 @@ if (existsSync(nextStatic)) {
 if (existsSync(publicDir)) {
   cpSync(publicDir, join(standalone, "public"), { recursive: true });
 }
+
+/** Azure App Service may run Oryx against package.json; avoid npm start → next start (wrong for standalone). */
+const pkgPath = join(standalone, "package.json");
+if (existsSync(pkgPath)) {
+  const pkg = JSON.parse(readFileSync(pkgPath, "utf8"));
+  pkg.scripts = { start: "node server.js" };
+  delete pkg.postinstall;
+  writeFileSync(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`, "utf8");
+}
+
+/** Tell Kudu/Oryx not to rebuild this zip (pre-built standalone + node_modules). */
+writeFileSync(
+  join(standalone, ".deployment"),
+  "[config]\nSCM_DO_BUILD_DURING_DEPLOYMENT=false\n",
+  "utf8",
+);
 
 console.log("Standalone bundle prepared for Azure (static + public copied).");
