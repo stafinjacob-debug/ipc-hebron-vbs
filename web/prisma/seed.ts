@@ -48,10 +48,20 @@ function readEnvFileValue(filePath: string, key: string): string | undefined {
   return undefined;
 }
 
-// `.env.local` wins over `.env` (same as Next.js)
+// `.env.local` wins over `.env` (same as Next.js). Shell-provided values for
+// DB + seed creds win over files so CI / one-off production seeds work.
+const envFromShell: Record<string, string | undefined> = {};
+for (const k of ["DATABASE_URL", "SEED_ADMIN_EMAIL", "SEED_ADMIN_PASSWORD"] as const) {
+  envFromShell[k] = process.env[k];
+}
+
 config({ path: path.join(webRoot, ".env") });
 if (existsSync(envLocalPath)) {
   config({ path: envLocalPath, override: true });
+}
+
+for (const k of ["DATABASE_URL", "SEED_ADMIN_EMAIL", "SEED_ADMIN_PASSWORD"] as const) {
+  if (envFromShell[k]) process.env[k] = envFromShell[k];
 }
 
 const url =
