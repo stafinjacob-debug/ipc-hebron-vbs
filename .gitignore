@@ -1,0 +1,11 @@
+.DS_Store
+*.log
+.env
+.env.local
+.env.*.local
+
+# App (nested)
+web/.env
+web/.env.local
+web/.next/
+web/node_modules/

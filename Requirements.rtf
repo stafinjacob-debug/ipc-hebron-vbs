@@ -1,0 +1,117 @@
+{\rtf1\ansi\ansicpg1252\cocoartf2867
+\cocoatextscaling0\cocoaplatform0{\fonttbl\f0\froman\fcharset0 Times-Roman;}
+{\colortbl;\red255\green255\blue255;\red0\green0\blue0;}
+{\*\expandedcolortbl;;\cssrgb\c0\c0\c0;}
+\margl1440\margr1440\vieww30040\viewh18980\viewkind0
+\deftab720
+\pard\pardeftab720\sa240\partightenfactor0
+
+\f0\fs24 \cf0 \expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec2 ---\
+\
+# Environments, Source Control, and Deployment\
+\
+## Required Environments\
+\
+The application must support two main environments:\
+\
+### 1. Local Development Environment\
+This environment will run on my Mac for active development and testing.\
+\
+Requirements:\
+- application must be able to run locally on macOS\
+- provide clear local setup instructions\
+- use environment variables for all secrets and connection strings\
+- support local database setup or local connection to a development database\
+- include seed data for development if possible\
+- include scripts for:\
+  - install\
+  - run frontend/backend\
+  - database migration\
+  - database seed\
+  - test\
+- local environment should be easy to bootstrap for future contributors\
+\
+### 2. Production Environment\
+The production instance must be:\
+- stored in GitHub as the source control repository\
+- deployed to my Azure subscription\
+- configured using production-safe environment variables and secrets\
+- structured so deployments can be repeated reliably\
+\
+## Source Control Requirements\
+\
+- all source code must be pushed to GitHub\
+- use a clean repository structure\
+- include a complete README with setup and deployment instructions\
+- use `.env.example` files for required environment variables\
+- never commit secrets, keys, tokens, or passwords to the repository\
+- include `.gitignore` for local secrets and build artifacts\
+- use feature-friendly project structure so future development is easy\
+\
+## Deployment Requirements\
+\
+The application should be designed so it can be deployed from GitHub to Azure.\
+\
+Preferred expectations:\
+- production deployment should be automated through GitHub\
+- use GitHub Actions for CI/CD if practical\
+- production secrets should be stored securely in GitHub Secrets and/or Azure Key Vault\
+- deployment target in Azure should be chosen based on the app architecture\
+\
+Possible Azure deployment options:\
+- Azure App Service\
+- Azure Container Apps\
+- Azure Static Web Apps + backend API\
+- Azure Database for PostgreSQL for production database\
+- Azure Blob Storage for uploaded documents if needed\
+\
+The developer should recommend the best Azure deployment architecture for this app based on:\
+- simplicity\
+- cost\
+- maintainability\
+- scalability\
+- support for web app, API, database, and document storage\
+\
+## Environment Configuration Requirements\
+\
+The application must support environment-specific configuration for:\
+- database connection string\
+- authentication settings\
+- storage configuration\
+- email/SMS provider settings if used\
+- QR/barcode or badge configuration if needed\
+- parent portal/app configuration\
+- API base URLs\
+- logging and monitoring settings\
+\
+At minimum, support:\
+- `.env.local` for local development\
+- production environment variables in Azure\
+\
+## Developer Delivery Requirements for Deployment\
+\
+The developer must provide:\
+- local setup instructions for macOS\
+- GitHub repository structure and push instructions\
+- Azure deployment architecture recommendation\
+- production deployment steps\
+- environment variable list\
+- GitHub Actions workflow if CI/CD is implemented\
+- database migration strategy for production\
+- rollback/redeploy guidance at a basic level\
+\
+## Security Requirements for Credentials\
+\
+I can provide the required GitHub and Azure access details separately for implementation, but:\
+- credentials must not be hardcoded\
+- credentials must not be committed into source control\
+- secrets must be stored securely using environment variables, GitHub Secrets, and/or Azure secure configuration\
+- the developer should document exactly where each secret must be placed\
+\
+## MVP Infrastructure Expectation\
+\
+For MVP, the app should be buildable and runnable:\
+1. locally on my Mac for development\
+2. from GitHub as the main source repository\
+3. in my Azure subscription as the production deployment target}

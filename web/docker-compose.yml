@@ -1,0 +1,18 @@
+# Local PostgreSQL for macOS development (optional).
+# From web/: docker compose up -d
+# DATABASE_URL=postgresql://vbs:vbs_local_dev@localhost:5432/vbs
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: vbs
+      POSTGRES_PASSWORD: vbs_local_dev
+      POSTGRES_DB: vbs
+    volumes:
+      - vbs_pgdata:/var/lib/postgresql/data
+
+volumes:
+  vbs_pgdata:

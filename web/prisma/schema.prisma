@@ -1,0 +1,330 @@
+// IPC Hebron VBS — domain schema (PostgreSQL)
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  SUPER_ADMIN
+  CHURCH_ADMIN
+  REGISTRATION_MANAGER
+  CHECK_IN_VOLUNTEER
+  TEACHER
+  CONTENT_MANAGER
+  REPORTS_VIEWER
+  PARENT
+}
+
+enum UserStatus {
+  INVITED
+  PENDING_SETUP
+  ACTIVE
+  SUSPENDED
+  DISABLED
+}
+
+enum RegistrationStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  WAITLIST
+  DRAFT
+  CHECKED_OUT
+}
+
+enum RegistrationFormStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+model User {
+  id           String      @id @default(cuid())
+  email        String      @unique
+  name         String?
+  /// Null until invite is accepted or legacy user is migrated.
+  passwordHash String?
+  role         UserRole    @default(CHECK_IN_VOLUNTEER)
+  status       UserStatus  @default(ACTIVE)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  invitedAt       DateTime?
+  invitedById     String?
+  invitedBy       User?     @relation("UserInvites", fields: [invitedById], references: [id], onDelete: SetNull)
+  invitedUsers    User[]    @relation("UserInvites")
+  inviteTokenHash String?   @unique
+  inviteExpiresAt DateTime?
+  lastLoginAt     DateTime?
+  deactivatedAt   DateTime?
+
+  volunteerProfile VolunteerProfile?
+
+  seasonScopes    UserSeasonScope[]
+  classroomScopes UserClassroomScope[]
+
+  staffAuditAsActor  StaffAccessAuditLog[] @relation("StaffAuditActor")
+  staffAuditAsTarget StaffAccessAuditLog[] @relation("StaffAuditTarget")
+}
+
+model UserSeasonScope {
+  userId   String
+  seasonId String
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  season   VbsSeason @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+
+  @@id([userId, seasonId])
+}
+
+model UserClassroomScope {
+  userId      String
+  classroomId String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  classroom   Classroom @relation(fields: [classroomId], references: [id], onDelete: Cascade)
+
+  @@id([userId, classroomId])
+}
+
+model StaffAccessAuditLog {
+  id           String   @id @default(cuid())
+  createdAt    DateTime @default(now())
+  actorUserId  String?
+  actor        User?    @relation("StaffAuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+  targetUserId String?
+  targetUser   User?    @relation("StaffAuditTarget", fields: [targetUserId], references: [id], onDelete: SetNull)
+  action       String
+  metadata     Json?
+
+  @@index([createdAt])
+}
+
+model Guardian {
+  id        String   @id @default(cuid())
+  firstName String
+  lastName  String
+  email     String?
+  phone     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  children        Child[]
+  formSubmissions FormSubmission[]
+}
+
+model Child {
+  id             String   @id @default(cuid())
+  firstName      String
+  lastName       String
+  dateOfBirth    DateTime
+  allergiesNotes String?
+  createdAt      DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  guardianId String
+  guardian   Guardian @relation(fields: [guardianId], references: [id], onDelete: Restrict)
+
+  registrations Registration[]
+}
+
+model VbsSeason {
+  id        String    @id @default(cuid())
+  name      String
+  year      Int
+  theme     String?
+  startDate DateTime
+  endDate   DateTime
+  isActive  Boolean   @default(true)
+  /// When false, the public /register form hides this season.
+  publicRegistrationOpen Boolean @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime @updatedAt
+
+  classrooms                 Classroom[]
+  registrations            Registration[]
+  assignments                VolunteerAssignment[]
+  publicRegistrationSettings PublicRegistrationSettings?
+  registrationForm         RegistrationForm?
+  formSubmissions            FormSubmission[]
+  userSeasonScopes           UserSeasonScope[]
+}
+
+/// Per-season toggles for the public registration form (required optional fields + welcome text).
+model PublicRegistrationSettings {
+  id       String    @id @default(cuid())
+  seasonId String    @unique
+  season   VbsSeason @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+
+  requireGuardianEmail  Boolean @default(false)
+  requireGuardianPhone  Boolean @default(false)
+  requireAllergiesNotes Boolean @default(false)
+
+  welcomeMessage String? @db.Text
+  /// Public URL or site-relative path (e.g. /uploads/...) for /register background when this season is selected.
+  registrationBackgroundImageUrl String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+/// Admin-configurable public registration form per season (draft / published JSON definition).
+model RegistrationForm {
+  id       String    @id @default(cuid())
+  seasonId String    @unique
+  season   VbsSeason @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+
+  title               String
+  welcomeMessage      String? @db.Text
+  instructions        String? @db.Text
+  confirmationMessage String? @db.Text
+
+  status RegistrationFormStatus @default(DRAFT)
+
+  registrationOpensAt   DateTime?
+  registrationClosesAt  DateTime?
+  maxTotalRegistrations Int?
+  waitlistEnabled       Boolean   @default(false)
+
+  draftDefinitionJson     String? @db.Text
+  publishedDefinitionJson String? @db.Text
+  publishedAt             DateTime?
+  publishedVersion        Int       @default(0)
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  updatedByUserId String?
+
+  submissions FormSubmission[]
+  auditLogs   RegistrationFormAuditLog[]
+}
+
+model RegistrationFormAuditLog {
+  id        String           @id @default(cuid())
+  formId    String
+  form      RegistrationForm @relation(fields: [formId], references: [id], onDelete: Cascade)
+  userId    String?
+  action    String
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  @@index([formId])
+}
+
+/// One public submit: one guardian, one or more child registrations (siblings).
+model FormSubmission {
+  id                String   @id @default(cuid())
+  registrationCode  String   @unique
+  seasonId          String
+  season            VbsSeason @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  formId            String?
+  form              RegistrationForm? @relation(fields: [formId], references: [id], onDelete: SetNull)
+  guardianId        String
+  guardian          Guardian @relation(fields: [guardianId], references: [id], onDelete: Restrict)
+
+  /// Client-generated UUID per page load; dedupes double-submit / retry for the same season.
+  clientSubmitKey String?
+
+  guardianResponses Json
+  formVersion       Int      @default(0)
+  submittedAt       DateTime @default(now())
+
+  registrations Registration[]
+
+  @@unique([clientSubmitKey, seasonId])
+  @@index([seasonId])
+  @@index([registrationCode])
+  @@index([formId])
+}
+
+model Classroom {
+  id        String   @id @default(cuid())
+  name      String
+  ageMin    Int
+  ageMax    Int
+  capacity  Int      @default(20)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  seasonId String
+  season   VbsSeason @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+
+  registrations Registration[]
+  assignments   VolunteerAssignment[]
+  userClassroomScopes UserClassroomScope[]
+}
+
+model Registration {
+  id          String             @id @default(cuid())
+  status      RegistrationStatus @default(PENDING)
+  registeredAt DateTime          @default(now())
+  checkedInAt DateTime?
+  notes       String?
+
+  /// Human-readable id for families and badges (e.g. VBS-2026-A1B2C3D4).
+  /// Assigned when staff approves the registration.
+  registrationNumber String? @unique
+  /// Opaque token for QR / public ticket URL (not the internal cuid).
+  /// Assigned when staff approves the registration.
+  checkInToken       String? @unique
+
+  /// When true, staff can send payment reminder emails until paymentReceivedAt is set.
+  expectsPayment Boolean   @default(false)
+  paymentReceivedAt     DateTime?
+  paymentReminderSentAt DateTime?
+
+  confirmationEmailSentAt       DateTime?
+  submissionReceivedEmailSentAt DateTime?
+
+  childId String
+  child   Child @relation(fields: [childId], references: [id], onDelete: Cascade)
+
+  seasonId String
+  season   VbsSeason @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+
+  classroomId String?
+  classroom   Classroom? @relation(fields: [classroomId], references: [id], onDelete: SetNull)
+
+  formSubmissionId String?
+  formSubmission   FormSubmission? @relation(fields: [formSubmissionId], references: [id], onDelete: SetNull)
+  /// Per-child answers for custom (non-reserved) dynamic fields.
+  customResponses Json?
+
+  @@unique([childId, seasonId])
+  @@index([seasonId])
+  @@index([formSubmissionId])
+}
+
+model VolunteerProfile {
+  id                String   @id @default(cuid())
+  displayName       String
+  phone             String?
+  backgroundCheckOk Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  assignments VolunteerAssignment[]
+}
+
+model VolunteerAssignment {
+  id        String   @id @default(cuid())
+  roleTitle String
+  createdAt DateTime @default(now())
+
+  profileId String
+  profile   VolunteerProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  seasonId String
+  season   VbsSeason @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+
+  classroomId String?
+  classroom   Classroom? @relation(fields: [classroomId], references: [id], onDelete: SetNull)
+
+  @@index([seasonId])
+}

@@ -1,0 +1,111 @@
+# Credentials and configuration map
+
+**Rule:** Nothing in this file is a secret. Replace placeholders in your own password manager, GitHub Secrets, and Azure portal. Never commit real values.
+
+---
+
+## 1. Local development (Mac)
+
+| Name | Where to set | Purpose |
+|------|----------------|--------|
+| `DATABASE_URL` | `web/.env.local` | PostgreSQL connection (e.g. Docker Compose in `web/docker-compose.yml`). |
+| `AUTH_SECRET` | `web/.env.local` | Auth.js session signing. Generate: `openssl rand -base64 32`. |
+| `AUTH_URL` | `web/.env.local` | Base URL of the app (e.g. `http://localhost:3000`). |
+| `SEED_ADMIN_EMAIL` | `web/.env.local` (optional) | First admin user email for `npm run db:seed`. |
+| `SEED_ADMIN_PASSWORD` | `web/.env.local` | Strong password for seed admin (and sample volunteer); min 8 characters. |
+
+Copy from `web/.env.example`. Prisma CLI scripts (`db:migrate`, etc.) use `dotenv-cli` with `.env.local`. The seed script (`npm run db:seed`) loads `web/.env.local` itself from disk, so it does not depend on your shell working directory.
+
+---
+
+## 2. GitHub (CI/CD)
+
+Configure in the repository: **Settings → Secrets and variables → Actions**.
+
+### 2a. Secrets (sensitive)
+
+| Secret name | Used by | Description |
+|-------------|---------|-------------|
+| `DATABASE_URL` | Workflow: `prisma migrate deploy`, `next build` | **Production** Postgres URL (TLS). Same DB the App Service will use. |
+| `AUTH_SECRET` | Workflow: `next build` | Same value you set in Azure for production (or a build-time-only secret if you rotate separately—prefer one production secret). |
+| `AUTH_URL` | Workflow: `next build` | Public HTTPS origin of the site, e.g. `https://your-app.azurewebsites.net` (no trailing slash). |
+| `AZURE_WEBAPP_PUBLISH_PROFILE` | `azure/webapps-deploy` | Contents of the App Service **Download publish profile** file (XML). **Alternative:** use OpenID Connect (OIDC) with Azure login instead of this secret (see below). |
+| `AZURE_WEBAPP_NAME` | Deploy step | App Service resource name (short name, e.g. `ipc-hebron-vbs`). |
+
+**Optional OIDC path (no publish profile XML in GitHub):**
+
+| Secret name | Description |
+|-------------|-------------|
+| `AZURE_CLIENT_ID` | App registration (service principal) client ID. |
+| `AZURE_TENANT_ID` | Azure AD tenant ID. |
+| `AZURE_SUBSCRIPTION_ID` | Target subscription. |
+
+If you switch to OIDC, replace the publish-profile deploy step with `azure/login` and `az webapp deploy` (or an equivalent action). Document the exact YAML in your fork when you adopt OIDC.
+
+### 2b. Variables (non-secret, optional)
+
+| Variable | Example | Description |
+|----------|---------|-------------|
+| `AUTH_URL` | Same as secret | You may use a **variable** instead of a secret if your org treats the public URL as non-sensitive. |
+
+---
+
+## 3. Azure (production runtime)
+
+### 3a. Azure Database for PostgreSQL Flexible Server
+
+| Item | Notes |
+|------|--------|
+| Admin user / password | Set at server creation; **do not** paste into the repo. |
+| Connection string | Build `DATABASE_URL` as `postgresql://USER:PASSWORD@HOST:5432/DATABASE?sslmode=require`. |
+| Firewall | Allow Azure services; optionally your IP for manual access. |
+
+### 3b. App Service (Linux)
+
+In **Configuration → Application settings** (slot settings as needed):
+
+| Setting name | Source | Notes |
+|--------------|--------|--------|
+| `DATABASE_URL` | Key Vault reference or plain app setting | Prefer **Key Vault reference** once Key Vault is set up. |
+| `AUTH_SECRET` | Key Vault or app setting | Must match the value used to sign sessions. |
+| `AUTH_URL` | App setting | Public site URL (`https://…`). |
+| `NODE_ENV` | `production` | Standard for Node. |
+| `WEBSITE_RUN_FROM_PACKAGE` | `1` | Often set automatically by zip deploy; confirm if using run-from-package. |
+
+**Startup command** (General settings):
+
+```text
+node server.js
+```
+
+Set the **startup directory** / working directory to the root of the deployed package (the standalone output root that contains `server.js`). If the zip root is wrong, the process will not find `server.js`.
+
+### 3c. Azure Key Vault (recommended progression)
+
+1. Create a Key Vault in the same subscription.  
+2. Store secrets: e.g. `DatabaseUrl`, `AuthSecret`.  
+3. Enable managed identity on the App Service.  
+4. Grant the identity **Get** on secrets.  
+5. In App Service application settings, use references such as `@Microsoft.KeyVault(SecretUri=https://your-vault.vault.azure.net/secrets/DatabaseUrl/)`.  
+
+Document the exact URIs in your internal runbook only.
+
+---
+
+## 4. Rotation and rollback (basics)
+
+- **Rotate `AUTH_SECRET`:** Generate a new value; update Azure (and GitHub if used at build time); users must sign in again.  
+- **Rotate DB password:** Update Postgres admin password in Azure, then update `DATABASE_URL` everywhere it is stored.  
+- **Rollback deploy:** Re-run a previous successful GitHub Actions workflow run, or use deployment slots (staging/production swap) once configured.  
+
+---
+
+## 5. Future integrations (placeholders)
+
+When you add features, expect additional secrets (stored only in Azure / GitHub / Key Vault):
+
+- **SMTP** — host, user, password, from-address.  
+- **SMS provider** — API key.  
+- **Azure Blob** — connection string or SAS; prefer managed identity + RBAC where possible.  
+
+See `web/.env.example` for naming suggestions.
