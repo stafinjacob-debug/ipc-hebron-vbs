@@ -2,7 +2,9 @@ import { headers } from "next/headers";
 
 /** Base URL for links to this app (e.g. public /register). */
 export async function getPublicBaseUrl(): Promise<string> {
-  const configured = process.env.NEXTAUTH_URL?.replace(/\/$/, "");
+  const configured =
+    process.env.NEXTAUTH_URL?.replace(/\/$/, "") ??
+    process.env.AUTH_URL?.replace(/\/$/, "");
   if (configured) return configured;
 
   const h = await headers();

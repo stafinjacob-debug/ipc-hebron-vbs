@@ -7,17 +7,11 @@ import { prisma } from "@/lib/prisma";
 import { ASSIGNABLE_STAFF_ROLES, canAssignRole, canManageUsers } from "@/lib/roles";
 import type { UserRole, UserStatus } from "@/generated/prisma";
 import { sendStaffInviteEmail } from "@/lib/email/send-staff-invite-email";
+import { getPublicAppBaseUrl } from "@/lib/public-app-url";
 import { hash } from "bcryptjs";
 import { revalidatePath } from "next/cache";
 
 export type UserMgmtState = { ok: boolean; message: string; inviteLink?: string };
-
-function appBaseUrl() {
-  const u = process.env.NEXTAUTH_URL?.replace(/\/$/, "");
-  if (u) return u;
-  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
-  return "http://localhost:3000";
-}
 
 async function requireManager() {
   const session = await auth();
@@ -81,7 +75,7 @@ export async function inviteStaffUser(_prev: UserMgmtState | null, formData: For
     },
   });
 
-  const inviteLink = `${appBaseUrl()}/invite/${raw}`;
+  const inviteLink = `${getPublicAppBaseUrl()}/invite/${raw}`;
 
   const emailResult = await sendStaffInviteEmail({
     toEmail: email,
@@ -158,7 +152,7 @@ export async function resendStaffInvite(userId: string): Promise<UserMgmtState> 
     },
   });
 
-  const inviteLink = `${appBaseUrl()}/invite/${raw}`;
+  const inviteLink = `${getPublicAppBaseUrl()}/invite/${raw}`;
 
   const emailResult = await sendStaffInviteEmail({
     toEmail: user.email,
