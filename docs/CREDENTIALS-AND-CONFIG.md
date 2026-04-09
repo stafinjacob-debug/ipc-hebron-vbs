@@ -70,6 +70,12 @@ In **Configuration → Application settings** (slot settings as needed):
 | `AUTH_SECRET` | Key Vault or app setting | Must match the value used to sign sessions. |
 | `AUTH_URL` | App setting | Public site URL (`https://…`). |
 | `NODE_ENV` | `production` | Standard for Node. |
+| `MICROSOFT_GRAPH_TENANT_ID` | App setting | Azure AD tenant (directory) ID for app-only Graph mail. |
+| `MICROSOFT_GRAPH_CLIENT_ID` | App setting | App registration (client) ID. |
+| `MICROSOFT_GRAPH_CLIENT_SECRET` | App setting | Client secret value (rotate periodically). |
+| `MICROSOFT_GRAPH_MAILBOX` | App setting | Sender UPN Graph uses (`/users/{mailbox}/sendMail`), e.g. `no-reply@yourdomain.org`. |
+| `EMAIL_FROM_DISPLAY_NAME` | App setting | Optional; friendly “from” name in invite/registration emails. |
+| `REGISTRATION_EMAIL_BRAND` | App setting | Optional; brand line in registration email HTML (see `web/.env.example`). |
 | `WEBSITE_RUN_FROM_PACKAGE` | `1` | Often set automatically by zip deploy; confirm if using run-from-package. |
 
 **Startup command** (General settings):
