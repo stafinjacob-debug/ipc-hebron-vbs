@@ -43,10 +43,32 @@ const CLIENT_SUBMIT_KEY_FALLBACK_RE = /^idem-\d+-[a-z0-9]{6,32}$/i;
 /** Namespace for `pg_advisory_xact_lock(int, int)` (VBS public registration). */
 const ADV_LOCK_SPACE = 5_829_413;
 
+/**
+ * Reserved form field (dynamic wizard) so the nonce never collides with a builder field key.
+ * Legacy: `clientSubmitKey` on public-registration-form.
+ */
+function resolveClientSubmitKey(formData: FormData): string {
+  return fdGet("__vbsSubmitNonce", formData).trim() || fdGet("clientSubmitKey", formData).trim();
+}
+
 async function submitPublicRegistrationImpl(
   _prev: PublicRegisterState | null,
   formData: FormData,
-  boundClientSubmitKey?: string,
+): Promise<PublicRegisterState> {
+  try {
+    return await submitPublicRegistrationCore(_prev, formData);
+  } catch (e) {
+    console.error("[submitPublicRegistration]", e);
+    return {
+      ok: false,
+      message: "Something went wrong. Please try again in a few minutes.",
+    };
+  }
+}
+
+async function submitPublicRegistrationCore(
+  _prev: PublicRegisterState | null,
+  formData: FormData,
 ): Promise<PublicRegisterState> {
   const seasonId = fdGet("seasonId", formData);
 
@@ -107,9 +129,7 @@ async function submitPublicRegistrationImpl(
 
   const data = parsed;
 
-  const clientSubmitKey = (
-    boundClientSubmitKey?.trim() || fdGet("clientSubmitKey", formData).trim()
-  );
+  const clientSubmitKey = resolveClientSubmitKey(formData);
   if (
     clientSubmitKey.length > 80 ||
     (!CLIENT_SUBMIT_KEY_RE.test(clientSubmitKey) &&
@@ -143,7 +163,8 @@ async function submitPublicRegistrationImpl(
 
   let outcome: TxOutcome;
   try {
-    outcome = await prisma.$transaction(async (tx) => {
+    outcome = await prisma.$transaction(
+      async (tx) => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(${ADV_LOCK_SPACE}, hashtext(${seasonId}::text))`;
 
       const prior = await tx.formSubmission.findFirst({
@@ -259,7 +280,9 @@ async function submitPublicRegistrationImpl(
         waitlist,
         childCount: data.children.length,
       };
-    });
+    },
+      { maxWait: 20_000, timeout: 60_000 },
+    );
 
     if (outcome.kind === "new") {
       void sendSubmissionReceivedEmail(outcome.submissionId).catch((err) => {
@@ -310,22 +333,9 @@ async function submitPublicRegistrationImpl(
   }
 }
 
-/** Legacy path: nonce in hidden field `clientSubmitKey` (e.g. public-registration-form). */
 export async function submitPublicRegistration(
   _prev: PublicRegisterState | null,
   formData: FormData,
 ): Promise<PublicRegisterState> {
   return submitPublicRegistrationImpl(_prev, formData);
-}
-
-/**
- * Preferred for dynamic wizard: nonce is bound into the Server Action request so it still works if
- * a hidden field is missing (stale CDN HTML, duplicate field names, etc.).
- */
-export async function submitPublicRegistrationWithBoundNonce(
-  boundClientSubmitKey: string,
-  _prev: PublicRegisterState | null,
-  formData: FormData,
-): Promise<PublicRegisterState> {
-  return submitPublicRegistrationImpl(_prev, formData, boundClientSubmitKey);
 }

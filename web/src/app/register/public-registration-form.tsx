@@ -354,7 +354,7 @@ export function PublicRegistrationForm({
           </div>
 
           <input type="hidden" name="seasonId" value={seasonId} readOnly />
-          <input type="hidden" name="clientSubmitKey" value={clientSubmitKey} readOnly />
+          <input type="hidden" name="__vbsSubmitNonce" value={clientSubmitKey} readOnly />
           <input type="hidden" name="guardianFirstName" value={guardianFirstName} />
           <input type="hidden" name="guardianLastName" value={guardianLastName} />
           <input type="hidden" name="guardianEmail" value={guardianEmail} />
