@@ -107,7 +107,7 @@ export function PublicRegistrationSettingsForm(p: Props) {
           </label>
           <p className="mt-1 text-xs text-foreground/60">
             Dark overlay on top of the photo on <code className="rounded bg-foreground/10 px-1">/register</code>.{" "}
-            Lower shows more of the image; higher improves text contrast. The previous default look was about 60%.
+            Try roughly 35–55 if you want the picture to read clearly; raise it if the form text is hard to read.
           </p>
           <input
             id="registrationBackgroundDimmingPercent"

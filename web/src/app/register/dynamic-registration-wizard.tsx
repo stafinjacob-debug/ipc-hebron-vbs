@@ -21,6 +21,7 @@ import {
   type PublicRegistrationFieldRules,
 } from "@/lib/public-registration";
 import { childAgeYearsOnDate } from "@/lib/class-assignment-shared";
+import { registrationBackgroundScrimAlpha } from "@/lib/registration-background-scrim";
 import type { FormDefinitionV1, FormFieldDef } from "@/lib/registration-form-definition";
 import { sortSections } from "@/lib/registration-form-definition";
 import { formatPhoneInput, phoneDigits } from "@/lib/phone-format";
@@ -535,9 +536,9 @@ export function DynamicRegistrationWizard({
           />
           <div
             aria-hidden
-            className="pointer-events-none fixed inset-0 -z-10 backdrop-blur-2xl"
+            className="pointer-events-none fixed inset-0 -z-10"
             style={{
-              backgroundColor: `rgba(10, 10, 10, ${Math.min(1, Math.max(0, current.backgroundDimmingPercent / 100))})`,
+              backgroundColor: `rgba(10, 10, 10, ${registrationBackgroundScrimAlpha(current.backgroundDimmingPercent)})`,
             }}
           />
         </>

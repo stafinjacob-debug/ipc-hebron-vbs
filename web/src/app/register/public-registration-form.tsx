@@ -19,7 +19,10 @@ import {
   defaultPublicFieldRules,
   type PublicRegistrationFieldRules,
 } from "@/lib/public-registration";
-import { clampRegistrationBackgroundDimmingPercent } from "@/lib/registration-background-scrim";
+import {
+  clampRegistrationBackgroundDimmingPercent,
+  registrationBackgroundScrimAlpha,
+} from "@/lib/registration-background-scrim";
 import { formatPhoneInput, phoneDigits } from "@/lib/phone-format";
 import { submitPublicRegistration, type PublicRegisterState } from "./actions";
 
@@ -159,7 +162,7 @@ export function PublicRegistrationForm({
     () => seasons.find((s) => s.id === seasonId),
     [seasons, seasonId],
   );
-  const scrimAlpha = clampRegistrationBackgroundDimmingPercent(current?.backgroundDimmingPercent);
+  const dimmingPercent = clampRegistrationBackgroundDimmingPercent(current?.backgroundDimmingPercent);
   const rules: PublicRegistrationFieldRules = useMemo(
     () => current?.rules ?? defaultPublicFieldRules,
     [current?.rules],
@@ -303,9 +306,9 @@ export function PublicRegistrationForm({
           />
           <div
             aria-hidden
-            className="pointer-events-none fixed inset-0 -z-10 backdrop-blur-2xl"
+            className="pointer-events-none fixed inset-0 -z-10"
             style={{
-              backgroundColor: `rgba(10, 10, 10, ${Math.min(1, Math.max(0, scrimAlpha / 100))})`,
+              backgroundColor: `rgba(10, 10, 10, ${registrationBackgroundScrimAlpha(dimmingPercent)})`,
             }}
           />
         </>
