@@ -9,6 +9,11 @@ import { parseFormDefinitionJson } from "@/lib/registration-form-definition";
 import { parseDynamicRegistrationForm } from "@/lib/registration-form-validate";
 import { rulesFromDb } from "@/lib/public-registration";
 import { sendSubmissionReceivedEmail } from "@/lib/email/registration-emails";
+import {
+  applyAutoAssignmentToRegistration,
+  fetchClassroomsForAutoAssign,
+  resolveAutoClassAssignment,
+} from "@/lib/class-assignment";
 import { parseLocalDate } from "@/lib/schemas/vbs-registration";
 
 export type PublicRegisterState = {
@@ -197,6 +202,9 @@ export async function submitPublicRegistration(
         },
       });
 
+      const registeredAt = new Date();
+      const classrooms = await fetchClassroomsForAutoAssign(tx, seasonId);
+
       for (let i = 0; i < data.children.length; i++) {
         const c = data.children[i];
         const child = await tx.child.create({
@@ -211,18 +219,33 @@ export async function submitPublicRegistration(
 
         const status = waitlist ? "WAITLIST" : "PENDING";
 
-        await tx.registration.create({
+        const baseNotes =
+          data.children.length > 1
+            ? `Public registration (${i + 1} of ${data.children.length}) · Code ${registrationCode}`
+            : `Public registration · Code ${registrationCode}`;
+
+        const reg = await tx.registration.create({
           data: {
             childId: child.id,
             seasonId,
             status,
             formSubmissionId: submission.id,
             customResponses: Object.keys(c.custom).length ? (c.custom as object) : undefined,
-            notes:
-              data.children.length > 1
-                ? `Public registration (${i + 1} of ${data.children.length}) · Code ${registrationCode}`
-                : `Public registration · Code ${registrationCode}`,
+            notes: baseNotes,
           },
+        });
+
+        const assignResult = await resolveAutoClassAssignment(tx, {
+          childDob: dobDates[i],
+          registeredAt,
+          seasonStartDate: season.startDate,
+          currentStatus: status,
+          classrooms,
+        });
+        await applyAutoAssignmentToRegistration(tx, {
+          registrationId: reg.id,
+          result: assignResult,
+          existingNotes: baseNotes,
         });
       }
 

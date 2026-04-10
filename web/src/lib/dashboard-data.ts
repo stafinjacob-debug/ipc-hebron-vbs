@@ -1,3 +1,4 @@
+import { SEAT_COUNT_STATUSES } from "@/lib/class-assignment";
 import { getEventContext, type EventPhase } from "@/lib/event-phase";
 import { prisma } from "@/lib/prisma";
 
@@ -168,7 +169,7 @@ export async function getDashboardSnapshot(): Promise<DashboardSnapshot> {
             _count: {
               select: {
                 registrations: {
-                  where: { status: { not: "CANCELLED" } },
+                  where: { status: { in: [...SEAT_COUNT_STATUSES] } },
                 },
               },
             },
@@ -181,7 +182,7 @@ export async function getDashboardSnapshot(): Promise<DashboardSnapshot> {
             _count: {
               select: {
                 registrations: {
-                  where: { status: { not: "CANCELLED" } },
+                  where: { status: { in: [...SEAT_COUNT_STATUSES] } },
                 },
               },
             },

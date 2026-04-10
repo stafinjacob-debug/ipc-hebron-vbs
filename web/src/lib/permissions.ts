@@ -105,3 +105,13 @@ export function canManageVolunteersModule(role: UserRole): boolean {
     role === "REGISTRATION_MANAGER"
   );
 }
+
+/** Season-scoped operational announcements (mobile + future web). */
+export function canManageSeasonAnnouncements(role: UserRole): boolean {
+  return (
+    role === "SUPER_ADMIN" ||
+    role === "CHURCH_ADMIN" ||
+    role === "REGISTRATION_MANAGER" ||
+    role === "CONTENT_MANAGER"
+  );
+}

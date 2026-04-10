@@ -7,6 +7,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import QRCode from "qrcode";
 import { RegistrationAdminPanel } from "./registration-admin-panel";
+import { RegistrationClassAssignment } from "./registration-class-assignment";
 
 export default async function RegistrationDetailPage({
   params,
@@ -27,6 +28,20 @@ export default async function RegistrationDetailPage({
       formSubmission: { select: { id: true, registrationCode: true } },
     },
   });
+
+  const seasonClassrooms = reg
+    ? await prisma.classroom.findMany({
+        where: { seasonId: reg.seasonId },
+        orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+        select: {
+          id: true,
+          name: true,
+          ageMin: true,
+          ageMax: true,
+          ageRule: true,
+        },
+      })
+    : [];
 
   if (!reg) notFound();
 
@@ -75,10 +90,6 @@ export default async function RegistrationDetailPage({
                 <dt className="text-foreground/55">Registered</dt>
                 <dd className="text-foreground/80">{reg.registeredAt.toLocaleString()}</dd>
               </div>
-              <div>
-                <dt className="text-foreground/55">Class</dt>
-                <dd className="text-foreground/80">{reg.classroom?.name ?? "—"}</dd>
-              </div>
               {reg.formSubmission ? (
                 <div className="sm:col-span-2">
                   <dt className="text-foreground/55">Form submission</dt>
@@ -116,6 +127,20 @@ export default async function RegistrationDetailPage({
             <p className="text-sm text-foreground/70">{g.email ?? "—"}</p>
             <p className="text-sm text-foreground/70">{g.phone ?? "—"}</p>
           </section>
+
+          <RegistrationClassAssignment
+            registrationId={reg.id}
+            currentClassroomId={reg.classroomId}
+            currentClassroomName={reg.classroom?.name ?? null}
+            method={reg.classAssignmentMethod}
+            matchedAtAge={reg.classMatchedAtAge}
+            overrideReason={reg.classOverrideReason}
+            childDobIso={reg.child.dateOfBirth.toISOString()}
+            registeredAtIso={reg.registeredAt.toISOString()}
+            seasonStartIso={reg.season.startDate.toISOString()}
+            classrooms={seasonClassrooms}
+            canEdit={canEdit}
+          />
 
           {reg.notes ? (
             <section className="rounded-xl border border-foreground/10 bg-surface-elevated p-5">

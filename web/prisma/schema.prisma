@@ -43,6 +43,29 @@ enum RegistrationFormStatus {
   ARCHIVED
 }
 
+/// How student age is evaluated for class matching.
+enum ClassroomAgeRule {
+  REGISTRATION_DATE
+  EVENT_START_DATE
+}
+
+/// Whether new students are auto-placed into this class.
+enum ClassroomIntakeStatus {
+  OPEN
+  CLOSED
+}
+
+enum ClassLeaderRole {
+  PRIMARY
+  ASSISTANT
+  HELPER
+}
+
+enum ClassAssignmentMethod {
+  AUTO
+  MANUAL
+}
+
 model User {
   id           String      @id @default(cuid())
   email        String      @unique
@@ -68,8 +91,13 @@ model User {
   seasonScopes    UserSeasonScope[]
   classroomScopes UserClassroomScope[]
 
+  classroomLeaderAssignments ClassroomLeaderAssignment[]
+  classAssignmentAudits      ClassAssignmentAuditLog[] @relation("ClassAssignmentActor")
+
   staffAuditAsActor  StaffAccessAuditLog[] @relation("StaffAuditActor")
   staffAuditAsTarget StaffAccessAuditLog[] @relation("StaffAuditTarget")
+
+  announcementsCreated VbsAnnouncement[]
 }
 
 model UserSeasonScope {
@@ -151,6 +179,29 @@ model VbsSeason {
   registrationForm         RegistrationForm?
   formSubmissions            FormSubmission[]
   userSeasonScopes           UserSeasonScope[]
+  announcements              VbsAnnouncement[]
+}
+
+/// Operational notices for a season (check-in desk, room changes, etc.).
+model VbsAnnouncement {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  seasonId String
+  season   VbsSeason @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+
+  title  String
+  body   String @db.Text
+  /// Display tag: STAFF | VOLUNTEERS | ALL
+  audience String @default("STAFF")
+
+  pinned Boolean @default(false)
+
+  createdByUserId String?
+  createdBy       User?   @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@index([seasonId])
 }
 
 /// Per-season toggles for the public registration form (required optional fields + welcome text).
@@ -243,9 +294,31 @@ model FormSubmission {
 model Classroom {
   id        String   @id @default(cuid())
   name      String
+  /// Optional short code for reports / internal use.
+  internalCode String?
+  description String?  @db.Text
   ageMin    Int
   ageMax    Int
+  /// Which date to use when comparing the child’s age to ageMin/ageMax.
+  ageRule   ClassroomAgeRule @default(EVENT_START_DATE)
+  /// Display-only (e.g. “Kindergarten”).
+  gradeLabel String?
+  eligibilityNotes String? @db.Text
+
   capacity  Int      @default(20)
+  waitlistEnabled Boolean @default(true)
+  /// When CLOSED, auto-assignment skips this class; existing assignments stay until changed.
+  intakeStatus ClassroomIntakeStatus @default(OPEN)
+
+  room           String?
+  checkInLabel   String?
+  badgeDisplayName String?
+  adminNotes     String? @db.Text
+
+  /// Lower numbers match first when multiple classes fit the same age.
+  sortOrder Int @default(0)
+  isActive  Boolean @default(true)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -255,6 +328,25 @@ model Classroom {
   registrations Registration[]
   assignments   VolunteerAssignment[]
   userClassroomScopes UserClassroomScope[]
+  leaderAssignments   ClassroomLeaderAssignment[]
+
+  @@index([seasonId, sortOrder])
+}
+
+model ClassroomLeaderAssignment {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  classroomId String
+  classroom   Classroom @relation(fields: [classroomId], references: [id], onDelete: Cascade)
+
+  userId String
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  role ClassLeaderRole @default(ASSISTANT)
+
+  @@unique([classroomId, userId])
+  @@index([userId])
 }
 
 model Registration {
@@ -293,9 +385,38 @@ model Registration {
   /// Per-child answers for custom (non-reserved) dynamic fields.
   customResponses Json?
 
+  classAssignmentMethod ClassAssignmentMethod?
+  /// Staff override reason or notes when moved manually.
+  classOverrideReason   String?
+  /// Age (whole years) used when last auto-matched (for “why assigned”).
+  classMatchedAtAge     Int?
+
+  classAssignmentAudits ClassAssignmentAuditLog[]
+
   @@unique([childId, seasonId])
   @@index([seasonId])
   @@index([formSubmissionId])
+  @@index([classroomId])
+}
+
+model ClassAssignmentAuditLog {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  registrationId String
+  registration     Registration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+
+  fromClassroomId String?
+  toClassroomId   String?
+
+  method ClassAssignmentMethod
+  reason String?
+
+  actorUserId String?
+  actor       User? @relation("ClassAssignmentActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([registrationId])
+  @@index([createdAt])
 }
 
 model VolunteerProfile {

@@ -5,6 +5,7 @@ import {
   sendPaymentReminderEmail,
   sendRegistrationApprovedEmail,
 } from "@/lib/email/registration-emails";
+import { tryAutoAssignRegistration } from "@/lib/class-assignment";
 import { makeCheckInToken, makeUniqueRegistrationNumber } from "@/lib/registration-identity";
 import { prisma } from "@/lib/prisma";
 import { canManageDirectory } from "@/lib/roles";
@@ -71,6 +72,8 @@ export async function approveRegistration(registrationId: string): Promise<RegAc
       return { ok: false, message: "Could not approve registration right now. Please try again." };
     }
   }
+
+  await tryAutoAssignRegistration(registrationId);
 
   const emailResult = await sendRegistrationApprovedEmail(registrationId, { recordSentTimestamp: true });
   const emailHint =

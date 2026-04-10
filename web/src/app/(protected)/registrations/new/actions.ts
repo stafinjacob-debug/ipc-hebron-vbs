@@ -1,6 +1,11 @@
 "use server";
 
 import { auth } from "@/auth";
+import {
+  applyAutoAssignmentToRegistration,
+  fetchClassroomsForAutoAssign,
+  resolveAutoClassAssignment,
+} from "@/lib/class-assignment";
 import { sendRegistrationApprovedEmail } from "@/lib/email/registration-emails";
 import { prisma } from "@/lib/prisma";
 import { canManageDirectory } from "@/lib/roles";
@@ -76,7 +81,7 @@ export async function createVbsRegistration(
 
   const season = await prisma.vbsSeason.findUnique({
     where: { id: data.seasonId },
-    select: { id: true, year: true },
+    select: { id: true, year: true, startDate: true },
   });
   if (!season) {
     return { ok: false, message: "That VBS season no longer exists." };
@@ -117,6 +122,8 @@ export async function createVbsRegistration(
       const registrationNumber = await makeUniqueRegistrationNumber(season.year, tx);
       const checkInToken = makeCheckInToken();
 
+      const registeredAt = new Date();
+
       const reg = await tx.registration.create({
         data: {
           childId: child.id,
@@ -126,8 +133,26 @@ export async function createVbsRegistration(
           notes: data.notes ?? null,
           registrationNumber,
           checkInToken,
+          classAssignmentMethod: data.classroomId ? "MANUAL" : undefined,
         },
       });
+
+      if (!data.classroomId) {
+        const classrooms = await fetchClassroomsForAutoAssign(tx, data.seasonId);
+        const assignResult = await resolveAutoClassAssignment(tx, {
+          childDob: childDob,
+          registeredAt,
+          seasonStartDate: season.startDate,
+          currentStatus: data.status,
+          classrooms,
+        });
+        await applyAutoAssignmentToRegistration(tx, {
+          registrationId: reg.id,
+          result: assignResult,
+          existingNotes: data.notes ?? null,
+        });
+      }
+
       return reg.id;
     });
 

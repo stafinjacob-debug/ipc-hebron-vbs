@@ -16,6 +16,23 @@
 
 Copy from `web/.env.example`. Prisma CLI scripts (`db:migrate`, etc.) use `dotenv-cli` with `.env.local`. The seed script (`npm run db:seed`) loads `web/.env.local` itself from disk, so it does not depend on your shell working directory.
 
+### 1a. Dev vs production database (same Azure server)
+
+On the **Azure PostgreSQL Flexible Server** `ipc-hebron-vbs-87e0314c-pg` (resource group `rg-ipc-hebron-vbs-dev`), use **two databases** on the same host:
+
+| Database name | Use for |
+|---------------|---------|
+| `vbs` | **Local development** and shared “dev” data (`web/.env.local` → `.../vbs?sslmode=require`). |
+| `vbs_production` | **Production** only — App Service, GitHub Actions production `DATABASE_URL`, and any `…/vbs_production?sslmode=require` secret. |
+
+Apply migrations to production after schema changes:
+
+```bash
+cd web && npm run db:migrate:deploy:production
+```
+
+That runs `prisma migrate deploy` against `vbs_production` using the same user/host as in `.env.local`, only changing the database name (see `web/scripts/run-migrate-for-db.mjs`). New production databases start **empty**; run `npm run db:seed` pointed at production only if you intentionally want seed data there, or migrate real data separately.
+
 ---
 
 ## 2. GitHub (CI/CD)
@@ -26,7 +43,7 @@ Configure in the repository: **Settings → Secrets and variables → Actions**.
 
 | Secret name | Used by | Description |
 |-------------|---------|-------------|
-| `DATABASE_URL` | Workflow: `prisma migrate deploy`, `next build` | **Production** Postgres URL (TLS). Same DB the App Service will use. |
+| `DATABASE_URL` | Workflow: `prisma migrate deploy`, `next build` | **Production** Postgres URL (TLS). Must use the **`vbs_production`** database name on the flexible server (not `vbs`). Same URL the App Service uses. |
 | `AUTH_SECRET` | Workflow: `next build` | Same value you set in Azure for production (or a build-time-only secret if you rotate separately—prefer one production secret). |
 | `AUTH_URL` | Workflow: `next build` | Public HTTPS origin of the site, e.g. `https://your-app.azurewebsites.net` (no trailing slash). |
 | `AZURE_WEBAPP_PUBLISH_PROFILE` | `azure/webapps-deploy` | Contents of the App Service **Download publish profile** file (XML). **Alternative:** use OpenID Connect (OIDC) with Azure login instead of this secret (see below). |
@@ -57,7 +74,7 @@ If you switch to OIDC, replace the publish-profile deploy step with `azure/login
 | Item | Notes |
 |------|--------|
 | Admin user / password | Set at server creation; **do not** paste into the repo. |
-| Connection string | Build `DATABASE_URL` as `postgresql://USER:PASSWORD@HOST:5432/DATABASE?sslmode=require`. |
+| Connection string | Build `DATABASE_URL` as `postgresql://USER:PASSWORD@HOST:5432/DATABASE?sslmode=require`. Use database name **`vbs_production`** for App Service and CI; use **`vbs`** only for local/dev. |
 | Firewall | Allow Azure services; optionally your IP for manual access. |
 
 ### 3b. App Service (Linux)
