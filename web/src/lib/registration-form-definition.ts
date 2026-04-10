@@ -228,3 +228,13 @@ export function fieldsForAudience(def: FormDefinitionV1, audience: FormSectionDe
   const sectionIds = new Set(def.sections.filter((s) => s.audience === audience).map((s) => s.id));
   return def.fields.filter((f) => sectionIds.has(f.sectionId)).sort((a, b) => a.order - b.order);
 }
+
+/** Per-child form fields usable for class auto-match (excludes section headers / static blocks). */
+export function listChildAssignableFieldOptions(def: FormDefinitionV1): { key: string; label: string }[] {
+  const out: { key: string; label: string }[] = [];
+  for (const f of fieldsForAudience(def, "eachChild")) {
+    if (f.type === "sectionHeader" || f.type === "staticText") continue;
+    out.push({ key: f.key, label: f.label });
+  }
+  return out;
+}

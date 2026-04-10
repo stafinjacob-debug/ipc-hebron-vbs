@@ -1,6 +1,7 @@
 "use client";
 
 import type { Classroom } from "@/generated/prisma";
+import { jsonToStringArray } from "@/lib/class-form-field-match";
 import Link from "next/link";
 import { useActionState } from "react";
 import {
@@ -21,11 +22,14 @@ export function ClassroomForm({
   classroom,
   seasonId,
   seasons,
+  assignableChildFields = [],
 }: {
   mode: "create" | "edit";
   classroom?: Classroom;
   seasonId: string;
   seasons: { id: string; name: string; year: number }[];
+  /** From the season’s published registration form (per-child fields). */
+  assignableChildFields?: { key: string; label: string }[];
 }) {
   const action = mode === "create" ? createClassroomAction : updateClassroomAction;
   const [state, formAction, pending] = useActionState(action, initial);
@@ -216,6 +220,67 @@ export function ClassroomForm({
               className={input}
               defaultValue={c?.eligibilityNotes ?? ""}
             />
+          </div>
+        </div>
+        <div className="mt-6 border-t border-foreground/10 pt-6">
+          <h3 className="text-sm font-semibold text-foreground">Form field match (optional)</h3>
+          <p className="mt-1 text-sm text-muted">
+            After the age band matches, auto-assignment can require a per-child registration answer
+            (e.g. grade or track) to equal one of the values below. Comparison is case-insensitive.
+            Leave blank to use age only.
+          </p>
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            <div className="sm:col-span-2">
+              <label className={label} htmlFor="matchFormFieldKey">
+                Registration field key
+              </label>
+              <input
+                id="matchFormFieldKey"
+                name="matchFormFieldKey"
+                className={input}
+                list={
+                  assignableChildFields.length > 0 ? "assignable-child-field-keys" : undefined
+                }
+                defaultValue={c?.matchFormFieldKey ?? ""}
+                placeholder="e.g. gradeLevel (must match your form builder key)"
+                autoComplete="off"
+              />
+              {assignableChildFields.length > 0 ? (
+                <datalist id="assignable-child-field-keys">
+                  {assignableChildFields.map((f) => (
+                    <option key={f.key} value={f.key} label={f.label} />
+                  ))}
+                </datalist>
+              ) : null}
+              {assignableChildFields.length > 0 ? (
+                <p className="mt-1 text-xs text-muted">
+                  Suggestions from the published form for this season. You can type any child-scoped
+                  field key.
+                </p>
+              ) : (
+                <p className="mt-1 text-xs text-muted">
+                  No published registration form found for this season — enter the exact field key from
+                  your form definition.
+                </p>
+              )}
+            </div>
+            <div className="sm:col-span-2">
+              <label className={label} htmlFor="matchFormFieldValues">
+                Allowed values (one per line or comma-separated)
+              </label>
+              <textarea
+                id="matchFormFieldValues"
+                name="matchFormFieldValues"
+                rows={3}
+                className={input}
+                defaultValue={
+                  c?.matchFormFieldValues != null
+                    ? jsonToStringArray(c.matchFormFieldValues).join("\n")
+                    : ""
+                }
+                placeholder={"K\n1\n2"}
+              />
+            </div>
           </div>
         </div>
       </section>

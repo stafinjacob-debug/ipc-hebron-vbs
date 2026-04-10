@@ -27,6 +27,9 @@ export type ClassroomForAutoAssign = {
   intakeStatus: ClassroomIntakeStatus;
   isActive: boolean;
   sortOrder: number;
+  /** When set with non-empty values, auto-assign also requires this per-child form answer. */
+  matchFormFieldKey: string | null;
+  matchFormFieldValues: string[];
 };
 
 export function childAgeYearsOnDate(dob: Date, asOf: Date): number {

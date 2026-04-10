@@ -319,6 +319,13 @@ model Classroom {
   sortOrder Int @default(0)
   isActive  Boolean @default(true)
 
+  /// When set with `matchFormFieldValues`, auto-assignment also requires this per-child form field
+  /// (from the season’s published registration form) to match one of the allowed values (after trim;
+  /// comparison is case-insensitive). Age rules still apply first.
+  matchFormFieldKey     String?
+  /// JSON string array of allowed answers (e.g. `["K","1","2"]` for grade).
+  matchFormFieldValues  Json?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

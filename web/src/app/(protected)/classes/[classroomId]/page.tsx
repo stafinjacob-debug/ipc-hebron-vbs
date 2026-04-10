@@ -1,4 +1,6 @@
+import { ClassroomRosterQuickMove } from "@/app/(protected)/classes/classroom-roster-quick-move";
 import { auth } from "@/auth";
+import { jsonToStringArray } from "@/lib/class-form-field-match";
 import { prisma } from "@/lib/prisma";
 import { ageForClassroomRule, ageRuleLabel } from "@/lib/class-assignment";
 import { canUserViewClassroom } from "@/lib/classroom-access";
@@ -34,6 +36,12 @@ export default async function ClassroomDetailPage({
 
   const countsMap = await getEnrollmentCountsByClassroom(c.seasonId);
   const ec = countsMap.get(c.id) ?? { seated: 0, waitlisted: 0 };
+
+  const seasonClassrooms = await prisma.classroom.findMany({
+    where: { seasonId: c.seasonId },
+    orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+    select: { id: true, name: true },
+  });
 
   const roster = await prisma.registration.findMany({
     where: {
@@ -130,6 +138,16 @@ export default async function ClassroomDetailPage({
             <dt className="text-muted">Match priority</dt>
             <dd className="tabular-nums">{c.sortOrder}</dd>
           </div>
+          {c.matchFormFieldKey?.trim() && c.matchFormFieldValues != null ? (
+            <div className="sm:col-span-2">
+              <dt className="text-muted">Auto-assign form rule</dt>
+              <dd>
+                Field <code className="rounded bg-foreground/10 px-1">{c.matchFormFieldKey}</code> must
+                be one of:{" "}
+                {jsonToStringArray(c.matchFormFieldValues).join(", ") || "—"}
+              </dd>
+            </div>
+          ) : null}
           {c.description ? (
             <div className="sm:col-span-2">
               <dt className="text-muted">Description</dt>
@@ -171,6 +189,7 @@ export default async function ClassroomDetailPage({
                   <th className="py-2 pr-3 font-medium">Status</th>
                   <th className="py-2 pr-3 font-medium">Check-in</th>
                   <th className="py-2 pr-3 font-medium">Guardian</th>
+                  {canEdit ? <th className="py-2 font-medium">Move</th> : null}
                   <th className="py-2 font-medium" />
                 </tr>
               </thead>
@@ -211,6 +230,15 @@ export default async function ClassroomDetailPage({
                         {g.firstName} {g.lastName}
                         <div className="text-xs">{g.email ?? g.phone ?? "—"}</div>
                       </td>
+                      {canEdit ? (
+                        <td className="py-2 align-top">
+                          <ClassroomRosterQuickMove
+                            registrationId={r.id}
+                            currentClassroomId={c.id}
+                            seasonClassrooms={seasonClassrooms}
+                          />
+                        </td>
+                      ) : null}
                       <td className="py-2">
                         <Link
                           href={`/registrations/${r.id}`}
@@ -235,13 +263,25 @@ export default async function ClassroomDetailPage({
         ) : (
           <ul className="mt-3 space-y-2 text-sm">
             {waitlist.map((r) => (
-              <li key={r.id} className="flex flex-wrap justify-between gap-2 border-t border-foreground/10 pt-2 first:border-0 first:pt-0">
+              <li
+                key={r.id}
+                className="flex flex-wrap items-center justify-between gap-2 border-t border-foreground/10 pt-2 first:border-0 first:pt-0"
+              >
                 <span>
                   {r.child.firstName} {r.child.lastName}
                 </span>
-                <Link href={`/registrations/${r.id}`} className="text-brand underline">
-                  Open registration
-                </Link>
+                <div className="flex flex-wrap items-center gap-3">
+                  {canEdit ? (
+                    <ClassroomRosterQuickMove
+                      registrationId={r.id}
+                      currentClassroomId={c.id}
+                      seasonClassrooms={seasonClassrooms}
+                    />
+                  ) : null}
+                  <Link href={`/registrations/${r.id}`} className="text-brand underline">
+                    Open registration
+                  </Link>
+                </div>
               </li>
             ))}
           </ul>

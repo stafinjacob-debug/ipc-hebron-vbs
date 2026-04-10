@@ -86,7 +86,9 @@ export default async function AssignmentRulesPage({
         <h1 className="mt-2 text-2xl font-semibold tracking-tight">Assignment rules</h1>
         <p className="mt-1 text-muted">
           Validate age bands, overlaps, and gaps for the selected season. Preview uses hypothetical
-          birthdays aligned to each whole age at event start (approximate).
+          birthdays aligned to each whole age at event start (approximate). Classes can also require a
+          registration form field (e.g. grade); that is not shown in this grid — see each class’s
+          edit page.
         </p>
       </div>
 

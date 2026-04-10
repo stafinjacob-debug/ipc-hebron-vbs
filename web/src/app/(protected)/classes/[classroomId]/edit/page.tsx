@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { canManageDirectory, canViewOperations } from "@/lib/roles";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { listAssignableChildFieldsForSeason } from "@/lib/classroom-child-field-options";
 import { ClassroomForm } from "../../classroom-form";
 import { ClassroomLeadersForm } from "../../classroom-leaders-form";
 
@@ -38,6 +39,8 @@ export default async function EditClassPage({
 
   if (!c) notFound();
 
+  const assignableChildFields = await listAssignableChildFieldsForSeason(c.seasonId);
+
   const primaryId = c.leaderAssignments.find((x) => x.role === "PRIMARY")?.userId ?? null;
   const assistantIds = c.leaderAssignments
     .filter((x) => x.role !== "PRIMARY")
@@ -51,7 +54,13 @@ export default async function EditClassPage({
         </Link>
         <h1 className="mt-2 text-2xl font-semibold tracking-tight">Edit class</h1>
       </div>
-      <ClassroomForm mode="edit" classroom={c} seasonId={c.seasonId} seasons={seasons} />
+      <ClassroomForm
+        mode="edit"
+        classroom={c}
+        seasonId={c.seasonId}
+        seasons={seasons}
+        assignableChildFields={assignableChildFields}
+      />
       <ClassroomLeadersForm
         classroomId={c.id}
         staff={staff}

@@ -44,9 +44,9 @@ export function RegistrationClassAssignment({
 
   const methodLabel =
     method === "MANUAL"
-      ? "Manual override"
+      ? "Manual (staff moved)"
       : method === "AUTO"
-        ? "Automatic (age rules)"
+        ? "Automatic (age + optional form field rules)"
         : "Not recorded (legacy)";
 
   return (

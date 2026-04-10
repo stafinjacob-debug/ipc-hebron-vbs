@@ -1,11 +1,13 @@
 "use server";
 
 import { auth } from "@/auth";
-import type {
-  ClassLeaderRole,
-  ClassroomAgeRule,
-  ClassroomIntakeStatus,
+import {
+  Prisma,
+  type ClassLeaderRole,
+  type ClassroomAgeRule,
+  type ClassroomIntakeStatus,
 } from "@/generated/prisma";
+import { parseMatchFieldValuesFromForm } from "@/lib/class-form-field-match";
 import {
   ageForClassroomRule,
   ageRangeOverlaps,
@@ -86,6 +88,10 @@ export async function createClassroomAction(
   const ageRule = (str(formData, "ageRule") as ClassroomAgeRule) || "EVENT_START_DATE";
   const intakeStatus = (str(formData, "intakeStatus") as ClassroomIntakeStatus) || "OPEN";
 
+  const mfKey = str(formData, "matchFormFieldKey").trim();
+  const mfVals = parseMatchFieldValuesFromForm(str(formData, "matchFormFieldValues"));
+  const useFormMatch = Boolean(mfKey && mfVals.length > 0);
+
   const others = await prisma.classroom.findMany({
     where: { seasonId, isActive: true },
     select: { id: true, name: true, ageMin: true, ageMax: true },
@@ -113,6 +119,8 @@ export async function createClassroomAction(
         adminNotes: str(formData, "adminNotes").trim() || null,
         sortOrder: intField(formData, "sortOrder", 0),
         isActive: str(formData, "isActive") !== "false",
+        matchFormFieldKey: useFormMatch ? mfKey : null,
+        matchFormFieldValues: useFormMatch ? mfVals : Prisma.DbNull,
       },
     });
     revalidatePath("/classes");
@@ -157,6 +165,10 @@ export async function updateClassroomAction(
   const ageRule = (str(formData, "ageRule") as ClassroomAgeRule) || "EVENT_START_DATE";
   const intakeStatus = (str(formData, "intakeStatus") as ClassroomIntakeStatus) || "OPEN";
 
+  const mfKey = str(formData, "matchFormFieldKey").trim();
+  const mfVals = parseMatchFieldValuesFromForm(str(formData, "matchFormFieldValues"));
+  const useFormMatch = Boolean(mfKey && mfVals.length > 0);
+
   const others = await prisma.classroom.findMany({
     where: { seasonId: existing.seasonId, isActive: true },
     select: { id: true, name: true, ageMin: true, ageMax: true },
@@ -184,6 +196,8 @@ export async function updateClassroomAction(
         adminNotes: str(formData, "adminNotes").trim() || null,
         sortOrder: intField(formData, "sortOrder", 0),
         isActive: str(formData, "isActive") !== "false",
+        matchFormFieldKey: useFormMatch ? mfKey : null,
+        matchFormFieldValues: useFormMatch ? mfVals : Prisma.DbNull,
       },
     });
   } catch (e) {
@@ -227,12 +241,20 @@ export async function duplicateClassroomAction(classroomId: string): Promise<Cla
   const src = await prisma.classroom.findUnique({ where: { id: classroomId } });
   if (!src) return { ok: false, message: "Class not found." };
 
-  const { id: _id, createdAt: _c, updatedAt: _u, ...rest } = src;
+  const {
+    id: _id,
+    createdAt: _c,
+    updatedAt: _u,
+    matchFormFieldValues: srcMfv,
+    ...rest
+  } = src;
   await prisma.classroom.create({
     data: {
       ...rest,
       name: `${src.name} (copy)`,
       sortOrder: src.sortOrder + 1,
+      matchFormFieldValues:
+        srcMfv == null ? undefined : (srcMfv as Prisma.InputJsonValue),
     },
   });
 

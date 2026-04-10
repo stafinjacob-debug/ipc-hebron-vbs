@@ -259,12 +259,20 @@ async function submitPublicRegistrationCore(
           },
         });
 
+        const childFieldContext: Record<string, string | boolean | number | null> = {
+          ...c.custom,
+          childFirstName: c.childFirstName,
+          childLastName: c.childLastName,
+          childDateOfBirth: c.childDateOfBirth,
+          allergiesNotes: c.allergiesNotes ?? null,
+        };
         const assignResult = await resolveAutoClassAssignment(tx, {
           childDob: dobDates[i],
           registeredAt,
           seasonStartDate: season.startDate,
           currentStatus: status,
           classrooms,
+          childFieldContext,
         });
         await applyAutoAssignmentToRegistration(tx, {
           registrationId: reg.id,

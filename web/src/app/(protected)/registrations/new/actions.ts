@@ -139,12 +139,19 @@ export async function createVbsRegistration(
 
       if (!data.classroomId) {
         const classrooms = await fetchClassroomsForAutoAssign(tx, data.seasonId);
+        const childFieldContext: Record<string, string | boolean | number | null> = {
+          childFirstName: data.childFirstName,
+          childLastName: data.childLastName,
+          childDateOfBirth: data.childDateOfBirth,
+          allergiesNotes: data.allergiesNotes ?? null,
+        };
         const assignResult = await resolveAutoClassAssignment(tx, {
           childDob: childDob,
           registeredAt,
           seasonStartDate: season.startDate,
           currentStatus: data.status,
           classrooms,
+          childFieldContext,
         });
         await applyAutoAssignmentToRegistration(tx, {
           registrationId: reg.id,
