@@ -156,6 +156,7 @@ export async function updateRegistrationFormSettings(
     waitlistEnabled: boolean;
     publicRegistrationOpen: boolean;
     minimumParticipantAgeYears: number | null;
+    maximumParticipantAgeYears: number | null;
   },
 ): Promise<ActionState> {
   const session = await auth();
@@ -175,8 +176,16 @@ export async function updateRegistrationFormSettings(
 
   const minAge =
     data.minimumParticipantAgeYears != null && data.minimumParticipantAgeYears >= 1
-      ? Math.min(25, Math.floor(data.minimumParticipantAgeYears))
+      ? Math.min(99, Math.floor(data.minimumParticipantAgeYears))
       : null;
+  const maxAge =
+    data.maximumParticipantAgeYears != null && data.maximumParticipantAgeYears >= 1
+      ? Math.min(99, Math.floor(data.maximumParticipantAgeYears))
+      : null;
+
+  if (minAge != null && maxAge != null && minAge > maxAge) {
+    return { ok: false, message: "Minimum age cannot be greater than maximum age." };
+  }
 
   await prisma.$transaction([
     prisma.vbsSeason.update({
@@ -195,6 +204,7 @@ export async function updateRegistrationFormSettings(
         maxTotalRegistrations: data.maxTotalRegistrations,
         waitlistEnabled: data.waitlistEnabled,
         minimumParticipantAgeYears: minAge,
+        maximumParticipantAgeYears: maxAge,
         updatedByUserId: session.user.id ?? undefined,
       },
     }),
@@ -248,6 +258,7 @@ export async function cloneRegistrationFormFromSeason(
       registrationOpensAt: srcForm.registrationOpensAt,
       registrationClosesAt: srcForm.registrationClosesAt,
       minimumParticipantAgeYears: srcForm.minimumParticipantAgeYears,
+      maximumParticipantAgeYears: srcForm.maximumParticipantAgeYears,
       updatedByUserId: session.user.id ?? undefined,
     },
   });

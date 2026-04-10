@@ -155,7 +155,11 @@ async function submitPublicRegistrationCore(
   }
 
   const minYears = formRow.minimumParticipantAgeYears;
-  if (minYears != null && minYears >= 1) {
+  const maxYears = formRow.maximumParticipantAgeYears;
+  if (
+    (minYears != null && minYears >= 1) ||
+    (maxYears != null && maxYears >= 1)
+  ) {
     const asOf = season.startDate;
     const startLabel = asOf.toLocaleDateString(undefined, {
       month: "long",
@@ -164,13 +168,24 @@ async function submitPublicRegistrationCore(
     });
     for (let i = 0; i < dobDates.length; i++) {
       const age = childAgeYearsOnDate(dobDates[i], asOf);
-      if (age < minYears) {
+      if (minYears != null && minYears >= 1 && age < minYears) {
         return {
           ok: false,
           message: `Child ${i + 1} must be at least ${minYears} years old on the first day of VBS (${startLabel}).`,
           fieldErrors: {
             [`childDateOfBirth__${i}`]: [
               `Children must be at least ${minYears} on the program start date (${startLabel}).`,
+            ],
+          },
+        };
+      }
+      if (maxYears != null && maxYears >= 1 && age > maxYears) {
+        return {
+          ok: false,
+          message: `Child ${i + 1} must be at most ${maxYears} years old on the first day of VBS (${startLabel}).`,
+          fieldErrors: {
+            [`childDateOfBirth__${i}`]: [
+              `Children must be at most ${maxYears} on the program start date (${startLabel}).`,
             ],
           },
         };

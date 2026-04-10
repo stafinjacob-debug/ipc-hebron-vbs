@@ -90,9 +90,10 @@ export async function createVbsRegistration(
 
   const regForm = await prisma.registrationForm.findUnique({
     where: { seasonId: data.seasonId },
-    select: { minimumParticipantAgeYears: true },
+    select: { minimumParticipantAgeYears: true, maximumParticipantAgeYears: true },
   });
   const minYears = regForm?.minimumParticipantAgeYears;
+  const maxYears = regForm?.maximumParticipantAgeYears;
 
   let childDob: Date;
   try {
@@ -105,20 +106,34 @@ export async function createVbsRegistration(
     };
   }
 
-  if (minYears != null && minYears >= 1) {
+  if (
+    (minYears != null && minYears >= 1) ||
+    (maxYears != null && maxYears >= 1)
+  ) {
     const age = childAgeYearsOnDate(childDob, season.startDate);
-    if (age < minYears) {
-      const startLabel = season.startDate.toLocaleDateString(undefined, {
-        month: "long",
-        day: "numeric",
-        year: "numeric",
-      });
+    const startLabel = season.startDate.toLocaleDateString(undefined, {
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+    });
+    if (minYears != null && minYears >= 1 && age < minYears) {
       return {
         ok: false,
         message: `This season requires children to be at least ${minYears} years old on the first day of VBS (${startLabel}).`,
         fieldErrors: {
           childDateOfBirth: [
             `Must be at least ${minYears} on the program start date (${startLabel}).`,
+          ],
+        },
+      };
+    }
+    if (maxYears != null && maxYears >= 1 && age > maxYears) {
+      return {
+        ok: false,
+        message: `This season requires children to be at most ${maxYears} years old on the first day of VBS (${startLabel}).`,
+        fieldErrors: {
+          childDateOfBirth: [
+            `Must be at most ${maxYears} on the program start date (${startLabel}).`,
           ],
         },
       };

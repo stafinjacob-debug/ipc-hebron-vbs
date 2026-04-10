@@ -52,6 +52,7 @@ export default async function RegistrationFormSettingsPage({
           waitlistEnabled: form.waitlistEnabled,
           publicRegistrationOpen: season.publicRegistrationOpen,
           minimumParticipantAgeYears: form.minimumParticipantAgeYears,
+          maximumParticipantAgeYears: form.maximumParticipantAgeYears,
         }}
       />
     </div>

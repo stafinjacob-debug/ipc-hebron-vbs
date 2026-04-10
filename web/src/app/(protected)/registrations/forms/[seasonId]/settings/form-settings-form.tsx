@@ -33,6 +33,7 @@ export function FormSettingsForm({
     waitlistEnabled: boolean;
     publicRegistrationOpen: boolean;
     minimumParticipantAgeYears: number | null;
+    maximumParticipantAgeYears: number | null;
   };
 }) {
   const router = useRouter();
@@ -59,8 +60,23 @@ export function FormSettingsForm({
         const minParsed = parseInt(minAgeRaw, 10);
         const minimumParticipantAgeYears =
           minAgeRaw && Number.isFinite(minParsed) && minParsed >= 1
-            ? Math.min(25, minParsed)
+            ? Math.min(99, minParsed)
             : null;
+        const maxAgeRaw = String(fd.get("maximumParticipantAgeYears") ?? "").trim();
+        const maxParsed = parseInt(maxAgeRaw, 10);
+        const maximumParticipantAgeYears =
+          maxAgeRaw && Number.isFinite(maxParsed) && maxParsed >= 1
+            ? Math.min(99, maxParsed)
+            : null;
+
+        if (
+          minimumParticipantAgeYears != null &&
+          maximumParticipantAgeYears != null &&
+          minimumParticipantAgeYears > maximumParticipantAgeYears
+        ) {
+          setMsg("Minimum age cannot be greater than maximum age.");
+          return;
+        }
 
         setMsg(null);
         startTransition(async () => {
@@ -75,6 +91,7 @@ export function FormSettingsForm({
             waitlistEnabled,
             publicRegistrationOpen,
             minimumParticipantAgeYears,
+            maximumParticipantAgeYears,
           });
           setMsg(r.message);
           if (r.ok) router.refresh();
@@ -179,27 +196,47 @@ export function FormSettingsForm({
             className="mt-1 w-full max-w-xs rounded-md border border-foreground/15 bg-background px-3 py-2 text-sm"
           />
         </div>
-        <div>
-          <label
-            htmlFor="minimumParticipantAgeYears"
-            className="block text-xs font-medium text-foreground/70"
-          >
-            Minimum child age (optional)
-          </label>
-          <input
-            id="minimumParticipantAgeYears"
-            name="minimumParticipantAgeYears"
-            type="number"
-            min={1}
-            max={25}
-            placeholder="No minimum"
-            defaultValue={initial.minimumParticipantAgeYears ?? ""}
-            className="mt-1 w-full max-w-xs rounded-md border border-foreground/15 bg-background px-3 py-2 text-sm"
-          />
-          <p className="mt-1 text-xs text-foreground/60">
-            Whole years old on the first day of VBS (season start). Leave empty for no limit.
-          </p>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label
+              htmlFor="minimumParticipantAgeYears"
+              className="block text-xs font-medium text-foreground/70"
+            >
+              Minimum child age (optional)
+            </label>
+            <input
+              id="minimumParticipantAgeYears"
+              name="minimumParticipantAgeYears"
+              type="number"
+              min={1}
+              max={99}
+              placeholder="No minimum"
+              defaultValue={initial.minimumParticipantAgeYears ?? ""}
+              className="mt-1 w-full rounded-md border border-foreground/15 bg-background px-3 py-2 text-sm"
+            />
+          </div>
+          <div>
+            <label
+              htmlFor="maximumParticipantAgeYears"
+              className="block text-xs font-medium text-foreground/70"
+            >
+              Maximum child age (optional)
+            </label>
+            <input
+              id="maximumParticipantAgeYears"
+              name="maximumParticipantAgeYears"
+              type="number"
+              min={1}
+              max={99}
+              placeholder="No maximum"
+              defaultValue={initial.maximumParticipantAgeYears ?? ""}
+              className="mt-1 w-full rounded-md border border-foreground/15 bg-background px-3 py-2 text-sm"
+            />
+          </div>
         </div>
+        <p className="text-xs text-foreground/60">
+          Whole years old on the first day of VBS (season start). Leave either field empty for no limit on that side.
+        </p>
         <label className="flex items-center gap-2 text-sm">
           <input
             type="checkbox"

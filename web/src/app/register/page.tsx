@@ -45,6 +45,7 @@ export default async function PublicRegisterPage() {
       formTitle: formRow.title,
       definition: getEffectiveDefinition(formRow, false),
       minimumParticipantAgeYears: formRow.minimumParticipantAgeYears,
+      maximumParticipantAgeYears: formRow.maximumParticipantAgeYears,
     });
   }
 

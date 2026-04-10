@@ -39,6 +39,7 @@ export type PublicSeasonOption = {
   formTitle: string;
   definition: FormDefinitionV1;
   minimumParticipantAgeYears: number | null;
+  maximumParticipantAgeYears: number | null;
 };
 
 export type RegisterContactProps = {
@@ -389,7 +390,11 @@ export function DynamicRegistrationWizard({
           }
         }
         const minY = current?.minimumParticipantAgeYears;
-        if (minY != null && minY >= 1 && current) {
+        const maxY = current?.maximumParticipantAgeYears;
+        if (
+          current &&
+          ((minY != null && minY >= 1) || (maxY != null && maxY >= 1))
+        ) {
           const asOf = new Date(current.startDate);
           for (let i = 0; i < children.length; i++) {
             const dobStr = (children[i].values.childDateOfBirth ?? "").trim();
@@ -401,8 +406,11 @@ export function DynamicRegistrationWizard({
               continue;
             }
             const age = childAgeYearsOnDate(dob, asOf);
-            if (age < minY) {
+            if (minY != null && minY >= 1 && age < minY) {
               return `Child ${i + 1}: Must be at least ${minY} years old on the first day of VBS.`;
+            }
+            if (maxY != null && maxY >= 1 && age > maxY) {
+              return `Child ${i + 1}: Must be at most ${maxY} years old on the first day of VBS.`;
             }
           }
         }
@@ -442,6 +450,7 @@ export function DynamicRegistrationWizard({
       confirmAccurate,
       rules,
       current?.minimumParticipantAgeYears,
+      current?.maximumParticipantAgeYears,
       current?.startDate,
     ],
   );
@@ -686,18 +695,44 @@ export function DynamicRegistrationWizard({
                 title="Children attending VBS"
                 description="Add every child who will participate on this form."
               />
-              {current.minimumParticipantAgeYears != null && current.minimumParticipantAgeYears >= 1 ? (
-                <p className="mb-4 rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-neutral-700 dark:border-neutral-600 dark:bg-neutral-900/80 dark:text-neutral-300">
-                  Each child must be at least{" "}
-                  <span className="font-semibold">{current.minimumParticipantAgeYears}</span> years old on{" "}
-                  {new Date(current.startDate).toLocaleDateString(undefined, {
-                    month: "long",
-                    day: "numeric",
-                    year: "numeric",
-                  })}{" "}
-                  (first day of this VBS).
-                </p>
-              ) : null}
+              {(() => {
+                const minOk =
+                  current.minimumParticipantAgeYears != null &&
+                  current.minimumParticipantAgeYears >= 1;
+                const maxOk =
+                  current.maximumParticipantAgeYears != null &&
+                  current.maximumParticipantAgeYears >= 1;
+                if (!minOk && !maxOk) return null;
+                const startLabel = new Date(current.startDate).toLocaleDateString(undefined, {
+                  month: "long",
+                  day: "numeric",
+                  year: "numeric",
+                });
+                return (
+                  <p className="mb-4 rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-neutral-700 dark:border-neutral-600 dark:bg-neutral-900/80 dark:text-neutral-300">
+                    {minOk && maxOk ? (
+                      <>
+                        Each child must be between{" "}
+                        <span className="font-semibold">{current.minimumParticipantAgeYears}</span> and{" "}
+                        <span className="font-semibold">{current.maximumParticipantAgeYears}</span> years old on{" "}
+                        {startLabel} (first day of this VBS).
+                      </>
+                    ) : minOk ? (
+                      <>
+                        Each child must be at least{" "}
+                        <span className="font-semibold">{current.minimumParticipantAgeYears}</span> years old on{" "}
+                        {startLabel} (first day of this VBS).
+                      </>
+                    ) : (
+                      <>
+                        Each child must be at most{" "}
+                        <span className="font-semibold">{current.maximumParticipantAgeYears}</span> years old on{" "}
+                        {startLabel} (first day of this VBS).
+                      </>
+                    )}
+                  </p>
+                );
+              })()}
               {children.map((ch, idx) => (
                 <div
                   key={ch.id}

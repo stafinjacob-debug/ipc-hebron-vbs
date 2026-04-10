@@ -241,6 +241,8 @@ model RegistrationForm {
   waitlistEnabled       Boolean   @default(false)
   /// If set (>=1), each child must be at least this many whole years old on the season start date (startDate).
   minimumParticipantAgeYears Int?
+  /// If set (>=1), each child must be at most this many whole years old on the season start date (startDate).
+  maximumParticipantAgeYears Int?
 
   draftDefinitionJson     String? @db.Text
   publishedDefinitionJson String? @db.Text
