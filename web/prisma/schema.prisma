@@ -305,6 +305,8 @@ model Classroom {
   description String?  @db.Text
   ageMin    Int
   ageMax    Int
+  /// When true, auto-assignment requires age within ageMin–ageMax. When false, age is ignored for auto-placement (form field rules still apply if set).
+  useAgeRuleForAutoAssign Boolean @default(true)
   /// Which date to use when comparing the child’s age to ageMin/ageMax.
   ageRule   ClassroomAgeRule @default(EVENT_START_DATE)
   /// Display-only (e.g. “Kindergarten”).

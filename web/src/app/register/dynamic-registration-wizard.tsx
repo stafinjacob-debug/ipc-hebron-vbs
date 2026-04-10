@@ -685,13 +685,8 @@ export function DynamicRegistrationWizard({
                                   }
                                 : undefined,
                             )}
-                            {f.key === "guardianEmail" ? (
-                              <>
-                                <p className={hintClass}>We’ll only use this for VBS-related communication.</p>
-                                {showEmailError ? (
-                                  <p className={`${hintClass} text-red-600`}>Enter a valid email address.</p>
-                                ) : null}
-                              </>
+                            {f.key === "guardianEmail" && showEmailError ? (
+                              <p className={`${hintClass} text-red-600`}>Enter a valid email address.</p>
                             ) : null}
                           </div>
                         );

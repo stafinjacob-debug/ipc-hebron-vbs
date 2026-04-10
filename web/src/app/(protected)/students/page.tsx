@@ -16,6 +16,15 @@ export default async function StudentsPage() {
     include: {
       guardian: true,
       _count: { select: { registrations: true } },
+      registrations: {
+        where: { status: { not: "CANCELLED" } },
+        orderBy: { season: { startDate: "desc" } },
+        select: {
+          id: true,
+          season: { select: { id: true, name: true, year: true } },
+          classroom: { select: { id: true, name: true } },
+        },
+      },
     },
   });
 
@@ -49,6 +58,7 @@ export default async function StudentsPage() {
                 <th className="px-4 py-3 font-medium">Date of birth</th>
                 <th className="px-4 py-3 font-medium">Guardian</th>
                 <th className="px-4 py-3 font-medium">Allergies / notes</th>
+                <th className="px-4 py-3 font-medium">Class (by season)</th>
                 <th className="px-4 py-3 font-medium">Registrations</th>
               </tr>
             </thead>
@@ -70,6 +80,37 @@ export default async function StudentsPage() {
                     title={c.allergiesNotes ?? ""}
                   >
                     {c.allergiesNotes ?? "—"}
+                  </td>
+                  <td className="max-w-[14rem] px-4 py-3 text-muted">
+                    {c.registrations.length === 0 ? (
+                      "—"
+                    ) : (
+                      <ul className="space-y-1 text-xs leading-snug">
+                        {c.registrations.map((r) => (
+                          <li key={r.id}>
+                            <Link
+                              href={`/registrations/${r.id}`}
+                              className="tabular-nums text-foreground/80 underline decoration-foreground/20 hover:decoration-brand"
+                            >
+                              {r.season.year}
+                            </Link>
+                            {r.classroom ? (
+                              <>
+                                {" · "}
+                                <Link
+                                  href={`/classes/${r.classroom.id}`}
+                                  className="font-medium text-brand underline"
+                                >
+                                  {r.classroom.name}
+                                </Link>
+                              </>
+                            ) : (
+                              <span className="text-muted"> · Unassigned</span>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                   </td>
                   <td className="px-4 py-3 tabular-nums text-muted">{c._count.registrations}</td>
                 </tr>

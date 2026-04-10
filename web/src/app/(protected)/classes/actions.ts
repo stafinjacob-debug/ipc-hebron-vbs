@@ -48,19 +48,29 @@ async function requireClassManager(): Promise<
   return { ok: true, userId: session.user.id };
 }
 
+function effectiveClassAgeRange(o: {
+  ageMin: number;
+  ageMax: number;
+  useAgeRuleForAutoAssign?: boolean | null;
+}): { ageMin: number; ageMax: number } {
+  if (o.useAgeRuleForAutoAssign === false) return { ageMin: 0, ageMax: 99 };
+  return { ageMin: o.ageMin, ageMax: o.ageMax };
+}
+
 function overlapWarnings(
   ageMin: number,
   ageMax: number,
   excludeId: string | undefined,
-  others: { id: string; name: string; ageMin: number; ageMax: number }[],
+  others: { id: string; name: string; ageMin: number; ageMax: number; useAgeRuleForAutoAssign?: boolean | null }[],
 ): string[] {
   const w: string[] = [];
   for (const o of others) {
     if (excludeId && o.id === excludeId) continue;
-    if (ageRangeOverlaps(ageMin, ageMax, o.ageMin, o.ageMax)) {
-      w.push(
-        `Age range overlaps “${o.name}” (${o.ageMin}–${o.ageMax}). Adjust ranges or priority if needed.`,
-      );
+    const er = effectiveClassAgeRange(o);
+    if (ageRangeOverlaps(ageMin, ageMax, er.ageMin, er.ageMax)) {
+      const label =
+        o.useAgeRuleForAutoAssign === false ? "any age (auto)" : `${o.ageMin}–${o.ageMax}`;
+      w.push(`Age range overlaps “${o.name}” (${label}). Adjust ranges or priority if needed.`);
     }
   }
   return w;
@@ -91,12 +101,17 @@ export async function createClassroomAction(
   const mfKey = str(formData, "matchFormFieldKey").trim();
   const mfVals = parseMatchFieldValuesFromForm(str(formData, "matchFormFieldValues"));
   const useFormMatch = Boolean(mfKey && mfVals.length > 0);
+  const useAgeRuleCheck = formData.get("useAgeRuleForAutoAssign");
+  const useAgeRuleForAutoAssign =
+    useAgeRuleCheck === "on" || useAgeRuleCheck === "true" || useAgeRuleCheck === "1";
 
   const others = await prisma.classroom.findMany({
     where: { seasonId, isActive: true },
-    select: { id: true, name: true, ageMin: true, ageMax: true },
+    select: { id: true, name: true, ageMin: true, ageMax: true, useAgeRuleForAutoAssign: true },
   });
-  const warnings = overlapWarnings(ageMin, ageMax, undefined, others);
+  const effMin = useAgeRuleForAutoAssign ? ageMin : 0;
+  const effMax = useAgeRuleForAutoAssign ? ageMax : 99;
+  const warnings = overlapWarnings(effMin, effMax, undefined, others);
 
   try {
     const created = await prisma.classroom.create({
@@ -107,6 +122,7 @@ export async function createClassroomAction(
         description: str(formData, "description").trim() || null,
         ageMin,
         ageMax,
+        useAgeRuleForAutoAssign,
         ageRule: ageRule === "REGISTRATION_DATE" ? "REGISTRATION_DATE" : "EVENT_START_DATE",
         gradeLabel: str(formData, "gradeLabel").trim() || null,
         eligibilityNotes: str(formData, "eligibilityNotes").trim() || null,
@@ -168,12 +184,17 @@ export async function updateClassroomAction(
   const mfKey = str(formData, "matchFormFieldKey").trim();
   const mfVals = parseMatchFieldValuesFromForm(str(formData, "matchFormFieldValues"));
   const useFormMatch = Boolean(mfKey && mfVals.length > 0);
+  const useAgeRuleCheck = formData.get("useAgeRuleForAutoAssign");
+  const useAgeRuleForAutoAssign =
+    useAgeRuleCheck === "on" || useAgeRuleCheck === "true" || useAgeRuleCheck === "1";
 
   const others = await prisma.classroom.findMany({
     where: { seasonId: existing.seasonId, isActive: true },
-    select: { id: true, name: true, ageMin: true, ageMax: true },
+    select: { id: true, name: true, ageMin: true, ageMax: true, useAgeRuleForAutoAssign: true },
   });
-  const warnings = overlapWarnings(ageMin, ageMax, classroomId, others);
+  const effMin = useAgeRuleForAutoAssign ? ageMin : 0;
+  const effMax = useAgeRuleForAutoAssign ? ageMax : 99;
+  const warnings = overlapWarnings(effMin, effMax, classroomId, others);
 
   try {
     await prisma.classroom.update({
@@ -184,6 +205,7 @@ export async function updateClassroomAction(
         description: str(formData, "description").trim() || null,
         ageMin,
         ageMax,
+        useAgeRuleForAutoAssign,
         ageRule: ageRule === "REGISTRATION_DATE" ? "REGISTRATION_DATE" : "EVENT_START_DATE",
         gradeLabel: str(formData, "gradeLabel").trim() || null,
         eligibilityNotes: str(formData, "eligibilityNotes").trim() || null,
@@ -354,7 +376,10 @@ export async function reassignRegistrationClassroomAction(
       reg.registeredAt,
       reg.season.startDate,
     );
-    if (age < target.ageMin || age > target.ageMax) {
+    if (
+      target.useAgeRuleForAutoAssign &&
+      (age < target.ageMin || age > target.ageMax)
+    ) {
       hints.push(
         `Child’s age (${age} using ${target.ageRule === "REGISTRATION_DATE" ? "registration date" : "event start"} rule) is outside this class band (${target.ageMin}–${target.ageMax}).`,
       );

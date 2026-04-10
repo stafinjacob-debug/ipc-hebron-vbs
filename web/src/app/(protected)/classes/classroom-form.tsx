@@ -147,15 +147,32 @@ export function ClassroomForm({
       </section>
 
       <section className="space-y-4 rounded-xl border border-foreground/10 bg-surface-elevated p-6">
-        <h2 className={sectionTitle}>Eligibility (age rules)</h2>
+        <h2 className={sectionTitle}>Eligibility & auto-assignment</h2>
         <p className="text-sm text-muted">
-          Students are matched by whole-year age. Overlapping bands across classes are allowed but
-          will show a warning — use priority order to break ties.
+          Age band and registration-field rules are <strong>optional filters</strong> for automatic
+          placement. Turn off “Require age band…” to place purely by form answers (if configured),
+          capacity, and class order. Bands are still stored for rosters and staff reference. Overlaps
+          show as warnings — use priority order to break ties.
         </p>
-        <div className="grid gap-4 sm:grid-cols-3">
+        <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-lg border border-foreground/10 bg-background/50 px-3 py-3">
+          <input
+            type="checkbox"
+            name="useAgeRuleForAutoAssign"
+            value="true"
+            defaultChecked={c?.useAgeRuleForAutoAssign !== false}
+            className="mt-1"
+          />
+          <span>
+            <span className="text-sm font-medium text-foreground">Require age band for auto-assignment</span>
+            <span className="mt-0.5 block text-xs text-muted">
+              Uncheck for “open” classes (e.g. mixed-age room) where age should not block auto-placement.
+            </span>
+          </span>
+        </label>
+        <div className="mt-4 grid gap-4 sm:grid-cols-3">
           <div>
             <label className={label} htmlFor="ageMin">
-              Minimum age
+              Minimum age (display / reference)
             </label>
             <input
               id="ageMin"
@@ -164,13 +181,12 @@ export function ClassroomForm({
               min={0}
               max={99}
               className={input}
-              required
               defaultValue={c?.ageMin ?? 5}
             />
           </div>
           <div>
             <label className={label} htmlFor="ageMax">
-              Maximum age
+              Maximum age (display / reference)
             </label>
             <input
               id="ageMax"
@@ -179,7 +195,6 @@ export function ClassroomForm({
               min={0}
               max={99}
               className={input}
-              required
               defaultValue={c?.ageMax ?? 10}
             />
           </div>
@@ -225,9 +240,9 @@ export function ClassroomForm({
         <div className="mt-6 border-t border-foreground/10 pt-6">
           <h3 className="text-sm font-semibold text-foreground">Form field match (optional)</h3>
           <p className="mt-1 text-sm text-muted">
-            After the age band matches, auto-assignment can require a per-child registration answer
-            (e.g. grade or track) to equal one of the values below. Comparison is case-insensitive.
-            Leave blank to use age only.
+            When set, auto-assignment also requires a per-child registration answer (e.g. grade or
+            track) to match one of the values below. Comparison is case-insensitive. Leave blank to
+            skip this filter (age rules still apply when enabled above).
           </p>
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
             <div className="sm:col-span-2">

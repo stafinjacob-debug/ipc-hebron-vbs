@@ -25,28 +25,16 @@ export function ClassroomRosterQuickMove({
   return (
     <div className="flex flex-wrap items-center gap-2">
       <select
-        className="max-w-[200px] rounded-lg border border-foreground/15 bg-background px-2 py-1.5 text-xs"
+        className="max-w-[220px] rounded-lg border border-foreground/15 bg-background px-2 py-1.5 text-xs"
         value={targetId}
-        onChange={(e) => setTargetId(e.target.value)}
-        aria-label="Move to class"
-      >
-        <option value="">Move to…</option>
-        {options.map((c) => (
-          <option key={c.id} value={c.id}>
-            {c.name}
-          </option>
-        ))}
-        <option value="__unassign">— Unassigned —</option>
-      </select>
-      <button
-        type="button"
-        disabled={pending || !targetId}
-        className="rounded-lg border border-foreground/20 bg-background px-2 py-1.5 text-xs font-medium hover:bg-foreground/[0.04] disabled:opacity-40"
-        onClick={() => {
-          if (!targetId) return;
+        disabled={pending}
+        onChange={(e) => {
+          const v = e.target.value;
+          if (!v) return;
           setMsg(null);
+          setTargetId(v);
           startTransition(async () => {
-            const dest = targetId === "__unassign" ? null : targetId;
+            const dest = v === "__unassign" ? null : v;
             const r = await reassignRegistrationClassroomAction(registrationId, dest, null);
             setMsg(r.message);
             if (r.ok) {
@@ -55,9 +43,17 @@ export function ClassroomRosterQuickMove({
             }
           });
         }}
+        aria-label="Move to class or unassign"
       >
-        {pending ? "…" : "Move"}
-      </button>
+        <option value="">Move or unassign…</option>
+        {options.map((c) => (
+          <option key={c.id} value={c.id}>
+            {c.name}
+          </option>
+        ))}
+        <option value="__unassign">— Unassigned —</option>
+      </select>
+      {pending ? <span className="text-xs text-muted">Updating…</span> : null}
       {msg ? <span className="text-xs text-foreground/70">{msg}</span> : null}
     </div>
   );

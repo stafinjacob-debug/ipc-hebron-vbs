@@ -212,8 +212,20 @@ export function createDefaultFormDefinition(): FormDefinitionV1 {
   };
 }
 
+function sanitizeFieldOptionsForStorage(f: FormFieldDef): FormFieldDef {
+  if (f.type !== "select" && f.type !== "radio") return f;
+  if (!f.options?.length) return f;
+  const opts = f.options.filter((o) => (o.value ?? "").trim() !== "");
+  if (opts.length === f.options.length) return f;
+  return { ...f, options: opts.length > 0 ? opts : undefined };
+}
+
 export function definitionToJson(def: FormDefinitionV1): string {
-  return JSON.stringify(def, null, 2);
+  const sanitized: FormDefinitionV1 = {
+    ...def,
+    fields: def.fields.map(sanitizeFieldOptionsForStorage),
+  };
+  return JSON.stringify(sanitized, null, 2);
 }
 
 export function sortSections(def: FormDefinitionV1): FormSectionDef[] {

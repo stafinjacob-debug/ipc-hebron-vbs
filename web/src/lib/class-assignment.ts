@@ -66,7 +66,7 @@ export async function resolveAutoClassAssignment(
     if (c.intakeStatus !== "OPEN") continue;
 
     const age = ageForClassroomRule(childDob, c.ageRule, registeredAt, seasonStartDate);
-    if (age < c.ageMin || age > c.ageMax) continue;
+    if (c.useAgeRuleForAutoAssign && (age < c.ageMin || age > c.ageMax)) continue;
 
     const mKey = c.matchFormFieldKey?.trim() ?? "";
     const mVals = c.matchFormFieldValues ?? [];
@@ -106,14 +106,14 @@ export async function resolveAutoClassAssignment(
       classroomId: null,
       matchedAge: lastMatchedAge,
       note:
-        "Auto: every matching class (age and form rules) is full (no waitlist or overflow class available).",
+        "Auto: every matching class (eligibility rules) is full (no waitlist or overflow class available).",
     };
   }
 
   return {
     classroomId: null,
     matchedAge: null,
-    note: "Auto: no active class matched this child’s age and form answers for this season.",
+    note: "Auto: no active class matched this child’s eligibility for this season.",
   };
 }
 
@@ -128,6 +128,7 @@ export async function fetchClassroomsForAutoAssign(
       name: true,
       ageMin: true,
       ageMax: true,
+      useAgeRuleForAutoAssign: true,
       ageRule: true,
       capacity: true,
       waitlistEnabled: true,

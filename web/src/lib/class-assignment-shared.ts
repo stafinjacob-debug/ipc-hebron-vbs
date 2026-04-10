@@ -21,6 +21,8 @@ export type ClassroomForAutoAssign = {
   name: string;
   ageMin: number;
   ageMax: number;
+  /** When false, auto-assignment skips the ageMin/ageMax check. */
+  useAgeRuleForAutoAssign: boolean;
   ageRule: ClassroomAgeRule;
   capacity: number;
   waitlistEnabled: boolean;

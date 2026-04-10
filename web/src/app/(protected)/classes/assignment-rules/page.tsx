@@ -45,17 +45,27 @@ export default async function AssignmentRulesPage({
   const counts = await getEnrollmentCountsByClassroom(season.id);
 
   const activeRanges = classes
-    .filter((c) => c.isActive)
+    .filter((c) => c.isActive && c.useAgeRuleForAutoAssign)
     .map((c) => ({ id: c.id, ageMin: c.ageMin, ageMax: c.ageMax, name: c.name }));
   const gapAges = findInternalAgeGaps(activeRanges);
 
+  function effRange(c: (typeof classes)[0]) {
+    return c.useAgeRuleForAutoAssign === false
+      ? ({ lo: 0, hi: 99, label: "any age (auto)" } as const)
+      : ({ lo: c.ageMin, hi: c.ageMax, label: `${c.ageMin}–${c.ageMax}` } as const);
+  }
+
   const overlaps: string[] = [];
-  for (let i = 0; i < activeRanges.length; i++) {
-    for (let j = i + 1; j < activeRanges.length; j++) {
-      const a = activeRanges[i]!;
-      const b = activeRanges[j]!;
-      if (ageRangeOverlaps(a.ageMin, a.ageMax, b.ageMin, b.ageMax)) {
-        overlaps.push(`“${a.name}” (${a.ageMin}–${a.ageMax}) vs “${b.name}” (${b.ageMin}–${b.ageMax})`);
+  for (let i = 0; i < classes.length; i++) {
+    const ci = classes[i]!;
+    if (!ci.isActive) continue;
+    for (let j = i + 1; j < classes.length; j++) {
+      const cj = classes[j]!;
+      if (!cj.isActive) continue;
+      const a = effRange(ci);
+      const b = effRange(cj);
+      if (ageRangeOverlaps(a.lo, a.hi, b.lo, b.hi)) {
+        overlaps.push(`“${ci.name}” (${a.label}) vs “${cj.name}” (${b.label})`);
       }
     }
   }
@@ -71,8 +81,11 @@ export default async function AssignmentRulesPage({
     refDob.setFullYear(refDob.getFullYear() - ageYears);
     for (const c of sorted) {
       if (!c.isActive || c.intakeStatus !== "OPEN") continue;
-      const computed = ageForClassroomRule(refDob, c.ageRule, regAt, season.startDate);
-      if (computed >= c.ageMin && computed <= c.ageMax) return c.name;
+      if (c.useAgeRuleForAutoAssign !== false) {
+        const computed = ageForClassroomRule(refDob, c.ageRule, regAt, season.startDate);
+        if (computed < c.ageMin || computed > c.ageMax) continue;
+      }
+      return c.name;
     }
     return "—";
   }
@@ -85,10 +98,10 @@ export default async function AssignmentRulesPage({
         </Link>
         <h1 className="mt-2 text-2xl font-semibold tracking-tight">Assignment rules</h1>
         <p className="mt-1 text-muted">
-          Validate age bands, overlaps, and gaps for the selected season. Preview uses hypothetical
-          birthdays aligned to each whole age at event start (approximate). Classes can also require a
-          registration form field (e.g. grade); that is not shown in this grid — see each class’s
-          edit page.
+          Age bands are optional for auto-placement (classes can ignore age). This page still shows
+          listed ages for reference. Gaps and overlaps consider only classes that require an age
+          band. Preview uses hypothetical birthdays at event start (approximate). Form-field rules
+          are on each class’s edit page.
         </p>
       </div>
 
@@ -123,6 +136,10 @@ export default async function AssignmentRulesPage({
         <p className="text-sm text-emerald-800 dark:text-emerald-200">
           No gaps between the lowest and highest active class ages.
         </p>
+      ) : classes.some((c) => c.isActive) ? (
+        <p className="text-sm text-muted">
+          No active classes require an age band — gap check does not apply.
+        </p>
       ) : null}
 
       {overlaps.length > 0 ? (
@@ -137,8 +154,8 @@ export default async function AssignmentRulesPage({
             Lower sort priority / match order wins for auto-placement.
           </p>
         </div>
-      ) : activeRanges.length > 1 ? (
-        <p className="text-sm text-muted">No overlapping age ranges among active classes.</p>
+      ) : classes.filter((c) => c.isActive).length > 1 ? (
+        <p className="text-sm text-muted">No overlapping effective ranges among active classes.</p>
       ) : null}
 
       <section className="overflow-hidden rounded-xl border border-foreground/10">
@@ -168,7 +185,13 @@ export default async function AssignmentRulesPage({
                     ) : null}
                   </td>
                   <td className="px-4 py-3 tabular-nums">
-                    {c.ageMin}–{c.ageMax}
+                    {c.useAgeRuleForAutoAssign === false ? (
+                      <span className="text-muted">Any age</span>
+                    ) : (
+                      <>
+                        {c.ageMin}–{c.ageMax}
+                      </>
+                    )}
                   </td>
                   <td className="px-4 py-3 tabular-nums">{c.sortOrder}</td>
                   <td className="px-4 py-3 tabular-nums">{c.capacity}</td>

@@ -38,6 +38,7 @@ export default async function RegistrationDetailPage({
           name: true,
           ageMin: true,
           ageMax: true,
+          useAgeRuleForAutoAssign: true,
           ageRule: true,
         },
       })

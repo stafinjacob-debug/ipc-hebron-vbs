@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition, type KeyboardEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type {
@@ -29,6 +29,14 @@ const FIELD_TYPES: FieldType[] = [
 
 const AUDIENCES: FormSectionDef["audience"][] = ["guardian", "eachChild", "consent", "static"];
 
+/** `<details>` toggles on Space/Enter; stop bubble so inputs/textareas behave normally inside. */
+function stopDetailsKeyboardSteal(e: KeyboardEvent) {
+  const t = e.target as HTMLElement | undefined;
+  if (!t) return;
+  if (!["INPUT", "TEXTAREA", "SELECT"].includes(t.tagName)) return;
+  if (e.key === " " || e.key === "Enter") e.stopPropagation();
+}
+
 function newId(prefix: string) {
   const r =
     typeof crypto !== "undefined" && crypto.randomUUID
@@ -56,21 +64,36 @@ function uniqueFieldKey(def: FormDefinitionV1, base: string): string {
   return k;
 }
 
+/**
+ * Parse options from the editor textarea. Empty lines are kept so users can press
+ * Enter after an option and type the next one (filter(Boolean) used to remove those
+ * rows and made “multiple options” impossible).
+ */
 function parseOptions(text: string): { value: string; label: string }[] {
-  return text
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => {
-      const pipe = line.indexOf("|");
-      if (pipe === -1) return { value: line, label: line };
-      return { value: line.slice(0, pipe).trim(), label: line.slice(pipe + 1).trim() || line };
-    });
+  const lines = text.replace(/\r\n/g, "\n").split("\n");
+  return lines.map((line) => {
+    const t = line.trim();
+    if (!t) return { value: "", label: "" };
+    const pipe = t.indexOf("|");
+    if (pipe === -1) return { value: t, label: t };
+    return {
+      value: t.slice(0, pipe).trim(),
+      label: t.slice(pipe + 1).trim() || t.slice(0, pipe).trim(),
+    };
+  });
 }
 
 function formatOptions(opts: { value: string; label: string }[] | undefined): string {
   if (!opts?.length) return "";
-  return opts.map((o) => (o.value === o.label ? o.value : `${o.value}|${o.label}`)).join("\n");
+  return opts
+    .map((o) => {
+      const v = (o.value ?? "").trim();
+      const l = (o.label ?? "").trim();
+      if (!v && !l) return "";
+      if (v === l || !l) return o.value;
+      return `${o.value}|${o.label}`;
+    })
+    .join("\n");
 }
 
 export function FormDefinitionEditor({
@@ -349,7 +372,10 @@ export function FormDefinitionEditor({
                     ({f.key}, {f.type})
                   </span>
                 </summary>
-                <div className="mt-3 grid gap-2 border-t border-foreground/10 pt-3 sm:grid-cols-2">
+                <div
+                  className="mt-3 grid gap-2 border-t border-foreground/10 pt-3 sm:grid-cols-2"
+                  onKeyDown={stopDetailsKeyboardSteal}
+                >
                   <div>
                     <label className="text-xs text-foreground/70">Label</label>
                     <input
@@ -417,8 +443,12 @@ export function FormDefinitionEditor({
                       <label className="text-xs text-foreground/70">
                         Options (one per line, optional <code>value|Label</code>)
                       </label>
+                      <p className="mt-0.5 text-xs text-foreground/55">
+                        Press <kbd className="rounded border border-foreground/20 px-1">Enter</kbd> after each
+                        choice to add another line.
+                      </p>
                       <textarea
-                        rows={4}
+                        rows={6}
                         value={formatOptions(f.options)}
                         onChange={(e) =>
                           updateField(f.id, {

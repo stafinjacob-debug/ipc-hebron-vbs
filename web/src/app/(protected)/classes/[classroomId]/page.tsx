@@ -96,7 +96,9 @@ export default async function ClassroomDetailPage({
             </p>
             <p className="mt-2 text-sm text-foreground/85">
               <span className="rounded-md bg-brand/10 px-2 py-0.5 font-medium text-brand">
-                Ages {c.ageMin}–{c.ageMax}
+                {c.useAgeRuleForAutoAssign === false
+                  ? "Any age (auto-placement)"
+                  : `Ages ${c.ageMin}–${c.ageMax}`}
               </span>
               <span className="ml-2 text-muted">· {ageRuleLabel(c.ageRule)}</span>
             </p>
@@ -137,6 +139,10 @@ export default async function ClassroomDetailPage({
           <div>
             <dt className="text-muted">Match priority</dt>
             <dd className="tabular-nums">{c.sortOrder}</dd>
+          </div>
+          <div>
+            <dt className="text-muted">Age for auto-assign</dt>
+            <dd>{c.useAgeRuleForAutoAssign === false ? "Off (any age)" : `On (${c.ageMin}–${c.ageMax})`}</dd>
           </div>
           {c.matchFormFieldKey?.trim() && c.matchFormFieldValues != null ? (
             <div className="sm:col-span-2">

@@ -4,7 +4,7 @@ import type { ClassAssignmentMethod } from "@/generated/prisma";
 import { ageForClassroomRule } from "@/lib/class-assignment-shared";
 import { reassignRegistrationClassroomAction } from "@/app/(protected)/classes/actions";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 
 export function RegistrationClassAssignment({
   registrationId,
@@ -28,7 +28,14 @@ export function RegistrationClassAssignment({
   childDobIso: string;
   registeredAtIso: string;
   seasonStartIso: string;
-  classrooms: { id: string; name: string; ageMin: number; ageMax: number; ageRule: string }[];
+  classrooms: {
+    id: string;
+    name: string;
+    ageMin: number;
+    ageMax: number;
+    useAgeRuleForAutoAssign: boolean;
+    ageRule: string;
+  }[];
   canEdit: boolean;
 }) {
   const router = useRouter();
@@ -37,6 +44,10 @@ export function RegistrationClassAssignment({
   const [hints, setHints] = useState<string[] | null>(null);
   const [selected, setSelected] = useState<string>(currentClassroomId ?? "");
   const [reason, setReason] = useState("");
+
+  useEffect(() => {
+    setSelected(currentClassroomId ?? "");
+  }, [currentClassroomId]);
 
   const childDob = new Date(childDobIso);
   const registeredAt = new Date(registeredAtIso);
@@ -79,38 +90,10 @@ export function RegistrationClassAssignment({
         <div className="mt-5 border-t border-foreground/10 pt-5">
           <p className="text-sm font-medium text-foreground">Reassign</p>
           <p className="mt-1 text-xs text-muted">
-            You may move a student for sibling grouping, accommodations, or leader decisions. Warnings
-            appear if the age band does not match or the room is full.
+            You may move a student for sibling grouping, accommodations, or leader decisions. Choosing a
+            class saves immediately. Warnings appear if the age band does not match or the room is full.
           </p>
           <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-end">
-            <div className="min-w-0 flex-1">
-              <label className="text-xs font-medium text-muted" htmlFor="reclass">
-                Class
-              </label>
-              <select
-                id="reclass"
-                className="mt-1 w-full rounded-lg border border-foreground/15 bg-background px-3 py-2 text-sm"
-                value={selected}
-                onChange={(e) => setSelected(e.target.value)}
-              >
-                <option value="">— Unassigned —</option>
-                {classrooms.map((c) => {
-                  const age = ageForClassroomRule(
-                    childDob,
-                    c.ageRule as "REGISTRATION_DATE" | "EVENT_START_DATE",
-                    registeredAt,
-                    seasonStart,
-                  );
-                  const match = age >= c.ageMin && age <= c.ageMax;
-                  return (
-                    <option key={c.id} value={c.id}>
-                      {c.name} ({c.ageMin}–{c.ageMax})
-                      {match ? "" : " · outside age band"}
-                    </option>
-                  );
-                })}
-              </select>
-            </div>
             <div className="min-w-0 flex-1">
               <label className="text-xs font-medium text-muted" htmlFor="reReason">
                 Reason (optional)
@@ -122,28 +105,70 @@ export function RegistrationClassAssignment({
                 onChange={(e) => setReason(e.target.value)}
                 placeholder="e.g. Sibling grouping"
               />
+              <p className="mt-1 text-xs text-muted">
+                Fill before changing class if you want this note stored with the move.
+              </p>
             </div>
-            <button
-              type="button"
-              disabled={pending}
-              className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-brand-foreground hover:opacity-90 disabled:opacity-50"
-              onClick={() => {
-                setMsg(null);
-                setHints(null);
-                startTransition(async () => {
-                  const r = await reassignRegistrationClassroomAction(
-                    registrationId,
-                    selected.trim() || null,
-                    reason.trim() || null,
+            <div className="min-w-0 flex-1">
+              <label className="text-xs font-medium text-muted" htmlFor="reclass">
+                Class
+              </label>
+              <select
+                id="reclass"
+                className="mt-1 w-full rounded-lg border border-foreground/15 bg-background px-3 py-2 text-sm"
+                disabled={pending}
+                value={selected}
+                onChange={(e) => {
+                  const raw = e.target.value;
+                  const dest = raw.trim() === "" ? null : raw;
+                  if (dest === currentClassroomId) {
+                    setSelected(raw);
+                    return;
+                  }
+                  setSelected(raw);
+                  setMsg(null);
+                  setHints(null);
+                  startTransition(async () => {
+                    const r = await reassignRegistrationClassroomAction(
+                      registrationId,
+                      dest,
+                      reason.trim() || null,
+                    );
+                    setMsg(r.message);
+                    setHints(r.hints ?? null);
+                    if (r.ok) {
+                      setReason("");
+                      router.refresh();
+                    }
+                  });
+                }}
+              >
+                <option value="">— Unassigned —</option>
+                {classrooms.map((c) => {
+                  const age = ageForClassroomRule(
+                    childDob,
+                    c.ageRule as "REGISTRATION_DATE" | "EVENT_START_DATE",
+                    registeredAt,
+                    seasonStart,
                   );
-                  setMsg(r.message);
-                  setHints(r.hints ?? null);
-                  if (r.ok) router.refresh();
-                });
-              }}
-            >
-              {pending ? "Saving…" : "Apply"}
-            </button>
+                  const match =
+                    !c.useAgeRuleForAutoAssign || (age >= c.ageMin && age <= c.ageMax);
+                  return (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                      {c.useAgeRuleForAutoAssign
+                        ? ` (${c.ageMin}–${c.ageMax}${match ? "" : " · outside age band"})`
+                        : " (any age · auto)"}
+                    </option>
+                  );
+                })}
+              </select>
+              {pending ? (
+                <p className="mt-1 text-xs text-muted" aria-live="polite">
+                  Updating…
+                </p>
+              ) : null}
+            </div>
           </div>
           {msg ? (
             <p className="mt-3 text-sm text-foreground/80">{msg}</p>
