@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type { Metadata } from "next";
 import Link from "next/link";
 import {
@@ -48,6 +49,7 @@ export default async function PublicRegisterPage() {
 
   const contactEmail = process.env.NEXT_PUBLIC_VBS_CONTACT_EMAIL?.trim() ?? "";
   const contactPhone = process.env.NEXT_PUBLIC_VBS_CONTACT_PHONE?.trim() ?? "";
+  const clientSubmitKey = randomUUID();
 
   return (
     <div className="min-h-full bg-background">
@@ -66,6 +68,7 @@ export default async function PublicRegisterPage() {
       <div className="px-4 pb-16 pt-8 sm:pb-12 sm:pt-10">
         <DynamicRegistrationWizard
           seasons={options}
+          clientSubmitKey={clientSubmitKey}
           contactEmail={contactEmail}
           contactPhone={contactPhone}
           churchDisplayName={CHURCH_DISPLAY_NAME}

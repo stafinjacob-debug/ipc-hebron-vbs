@@ -269,11 +269,14 @@ function renderFieldInput(
 
 export function DynamicRegistrationWizard({
   seasons,
+  clientSubmitKey,
   contactEmail,
   contactPhone,
   churchDisplayName,
 }: {
   seasons: PublicSeasonOption[];
+  /** Per page load — must match server action `submitPublicRegistration` idempotency check. */
+  clientSubmitKey: string;
 } & RegisterContactProps) {
   const [state, formAction, pending] = useActionState(submitPublicRegistration, initial);
   const [seasonId, setSeasonId] = useState(seasons[0]?.id ?? "");
@@ -528,6 +531,7 @@ export function DynamicRegistrationWizard({
           </div>
 
           <input type="hidden" name="seasonId" value={seasonId} readOnly />
+          <input type="hidden" name="clientSubmitKey" value={clientSubmitKey} readOnly />
           <input type="hidden" name="childCount" value={children.length} readOnly />
           <input type="hidden" name="confirmedAccurate" value={confirmAccurate ? "true" : "false"} readOnly />
 
