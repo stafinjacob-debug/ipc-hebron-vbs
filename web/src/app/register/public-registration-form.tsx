@@ -19,6 +19,7 @@ import {
   defaultPublicFieldRules,
   type PublicRegistrationFieldRules,
 } from "@/lib/public-registration";
+import { clampRegistrationBackgroundDimmingPercent } from "@/lib/registration-background-scrim";
 import { formatPhoneInput, phoneDigits } from "@/lib/phone-format";
 import { submitPublicRegistration, type PublicRegisterState } from "./actions";
 
@@ -30,6 +31,8 @@ export type PublicSeasonOption = {
   endDate: string;
   welcomeMessage: string | null;
   backgroundImageUrl: string | null;
+  /** 0–100: overlay alpha on the background photo. */
+  backgroundDimmingPercent: number;
   rules: PublicRegistrationFieldRules;
 };
 
@@ -156,6 +159,7 @@ export function PublicRegistrationForm({
     () => seasons.find((s) => s.id === seasonId),
     [seasons, seasonId],
   );
+  const scrimAlpha = clampRegistrationBackgroundDimmingPercent(current?.backgroundDimmingPercent);
   const rules: PublicRegistrationFieldRules = useMemo(
     () => current?.rules ?? defaultPublicFieldRules,
     [current?.rules],
@@ -299,7 +303,10 @@ export function PublicRegistrationForm({
           />
           <div
             aria-hidden
-            className="pointer-events-none fixed inset-0 -z-10 bg-neutral-950/60 backdrop-blur-2xl dark:bg-black/75"
+            className="pointer-events-none fixed inset-0 -z-10 backdrop-blur-2xl"
+            style={{
+              backgroundColor: `rgba(10, 10, 10, ${Math.min(1, Math.max(0, scrimAlpha / 100))})`,
+            }}
           />
         </>
       ) : (

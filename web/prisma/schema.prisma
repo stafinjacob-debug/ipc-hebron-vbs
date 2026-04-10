@@ -217,6 +217,8 @@ model PublicRegistrationSettings {
   welcomeMessage String? @db.Text
   /// Public URL or site-relative path (e.g. /uploads/...) for /register background when this season is selected.
   registrationBackgroundImageUrl String?
+  /// 0–100: darkness of the overlay on top of the background photo on /register (0 = photo fully visible, 100 = strongest dim).
+  registrationBackgroundDimmingPercent Int @default(60)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

@@ -8,6 +8,7 @@ import {
   uploadRegistrationBackgroundImage,
 } from "@/lib/registration-background-upload";
 import { revalidatePath } from "next/cache";
+import { clampRegistrationBackgroundDimmingPercent } from "@/lib/registration-background-scrim";
 
 export type SavePublicSettingsState = {
   ok: boolean;
@@ -62,6 +63,9 @@ export async function savePublicRegistrationSettings(
   const requireAllergiesNotes = formData.get("requireAllergiesNotes") === "on";
   const welcomeRaw = str(formData, "welcomeMessage").trim();
   const welcomeMessage = welcomeRaw.length > 0 ? welcomeRaw : null;
+  const registrationBackgroundDimmingPercent = clampRegistrationBackgroundDimmingPercent(
+    str(formData, "registrationBackgroundDimmingPercent"),
+  );
 
   await prisma.vbsSeason.update({
     where: { id: seasonId },
@@ -77,6 +81,7 @@ export async function savePublicRegistrationSettings(
       requireAllergiesNotes,
       welcomeMessage,
       registrationBackgroundImageUrl,
+      registrationBackgroundDimmingPercent,
     },
     update: {
       requireGuardianEmail,
@@ -84,6 +89,7 @@ export async function savePublicRegistrationSettings(
       requireAllergiesNotes,
       welcomeMessage,
       registrationBackgroundImageUrl,
+      registrationBackgroundDimmingPercent,
     },
   });
 

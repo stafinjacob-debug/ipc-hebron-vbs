@@ -7,6 +7,7 @@ import {
   isFormRegistrationOpen,
 } from "@/lib/ensure-registration-form";
 import { prisma } from "@/lib/prisma";
+import { clampRegistrationBackgroundDimmingPercent } from "@/lib/registration-background-scrim";
 import { rulesFromDb } from "@/lib/public-registration";
 import { DynamicRegistrationWizard } from "./dynamic-registration-wizard";
 
@@ -41,6 +42,9 @@ export default async function PublicRegisterPage() {
       welcomeMessage: formRow.welcomeMessage ?? s.publicRegistrationSettings?.welcomeMessage ?? null,
       backgroundImageUrl:
         s.publicRegistrationSettings?.registrationBackgroundImageUrl ?? null,
+      backgroundDimmingPercent: clampRegistrationBackgroundDimmingPercent(
+        s.publicRegistrationSettings?.registrationBackgroundDimmingPercent,
+      ),
       rules: rulesFromDb(s.publicRegistrationSettings),
       formTitle: formRow.title,
       definition: getEffectiveDefinition(formRow, false),

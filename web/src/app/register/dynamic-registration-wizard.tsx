@@ -35,6 +35,8 @@ export type PublicSeasonOption = {
   endDate: string;
   welcomeMessage: string | null;
   backgroundImageUrl: string | null;
+  /** 0–100: rgba overlay alpha on top of the background photo. */
+  backgroundDimmingPercent: number;
   rules: PublicRegistrationFieldRules;
   formTitle: string;
   definition: FormDefinitionV1;
@@ -122,7 +124,8 @@ function renderFieldInput(
   const req =
     field.required ||
     (field.key === "guardianEmail" && rules.requireGuardianEmail) ||
-    (field.key === "guardianPhone" && rules.requireGuardianPhone);
+    (field.key === "guardianPhone" && rules.requireGuardianPhone) ||
+    (field.key === "allergiesNotes" && rules.requireAllergiesNotes);
 
   const inputId = `fld-${field.id}`;
 
@@ -134,6 +137,10 @@ function renderFieldInput(
   );
 
   if (field.type === "textarea") {
+    const allergiesHelper =
+      field.key === "allergiesNotes" && rules.requireAllergiesNotes
+        ? "Required for this program — you can enter “None” if not applicable."
+        : field.helperText;
     return (
       <div>
         {commonLabel}
@@ -145,7 +152,7 @@ function renderFieldInput(
           placeholder={field.placeholder}
           className={inputClass}
         />
-        {field.helperText ? <p className={hintClass}>{field.helperText}</p> : null}
+        {allergiesHelper ? <p className={hintClass}>{allergiesHelper}</p> : null}
       </div>
     );
   }
@@ -526,7 +533,13 @@ export function DynamicRegistrationWizard({
             className="pointer-events-none fixed inset-0 -z-20 scale-105 bg-cover bg-center bg-no-repeat"
             style={{ backgroundImage: `url(${JSON.stringify(current.backgroundImageUrl)})` }}
           />
-          <div className="pointer-events-none fixed inset-0 -z-10 bg-neutral-950/60 backdrop-blur-2xl dark:bg-black/75" />
+          <div
+            aria-hidden
+            className="pointer-events-none fixed inset-0 -z-10 backdrop-blur-2xl"
+            style={{
+              backgroundColor: `rgba(10, 10, 10, ${Math.min(1, Math.max(0, current.backgroundDimmingPercent / 100))})`,
+            }}
+          />
         </>
       ) : (
         <div className="pointer-events-none fixed inset-0 -z-10 bg-gradient-to-b from-brand-muted/45 via-background to-background dark:from-brand-muted/15" />

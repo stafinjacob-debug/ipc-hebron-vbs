@@ -15,6 +15,7 @@ type Props = {
   requireAllergiesNotes: boolean;
   welcomeMessage: string;
   registrationBackgroundImageUrl: string | null;
+  registrationBackgroundDimmingPercent: number;
 };
 
 const initial: SavePublicSettingsState | null = null;
@@ -99,6 +100,29 @@ export function PublicRegistrationSettingsForm(p: Props) {
             accept="image/jpeg,image/png,image/webp,image/gif"
             className="mt-2 block w-full text-sm text-foreground/80 file:mr-3 file:rounded-md file:border-0 file:bg-foreground/10 file:px-3 file:py-2 file:text-sm file:font-medium"
           />
+        </div>
+        <div className="mt-6">
+          <label htmlFor="registrationBackgroundDimmingPercent" className="text-sm font-medium text-foreground/80">
+            Background dimming (0–100%)
+          </label>
+          <p className="mt-1 text-xs text-foreground/60">
+            Dark overlay on top of the photo on <code className="rounded bg-foreground/10 px-1">/register</code>.{" "}
+            Lower shows more of the image; higher improves text contrast. The previous default look was about 60%.
+          </p>
+          <input
+            id="registrationBackgroundDimmingPercent"
+            name="registrationBackgroundDimmingPercent"
+            type="range"
+            min={0}
+            max={100}
+            step={1}
+            defaultValue={p.registrationBackgroundDimmingPercent}
+            className="mt-3 block w-full max-w-md accent-foreground"
+          />
+          <div className="mt-1 flex max-w-md justify-between text-xs text-foreground/50">
+            <span>Bright (0)</span>
+            <span>Dark (100)</span>
+          </div>
         </div>
       </div>
 
