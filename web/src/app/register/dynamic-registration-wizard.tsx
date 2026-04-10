@@ -23,7 +23,7 @@ import {
 import type { FormDefinitionV1, FormFieldDef } from "@/lib/registration-form-definition";
 import { sortSections } from "@/lib/registration-form-definition";
 import { formatPhoneInput, phoneDigits } from "@/lib/phone-format";
-import { submitPublicRegistration, type PublicRegisterState } from "./actions";
+import { submitPublicRegistrationWithBoundNonce, type PublicRegisterState } from "./actions";
 
 export type PublicSeasonOption = {
   id: string;
@@ -278,7 +278,13 @@ export function DynamicRegistrationWizard({
   /** Per page load — must match server action `submitPublicRegistration` idempotency check. */
   clientSubmitKey: string;
 } & RegisterContactProps) {
-  const [state, formAction, pending] = useActionState(submitPublicRegistration, initial);
+  const [state, formAction, pending] = useActionState(
+    useMemo(
+      () => submitPublicRegistrationWithBoundNonce.bind(null, clientSubmitKey),
+      [clientSubmitKey],
+    ),
+    initial,
+  );
   const [seasonId, setSeasonId] = useState(seasons[0]?.id ?? "");
   const [step, setStep] = useState(0);
   const [guardian, setGuardian] = useState<Record<string, string>>({});
@@ -531,7 +537,6 @@ export function DynamicRegistrationWizard({
           </div>
 
           <input type="hidden" name="seasonId" value={seasonId} readOnly />
-          <input type="hidden" name="clientSubmitKey" value={clientSubmitKey} readOnly />
           <input type="hidden" name="childCount" value={children.length} readOnly />
           <input type="hidden" name="confirmedAccurate" value={confirmAccurate ? "true" : "false"} readOnly />
 

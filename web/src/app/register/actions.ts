@@ -43,9 +43,10 @@ const CLIENT_SUBMIT_KEY_FALLBACK_RE = /^idem-\d+-[a-z0-9]{6,32}$/i;
 /** Namespace for `pg_advisory_xact_lock(int, int)` (VBS public registration). */
 const ADV_LOCK_SPACE = 5_829_413;
 
-export async function submitPublicRegistration(
+async function submitPublicRegistrationImpl(
   _prev: PublicRegisterState | null,
   formData: FormData,
+  boundClientSubmitKey?: string,
 ): Promise<PublicRegisterState> {
   const seasonId = fdGet("seasonId", formData);
 
@@ -106,7 +107,9 @@ export async function submitPublicRegistration(
 
   const data = parsed;
 
-  const clientSubmitKey = fdGet("clientSubmitKey", formData).trim();
+  const clientSubmitKey = (
+    boundClientSubmitKey?.trim() || fdGet("clientSubmitKey", formData).trim()
+  );
   if (
     clientSubmitKey.length > 80 ||
     (!CLIENT_SUBMIT_KEY_RE.test(clientSubmitKey) &&
@@ -305,4 +308,24 @@ export async function submitPublicRegistration(
       message: "Something went wrong. Please try again in a few minutes.",
     };
   }
+}
+
+/** Legacy path: nonce in hidden field `clientSubmitKey` (e.g. public-registration-form). */
+export async function submitPublicRegistration(
+  _prev: PublicRegisterState | null,
+  formData: FormData,
+): Promise<PublicRegisterState> {
+  return submitPublicRegistrationImpl(_prev, formData);
+}
+
+/**
+ * Preferred for dynamic wizard: nonce is bound into the Server Action request so it still works if
+ * a hidden field is missing (stale CDN HTML, duplicate field names, etc.).
+ */
+export async function submitPublicRegistrationWithBoundNonce(
+  boundClientSubmitKey: string,
+  _prev: PublicRegisterState | null,
+  formData: FormData,
+): Promise<PublicRegisterState> {
+  return submitPublicRegistrationImpl(_prev, formData, boundClientSubmitKey);
 }
