@@ -49,6 +49,7 @@ export const config = {
     "/students/:path*",
     "/children/:path*",
     "/check-in/:path*",
+    "/classes",
     "/classes/:path*",
     "/volunteers/:path*",
     "/announcements/:path*",
