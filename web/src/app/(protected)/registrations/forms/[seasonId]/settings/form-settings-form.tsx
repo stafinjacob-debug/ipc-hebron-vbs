@@ -32,6 +32,7 @@ export function FormSettingsForm({
     maxTotalRegistrations: number | null;
     waitlistEnabled: boolean;
     publicRegistrationOpen: boolean;
+    minimumParticipantAgeYears: number | null;
   };
 }) {
   const router = useRouter();
@@ -54,6 +55,12 @@ export function FormSettingsForm({
         const maxTotalRegistrations = maxRaw ? Math.max(0, parseInt(maxRaw, 10) || 0) : null;
         const waitlistEnabled = fd.get("waitlistEnabled") === "on";
         const publicRegistrationOpen = fd.get("publicRegistrationOpen") === "on";
+        const minAgeRaw = String(fd.get("minimumParticipantAgeYears") ?? "").trim();
+        const minParsed = parseInt(minAgeRaw, 10);
+        const minimumParticipantAgeYears =
+          minAgeRaw && Number.isFinite(minParsed) && minParsed >= 1
+            ? Math.min(25, minParsed)
+            : null;
 
         setMsg(null);
         startTransition(async () => {
@@ -67,6 +74,7 @@ export function FormSettingsForm({
             maxTotalRegistrations,
             waitlistEnabled,
             publicRegistrationOpen,
+            minimumParticipantAgeYears,
           });
           setMsg(r.message);
           if (r.ok) router.refresh();
@@ -170,6 +178,27 @@ export function FormSettingsForm({
             defaultValue={initial.maxTotalRegistrations ?? ""}
             className="mt-1 w-full max-w-xs rounded-md border border-foreground/15 bg-background px-3 py-2 text-sm"
           />
+        </div>
+        <div>
+          <label
+            htmlFor="minimumParticipantAgeYears"
+            className="block text-xs font-medium text-foreground/70"
+          >
+            Minimum child age (optional)
+          </label>
+          <input
+            id="minimumParticipantAgeYears"
+            name="minimumParticipantAgeYears"
+            type="number"
+            min={1}
+            max={25}
+            placeholder="No minimum"
+            defaultValue={initial.minimumParticipantAgeYears ?? ""}
+            className="mt-1 w-full max-w-xs rounded-md border border-foreground/15 bg-background px-3 py-2 text-sm"
+          />
+          <p className="mt-1 text-xs text-foreground/60">
+            Whole years old on the first day of VBS (season start). Leave empty for no limit.
+          </p>
         </div>
         <label className="flex items-center gap-2 text-sm">
           <input

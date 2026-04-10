@@ -20,9 +20,11 @@ import {
   defaultPublicFieldRules,
   type PublicRegistrationFieldRules,
 } from "@/lib/public-registration";
+import { childAgeYearsOnDate } from "@/lib/class-assignment-shared";
 import type { FormDefinitionV1, FormFieldDef } from "@/lib/registration-form-definition";
 import { sortSections } from "@/lib/registration-form-definition";
 import { formatPhoneInput, phoneDigits } from "@/lib/phone-format";
+import { parseLocalDate } from "@/lib/schemas/vbs-registration";
 import { submitPublicRegistration, type PublicRegisterState } from "./actions";
 
 export type PublicSeasonOption = {
@@ -36,6 +38,7 @@ export type PublicSeasonOption = {
   rules: PublicRegistrationFieldRules;
   formTitle: string;
   definition: FormDefinitionV1;
+  minimumParticipantAgeYears: number | null;
 };
 
 export type RegisterContactProps = {
@@ -385,6 +388,24 @@ export function DynamicRegistrationWizard({
             }
           }
         }
+        const minY = current?.minimumParticipantAgeYears;
+        if (minY != null && minY >= 1 && current) {
+          const asOf = new Date(current.startDate);
+          for (let i = 0; i < children.length; i++) {
+            const dobStr = (children[i].values.childDateOfBirth ?? "").trim();
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(dobStr)) continue;
+            let dob: Date;
+            try {
+              dob = parseLocalDate(dobStr);
+            } catch {
+              continue;
+            }
+            const age = childAgeYearsOnDate(dob, asOf);
+            if (age < minY) {
+              return `Child ${i + 1}: Must be at least ${minY} years old on the first day of VBS.`;
+            }
+          }
+        }
       }
       if (s === 2) {
         for (const sec of consentSections) {
@@ -411,7 +432,18 @@ export function DynamicRegistrationWizard({
       }
       return null;
     },
-    [def, guardianSections, childSections, consentSections, guardian, children, confirmAccurate, rules],
+    [
+      def,
+      guardianSections,
+      childSections,
+      consentSections,
+      guardian,
+      children,
+      confirmAccurate,
+      rules,
+      current?.minimumParticipantAgeYears,
+      current?.startDate,
+    ],
   );
 
   const goNext = () => {
@@ -654,6 +686,18 @@ export function DynamicRegistrationWizard({
                 title="Children attending VBS"
                 description="Add every child who will participate on this form."
               />
+              {current.minimumParticipantAgeYears != null && current.minimumParticipantAgeYears >= 1 ? (
+                <p className="mb-4 rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-neutral-700 dark:border-neutral-600 dark:bg-neutral-900/80 dark:text-neutral-300">
+                  Each child must be at least{" "}
+                  <span className="font-semibold">{current.minimumParticipantAgeYears}</span> years old on{" "}
+                  {new Date(current.startDate).toLocaleDateString(undefined, {
+                    month: "long",
+                    day: "numeric",
+                    year: "numeric",
+                  })}{" "}
+                  (first day of this VBS).
+                </p>
+              ) : null}
               {children.map((ch, idx) => (
                 <div
                   key={ch.id}

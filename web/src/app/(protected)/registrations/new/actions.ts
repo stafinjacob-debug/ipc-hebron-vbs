@@ -10,6 +10,7 @@ import { sendRegistrationApprovedEmail } from "@/lib/email/registration-emails";
 import { prisma } from "@/lib/prisma";
 import { canManageDirectory } from "@/lib/roles";
 import { makeCheckInToken, makeUniqueRegistrationNumber } from "@/lib/registration-identity";
+import { childAgeYearsOnDate } from "@/lib/class-assignment-shared";
 import {
   parseLocalDate,
   vbsRegistrationFormSchema,
@@ -87,6 +88,12 @@ export async function createVbsRegistration(
     return { ok: false, message: "That VBS season no longer exists." };
   }
 
+  const regForm = await prisma.registrationForm.findUnique({
+    where: { seasonId: data.seasonId },
+    select: { minimumParticipantAgeYears: true },
+  });
+  const minYears = regForm?.minimumParticipantAgeYears;
+
   let childDob: Date;
   try {
     childDob = parseLocalDate(data.childDateOfBirth);
@@ -96,6 +103,26 @@ export async function createVbsRegistration(
       message: "Invalid date of birth.",
       fieldErrors: { childDateOfBirth: ["Use a valid date"] },
     };
+  }
+
+  if (minYears != null && minYears >= 1) {
+    const age = childAgeYearsOnDate(childDob, season.startDate);
+    if (age < minYears) {
+      const startLabel = season.startDate.toLocaleDateString(undefined, {
+        month: "long",
+        day: "numeric",
+        year: "numeric",
+      });
+      return {
+        ok: false,
+        message: `This season requires children to be at least ${minYears} years old on the first day of VBS (${startLabel}).`,
+        fieldErrors: {
+          childDateOfBirth: [
+            `Must be at least ${minYears} on the program start date (${startLabel}).`,
+          ],
+        },
+      };
+    }
   }
 
   try {

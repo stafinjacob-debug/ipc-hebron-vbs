@@ -14,6 +14,7 @@ import {
   fetchClassroomsForAutoAssign,
   resolveAutoClassAssignment,
 } from "@/lib/class-assignment";
+import { childAgeYearsOnDate } from "@/lib/class-assignment-shared";
 import { parseLocalDate } from "@/lib/schemas/vbs-registration";
 
 export type PublicRegisterState = {
@@ -151,6 +152,30 @@ async function submitPublicRegistrationCore(
       ok: false,
       message: "Invalid date of birth for one or more children.",
     };
+  }
+
+  const minYears = formRow.minimumParticipantAgeYears;
+  if (minYears != null && minYears >= 1) {
+    const asOf = season.startDate;
+    const startLabel = asOf.toLocaleDateString(undefined, {
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+    });
+    for (let i = 0; i < dobDates.length; i++) {
+      const age = childAgeYearsOnDate(dobDates[i], asOf);
+      if (age < minYears) {
+        return {
+          ok: false,
+          message: `Child ${i + 1} must be at least ${minYears} years old on the first day of VBS (${startLabel}).`,
+          fieldErrors: {
+            [`childDateOfBirth__${i}`]: [
+              `Children must be at least ${minYears} on the program start date (${startLabel}).`,
+            ],
+          },
+        };
+      }
+    }
   }
 
   const confirmation =

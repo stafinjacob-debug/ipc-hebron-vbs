@@ -155,6 +155,7 @@ export async function updateRegistrationFormSettings(
     maxTotalRegistrations: number | null;
     waitlistEnabled: boolean;
     publicRegistrationOpen: boolean;
+    minimumParticipantAgeYears: number | null;
   },
 ): Promise<ActionState> {
   const session = await auth();
@@ -172,6 +173,11 @@ export async function updateRegistrationFormSettings(
   const title = data.title.trim();
   if (!title) return { ok: false, message: "Title is required." };
 
+  const minAge =
+    data.minimumParticipantAgeYears != null && data.minimumParticipantAgeYears >= 1
+      ? Math.min(25, Math.floor(data.minimumParticipantAgeYears))
+      : null;
+
   await prisma.$transaction([
     prisma.vbsSeason.update({
       where: { id: seasonId },
@@ -188,6 +194,7 @@ export async function updateRegistrationFormSettings(
         registrationClosesAt: data.registrationClosesAt,
         maxTotalRegistrations: data.maxTotalRegistrations,
         waitlistEnabled: data.waitlistEnabled,
+        minimumParticipantAgeYears: minAge,
         updatedByUserId: session.user.id ?? undefined,
       },
     }),
@@ -240,6 +247,7 @@ export async function cloneRegistrationFormFromSeason(
       waitlistEnabled: srcForm.waitlistEnabled,
       registrationOpensAt: srcForm.registrationOpensAt,
       registrationClosesAt: srcForm.registrationClosesAt,
+      minimumParticipantAgeYears: srcForm.minimumParticipantAgeYears,
       updatedByUserId: session.user.id ?? undefined,
     },
   });

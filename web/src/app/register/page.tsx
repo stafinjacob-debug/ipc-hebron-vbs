@@ -44,6 +44,7 @@ export default async function PublicRegisterPage() {
       rules: rulesFromDb(s.publicRegistrationSettings),
       formTitle: formRow.title,
       definition: getEffectiveDefinition(formRow, false),
+      minimumParticipantAgeYears: formRow.minimumParticipantAgeYears,
     });
   }
 
