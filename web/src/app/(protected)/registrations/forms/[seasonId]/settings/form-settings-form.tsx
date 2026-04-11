@@ -34,6 +34,9 @@ export function FormSettingsForm({
     publicRegistrationOpen: boolean;
     minimumParticipantAgeYears: number | null;
     maximumParticipantAgeYears: number | null;
+    registrationNumberPrefix: string | null;
+    registrationNumberSeqDigits: number;
+    registrationNumberLastSeq: number;
   };
 }) {
   const router = useRouter();
@@ -69,6 +72,13 @@ export function FormSettingsForm({
             ? Math.min(99, maxParsed)
             : null;
 
+        const regPrefixRaw = String(fd.get("registrationNumberPrefix") ?? "").trim();
+        const registrationNumberPrefix = regPrefixRaw.length > 0 ? regPrefixRaw : null;
+        const seqDigRaw = String(fd.get("registrationNumberSeqDigits") ?? "").trim();
+        const seqDigParsed = parseInt(seqDigRaw, 10);
+        const registrationNumberSeqDigits =
+          seqDigRaw && Number.isFinite(seqDigParsed) ? seqDigParsed : initial.registrationNumberSeqDigits;
+
         if (
           minimumParticipantAgeYears != null &&
           maximumParticipantAgeYears != null &&
@@ -92,6 +102,8 @@ export function FormSettingsForm({
             publicRegistrationOpen,
             minimumParticipantAgeYears,
             maximumParticipantAgeYears,
+            registrationNumberPrefix,
+            registrationNumberSeqDigits,
           });
           setMsg(r.message);
           if (r.ok) router.refresh();
@@ -148,6 +160,69 @@ export function FormSettingsForm({
             className="mt-1 w-full rounded-md border border-foreground/15 bg-background px-3 py-2 text-sm"
           />
         </div>
+      </div>
+
+      <div className="space-y-4 rounded-xl border border-foreground/10 p-4">
+        <h2 className="text-sm font-semibold">Registration number template</h2>
+        <p className="text-sm text-foreground/70">
+          When staff <strong>approves</strong> a child (or adds a confirmed office registration), the system assigns
+          a ticket / badge number. Leave the prefix empty to keep the default{" "}
+          <code className="rounded bg-foreground/[0.06] px-1 py-0.5 text-xs">VBS-{"{year}"}-{"{random}"}</code>{" "}
+          style. With a prefix, numbers are sequential: e.g. prefix <code className="text-xs">IPCHVBS-</code> and three
+          digits → <code className="text-xs">IPCHVBS-001</code>, <code className="text-xs">IPCHVBS-002</code>, …
+        </p>
+        <div>
+          <label htmlFor="registrationNumberPrefix" className="block text-xs font-medium text-foreground/70">
+            Number prefix (optional)
+          </label>
+          <input
+            id="registrationNumberPrefix"
+            name="registrationNumberPrefix"
+            type="text"
+            maxLength={32}
+            placeholder="e.g. IPCHVBS-"
+            defaultValue={initial.registrationNumberPrefix ?? ""}
+            className="mt-1 w-full max-w-md rounded-md border border-foreground/15 bg-background px-3 py-2 font-mono text-sm"
+          />
+          <p className="mt-1 text-xs text-foreground/60">
+            Letters, digits, <code className="text-[11px]">-</code> and <code className="text-[11px]">_</code>; must
+            start with a letter or digit. Include a trailing hyphen if you want one.
+          </p>
+        </div>
+        <div>
+          <label htmlFor="registrationNumberSeqDigits" className="block text-xs font-medium text-foreground/70">
+            Sequence digit width
+          </label>
+          <input
+            id="registrationNumberSeqDigits"
+            name="registrationNumberSeqDigits"
+            type="number"
+            min={2}
+            max={8}
+            defaultValue={initial.registrationNumberSeqDigits}
+            className="mt-1 w-full max-w-[8rem] rounded-md border border-foreground/15 bg-background px-3 py-2 text-sm tabular-nums"
+          />
+          <p className="mt-1 text-xs text-foreground/60">Between 2 and 8 (default 3 → 001, 002, …).</p>
+        </div>
+        <p className="text-xs text-foreground/60">
+          Last issued sequence index:{" "}
+          <span className="font-mono tabular-nums text-foreground/80">{initial.registrationNumberLastSeq}</span>
+          {initial.registrationNumberPrefix?.trim() ? (
+            <>
+              {" — "}
+              next sequential example:{" "}
+              <span className="font-mono tabular-nums text-foreground/80">
+                {initial.registrationNumberPrefix.trim() +
+                  String(initial.registrationNumberLastSeq + 1).padStart(
+                    Math.min(8, Math.max(2, initial.registrationNumberSeqDigits)),
+                    "0",
+                  )}
+              </span>
+            </>
+          ) : (
+            <> — save a prefix to use sequential numbers instead of the default format.</>
+          )}
+        </p>
       </div>
 
       <div className="space-y-4 rounded-xl border border-foreground/10 p-4">

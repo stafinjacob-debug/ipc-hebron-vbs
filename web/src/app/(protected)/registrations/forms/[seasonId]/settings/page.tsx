@@ -53,6 +53,9 @@ export default async function RegistrationFormSettingsPage({
           publicRegistrationOpen: season.publicRegistrationOpen,
           minimumParticipantAgeYears: form.minimumParticipantAgeYears,
           maximumParticipantAgeYears: form.maximumParticipantAgeYears,
+          registrationNumberPrefix: form.registrationNumberPrefix,
+          registrationNumberSeqDigits: form.registrationNumberSeqDigits,
+          registrationNumberLastSeq: form.registrationNumberNextSeq,
         }}
       />
     </div>

@@ -157,6 +157,8 @@ export async function updateRegistrationFormSettings(
     publicRegistrationOpen: boolean;
     minimumParticipantAgeYears: number | null;
     maximumParticipantAgeYears: number | null;
+    registrationNumberPrefix: string | null;
+    registrationNumberSeqDigits: number;
   },
 ): Promise<ActionState> {
   const session = await auth();
@@ -187,6 +189,23 @@ export async function updateRegistrationFormSettings(
     return { ok: false, message: "Minimum age cannot be greater than maximum age." };
   }
 
+  const prefixRaw = data.registrationNumberPrefix?.trim() ?? "";
+  const registrationNumberPrefix = prefixRaw.length > 0 ? prefixRaw : null;
+  if (registrationNumberPrefix) {
+    if (registrationNumberPrefix.length > 32) {
+      return { ok: false, message: "Registration number prefix must be at most 32 characters." };
+    }
+    if (!/^[A-Za-z0-9][A-Za-z0-9_-]*$/.test(registrationNumberPrefix)) {
+      return {
+        ok: false,
+        message:
+          "Registration prefix must start with a letter or digit and contain only letters, digits, hyphens, and underscores.",
+      };
+    }
+  }
+
+  const seqDigits = Math.min(8, Math.max(2, Math.floor(data.registrationNumberSeqDigits) || 3));
+
   await prisma.$transaction([
     prisma.vbsSeason.update({
       where: { id: seasonId },
@@ -205,6 +224,8 @@ export async function updateRegistrationFormSettings(
         waitlistEnabled: data.waitlistEnabled,
         minimumParticipantAgeYears: minAge,
         maximumParticipantAgeYears: maxAge,
+        registrationNumberPrefix,
+        registrationNumberSeqDigits: seqDigits,
         updatedByUserId: session.user.id ?? undefined,
       },
     }),
@@ -259,6 +280,9 @@ export async function cloneRegistrationFormFromSeason(
       registrationClosesAt: srcForm.registrationClosesAt,
       minimumParticipantAgeYears: srcForm.minimumParticipantAgeYears,
       maximumParticipantAgeYears: srcForm.maximumParticipantAgeYears,
+      registrationNumberPrefix: srcForm.registrationNumberPrefix,
+      registrationNumberSeqDigits: srcForm.registrationNumberSeqDigits,
+      registrationNumberNextSeq: 0,
       updatedByUserId: session.user.id ?? undefined,
     },
   });

@@ -246,6 +246,14 @@ model RegistrationForm {
   /// If set (>=1), each child must be at most this many whole years old on the season start date (startDate).
   maximumParticipantAgeYears Int?
 
+  /// When set (trimmed non-empty), new registration numbers are `{prefix}{sequence}` with zero-padded sequence.
+  /// When null/empty, numbers use legacy `VBS-{year}-{random}`.
+  registrationNumberPrefix    String?
+  /// Width for the numeric suffix (e.g. 3 → 001). App clamps between 2 and 8.
+  registrationNumberSeqDigits Int @default(3)
+  /// Increments atomically when issuing a prefixed registration number for this season’s form.
+  registrationNumberNextSeq   Int @default(0)
+
   draftDefinitionJson     String? @db.Text
   publishedDefinitionJson String? @db.Text
   publishedAt             DateTime?

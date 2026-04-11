@@ -53,7 +53,11 @@ export async function approveRegistration(registrationId: string): Promise<RegAc
           return;
         }
         const registrationNumber =
-          current.registrationNumber ?? (await makeUniqueRegistrationNumber(current.season.year, tx));
+          current.registrationNumber ??
+          (await makeUniqueRegistrationNumber(
+            { seasonId: current.seasonId, seasonYear: current.season.year },
+            tx,
+          ));
         const checkInToken = current.checkInToken ?? makeCheckInToken();
         await tx.registration.update({
           where: { id: registrationId },

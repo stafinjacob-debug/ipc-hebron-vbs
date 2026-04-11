@@ -161,7 +161,10 @@ export async function createVbsRegistration(
         },
       });
 
-      const registrationNumber = await makeUniqueRegistrationNumber(season.year, tx);
+      const registrationNumber = await makeUniqueRegistrationNumber(
+        { seasonId: data.seasonId, seasonYear: season.year },
+        tx,
+      );
       const checkInToken = makeCheckInToken();
 
       const registeredAt = new Date();
