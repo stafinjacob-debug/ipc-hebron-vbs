@@ -33,24 +33,24 @@ export function AdminTopBar({
         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3 sm:gap-4">
           <SeasonSwitcher seasons={seasons} />
           <div className="hidden h-8 w-px bg-foreground/10 sm:block" aria-hidden />
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1.5 rounded-lg border border-foreground/10 bg-foreground/[0.02] px-1 py-1">
             <button
               type="button"
               disabled
               title="Search (coming soon)"
-              className="rounded-lg p-2 text-foreground/35"
+              className="rounded-md p-1.5 text-foreground/35"
               aria-disabled
             >
-              <Search className="size-5" aria-hidden />
+              <Search className="size-4" aria-hidden />
             </button>
             <button
               type="button"
               disabled
               title="Notifications (coming soon)"
-              className="rounded-lg p-2 text-foreground/35"
+              className="rounded-md p-1.5 text-foreground/35"
               aria-disabled
             >
-              <Bell className="size-5" aria-hidden />
+              <Bell className="size-4" aria-hidden />
             </button>
           </div>
         </div>

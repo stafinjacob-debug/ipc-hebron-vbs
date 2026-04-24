@@ -7,6 +7,8 @@ import {
   declineRegistration,
   deleteRegistrationRecord,
   markRegistrationPaymentReceived,
+  sendCustomRegistrationSmsAction,
+  sendRegistrationConfirmationSmsAction,
   resendPaymentReminderEmailAction,
   resendRegistrationConfirmationEmailAction,
   setRegistrationExpectsPayment,
@@ -18,16 +20,19 @@ export function RegistrationAdminPanel({
   expectsPayment,
   paymentReceivedAt,
   guardianHasEmail,
+  guardianHasPhone,
 }: {
   registrationId: string;
   status: string;
   expectsPayment: boolean;
   paymentReceivedAt: string | null;
   guardianHasEmail: boolean;
+  guardianHasPhone: boolean;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [msg, setMsg] = useState<string | null>(null);
+  const [smsBody, setSmsBody] = useState("");
 
   const isConfirmed = status === "CONFIRMED";
   const canApprove = status === "PENDING" || status === "WAITLIST" || status === "DRAFT";
@@ -39,6 +44,11 @@ export function RegistrationAdminPanel({
       {!guardianHasEmail ? (
         <p className="text-sm text-amber-800 dark:text-amber-200">
           Guardian has no email — confirmation and payment emails cannot be sent until an address is added (e.g. on the submission).
+        </p>
+      ) : null}
+      {!guardianHasPhone ? (
+        <p className="text-sm text-amber-800 dark:text-amber-200">
+          Guardian has no SMS-capable phone value — SMS cannot be sent until a valid number is saved.
         </p>
       ) : null}
 
@@ -172,6 +182,55 @@ export function RegistrationAdminPanel({
               Mark payment received
             </button>
           )}
+        </div>
+      </div>
+
+      <div className="border-t border-foreground/10 pt-4">
+        <p className="text-xs font-medium text-foreground/60">SMS (Twilio)</p>
+        <div className="mt-2 flex flex-wrap gap-2">
+          <button
+            type="button"
+            disabled={pending || !isConfirmed || !guardianHasPhone}
+            className="rounded-lg border border-foreground/20 px-3 py-2 text-sm font-medium hover:bg-foreground/[0.04] disabled:opacity-40"
+            title={!isConfirmed ? "Confirm this registration first" : undefined}
+            onClick={() => {
+              setMsg(null);
+              startTransition(async () => {
+                const r = await sendRegistrationConfirmationSmsAction(registrationId);
+                setMsg(r.message);
+              });
+            }}
+          >
+            Send confirmation SMS
+          </button>
+        </div>
+        <div className="mt-3 space-y-2">
+          <label htmlFor="customSmsBody" className="text-xs text-foreground/60">
+            Custom SMS message
+          </label>
+          <textarea
+            id="customSmsBody"
+            rows={3}
+            value={smsBody}
+            onChange={(e) => setSmsBody(e.target.value)}
+            placeholder="Type a custom message to send to this guardian..."
+            className="w-full rounded-md border border-foreground/15 bg-background px-3 py-2 text-sm"
+          />
+          <button
+            type="button"
+            disabled={pending || !guardianHasPhone || !smsBody.trim()}
+            className="rounded-lg border border-foreground/20 px-3 py-2 text-sm font-medium hover:bg-foreground/[0.04] disabled:opacity-40"
+            onClick={() => {
+              setMsg(null);
+              startTransition(async () => {
+                const r = await sendCustomRegistrationSmsAction(registrationId, smsBody);
+                setMsg(r.message);
+                if (r.ok) setSmsBody("");
+              });
+            }}
+          >
+            Send custom SMS
+          </button>
         </div>
       </div>
 

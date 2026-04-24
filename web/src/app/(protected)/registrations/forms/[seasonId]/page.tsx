@@ -49,14 +49,11 @@ export default async function RegistrationFormHubPage({
     );
   }
 
-  const [submissionCount, audit] = await Promise.all([
-    prisma.formSubmission.count({ where: { seasonId } }),
-    prisma.registrationFormAuditLog.findMany({
-      where: { formId: form.id },
-      orderBy: { createdAt: "desc" },
-      take: 12,
-    }),
-  ]);
+  const audit = await prisma.registrationFormAuditLog.findMany({
+    where: { formId: form.id },
+    orderBy: { createdAt: "desc" },
+    take: 12,
+  });
 
   const windowOk = isFormRegistrationOpen(form);
   const accepting =
@@ -73,7 +70,7 @@ export default async function RegistrationFormHubPage({
 
   return (
     <div className="space-y-8">
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <div className="rounded-xl border border-foreground/10 px-4 py-3">
           <p className="text-xs font-medium uppercase text-foreground/60">Form status</p>
           <p className="mt-1 text-lg font-semibold">{form.status}</p>
@@ -87,20 +84,13 @@ export default async function RegistrationFormHubPage({
           </p>
         </div>
         <div className="rounded-xl border border-foreground/10 px-4 py-3">
-          <p className="text-xs font-medium uppercase text-foreground/60">Submissions</p>
-          <p className="mt-1 text-lg font-semibold tabular-nums">{submissionCount}</p>
-          <Link
-            href={`/registrations/forms/${seasonId}/submissions`}
-            className="text-sm font-medium text-brand underline"
-          >
-            View all
-          </Link>
-        </div>
-        <div className="rounded-xl border border-foreground/10 px-4 py-3">
           <p className="text-xs font-medium uppercase text-foreground/60">Registrations</p>
           <p className="mt-1 text-lg font-semibold tabular-nums">{season._count.registrations}</p>
-          <Link href="/registrations" className="text-sm font-medium text-brand underline">
-            Staff list
+          <Link
+            href={`/registrations?season=${encodeURIComponent(seasonId)}`}
+            className="text-sm font-medium text-brand underline"
+          >
+            View in staff list
           </Link>
         </div>
       </div>
@@ -109,13 +99,13 @@ export default async function RegistrationFormHubPage({
         <div className="flex flex-wrap gap-3">
           <LifecycleActions seasonId={seasonId} status={form.status} />
           <Link
-            href={`/registrations/forms/${seasonId}/edit`}
+            href={`/registrations/form-workspace/${seasonId}`}
             className="rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background hover:opacity-90"
           >
-            Open form editor
+            Open form workspace
           </Link>
           <Link
-            href={`/registrations/forms/${seasonId}/settings`}
+            href={`/registrations/form-workspace/${seasonId}?tab=settings`}
             className="rounded-md border border-foreground/20 px-4 py-2 text-sm font-medium hover:bg-foreground/[0.04]"
           >
             Settings & capacity

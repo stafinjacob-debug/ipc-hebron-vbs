@@ -99,9 +99,18 @@ function formatOptions(opts: { value: string; label: string }[] | undefined): st
 export function FormDefinitionEditor({
   seasonId,
   initialDefinition,
+  previewHref,
+  previewSameTab = false,
+  onPreviewNavigate,
 }: {
   seasonId: string;
   initialDefinition: FormDefinitionV1;
+  /** When set (e.g. full-page workspace), Preview navigates here instead of the legacy preview route. */
+  previewHref?: string;
+  /** If true, Preview opens in the same tab (omit `target="_blank"`). */
+  previewSameTab?: boolean;
+  /** When set (e.g. inline embed), Preview is a button that calls this instead of navigating by URL. */
+  onPreviewNavigate?: () => void;
 }) {
   const router = useRouter();
   const [def, setDef] = useState<FormDefinitionV1>(initialDefinition);
@@ -233,14 +242,23 @@ export function FormDefinitionEditor({
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Link
-              href={`/registrations/forms/${seasonId}/preview`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="rounded-lg border border-foreground/15 px-3 py-2 text-sm font-medium text-foreground/90 hover:bg-foreground/[0.05]"
-            >
-              Preview
-            </Link>
+            {onPreviewNavigate ? (
+              <button
+                type="button"
+                onClick={onPreviewNavigate}
+                className="rounded-lg border border-foreground/15 px-3 py-2 text-sm font-medium text-foreground/90 hover:bg-foreground/[0.05]"
+              >
+                Preview
+              </button>
+            ) : (
+              <Link
+                href={previewHref ?? `/registrations/forms/${seasonId}/preview`}
+                {...(previewSameTab ? {} : { target: "_blank", rel: "noopener noreferrer" })}
+                className="rounded-lg border border-foreground/15 px-3 py-2 text-sm font-medium text-foreground/90 hover:bg-foreground/[0.05]"
+              >
+                Preview
+              </Link>
+            )}
             <button
               type="button"
               disabled={pending}

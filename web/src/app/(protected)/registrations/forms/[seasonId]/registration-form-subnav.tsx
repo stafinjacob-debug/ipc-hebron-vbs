@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 
 const BASE = (id: string) => `/registrations/forms/${id}`;
 
@@ -9,29 +9,27 @@ type Tab = {
   href: (id: string) => string;
   label: string;
   end?: boolean;
-  labelWithCount?: (count: number | undefined) => string;
 };
+
+const WORKSPACE = (id: string) => `/registrations/form-workspace/${id}`;
 
 const LINKS: Tab[] = [
   { href: (id) => BASE(id), label: "Overview", end: true },
-  { href: (id) => `${BASE(id)}/edit`, label: "Form editor" },
-  { href: (id) => `${BASE(id)}/settings`, label: "Settings" },
-  { href: (id) => `${BASE(id)}/preview`, label: "Preview" },
-  {
-    href: (id) => `${BASE(id)}/submissions`,
-    label: "Submissions",
-    labelWithCount: (c) => (c != null ? `Submissions (${c})` : "Submissions"),
-  },
+  { href: (id) => WORKSPACE(id), label: "Form editor" },
+  { href: (id) => `${WORKSPACE(id)}?tab=settings`, label: "Settings" },
+  { href: (id) => `${WORKSPACE(id)}?tab=preview`, label: "Preview" },
 ];
 
 export function RegistrationFormSubnav({
   seasonId,
-  submissionCount,
 }: {
   seasonId: string;
-  submissionCount?: number;
 }) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const workspacePath = WORKSPACE(seasonId);
+  const onWorkspace = pathname === workspacePath;
+  const workspaceTab = searchParams.get("tab");
 
   return (
     <nav
@@ -40,9 +38,17 @@ export function RegistrationFormSubnav({
     >
       {LINKS.map((tab) => {
         const h = tab.href(seasonId);
-        const active = tab.end ? pathname === h : pathname.startsWith(h);
-        const label =
-          tab.labelWithCount?.(submissionCount) ?? tab.label;
+        const active = tab.end
+          ? pathname === h
+          : tab.label === "Form editor"
+            ? (onWorkspace && (!workspaceTab || workspaceTab === "fields")) ||
+              pathname.startsWith(`${BASE(seasonId)}/edit`)
+            : tab.label === "Settings"
+              ? (onWorkspace && workspaceTab === "settings") || pathname.startsWith(`${BASE(seasonId)}/settings`)
+              : tab.label === "Preview"
+                ? (onWorkspace && workspaceTab === "preview") || pathname.startsWith(`${BASE(seasonId)}/preview`)
+                : pathname.startsWith(h);
+        const label = tab.label;
         return (
           <Link
             key={tab.label}

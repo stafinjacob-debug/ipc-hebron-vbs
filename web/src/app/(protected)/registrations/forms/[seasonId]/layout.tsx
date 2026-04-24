@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { auth } from "@/auth";
 import { ensureRegistrationFormForSeason } from "@/lib/ensure-registration-form";
 import { prisma } from "@/lib/prisma";
@@ -26,8 +27,6 @@ export default async function RegistrationFormSeasonLayout({
     form = await ensureRegistrationFormForSeason(season.id, season.name);
   }
 
-  const submissionCount = await prisma.formSubmission.count({ where: { seasonId } });
-
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 border-b border-foreground/10 pb-6 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
@@ -51,7 +50,9 @@ export default async function RegistrationFormSeasonLayout({
         </div>
       </div>
 
-      <RegistrationFormSubnav seasonId={seasonId} submissionCount={submissionCount} />
+      <Suspense fallback={<div className="h-11 rounded-xl bg-foreground/[0.04] ring-1 ring-foreground/10" aria-hidden />}>
+        <RegistrationFormSubnav seasonId={seasonId} />
+      </Suspense>
       {children}
     </div>
   );

@@ -3,7 +3,6 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { canManageDirectory } from "@/lib/roles";
 import { clampRegistrationBackgroundDimmingPercent } from "@/lib/registration-background-scrim";
-import { rulesFromDb } from "@/lib/public-registration";
 import { redirect, notFound } from "next/navigation";
 import { PublicRegistrationSettingsForm } from "./settings-form";
 
@@ -20,9 +19,6 @@ export default async function PublicRegistrationSettingsPage({ params }: PagePro
     include: { publicRegistrationSettings: true },
   });
   if (!season) notFound();
-
-  const rules = rulesFromDb(season.publicRegistrationSettings);
-  const welcome = season.publicRegistrationSettings?.welcomeMessage ?? "";
 
   return (
     <div className="space-y-8">
@@ -42,10 +38,6 @@ export default async function PublicRegistrationSettingsPage({ params }: PagePro
       <PublicRegistrationSettingsForm
         seasonId={season.id}
         publicRegistrationOpen={season.publicRegistrationOpen}
-        requireGuardianEmail={rules.requireGuardianEmail}
-        requireGuardianPhone={rules.requireGuardianPhone}
-        requireAllergiesNotes={rules.requireAllergiesNotes}
-        welcomeMessage={welcome}
         registrationBackgroundImageUrl={
           season.publicRegistrationSettings?.registrationBackgroundImageUrl ?? null
         }

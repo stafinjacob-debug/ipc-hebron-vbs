@@ -42,18 +42,21 @@ export function SeasonSwitcher({
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="flex max-w-[220px] items-center gap-2 rounded-lg border border-foreground/15 bg-foreground/[0.03] px-3 py-2 text-left text-sm font-medium text-foreground hover:bg-foreground/[0.06] sm:max-w-xs"
+        className="flex max-w-[240px] items-center gap-2 rounded-lg border border-foreground/15 bg-foreground/[0.03] px-3 py-2 text-left sm:max-w-xs"
         aria-expanded={open}
         aria-haspopup="listbox"
       >
-        <span className="min-w-0 flex-1 truncate">
+        <span className="min-w-0 flex-1">
+          <span className="block text-[10px] font-medium uppercase tracking-wide text-foreground/45">
+            Active season
+          </span>
           {current ? (
-            <>
+            <span className="block truncate text-sm font-medium text-foreground">
               {current.name}
               <span className="ml-1 text-foreground/55">({current.year})</span>
-            </>
+            </span>
           ) : (
-            <span className="text-foreground/60">Season</span>
+            <span className="block text-sm text-foreground/60">Select season</span>
           )}
         </span>
         <ChevronDown className="size-4 shrink-0 text-foreground/50" aria-hidden />

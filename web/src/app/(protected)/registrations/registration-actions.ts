@@ -9,6 +9,7 @@ import { tryAutoAssignRegistration } from "@/lib/class-assignment";
 import { makeCheckInToken, makeUniqueRegistrationNumber } from "@/lib/registration-identity";
 import { prisma } from "@/lib/prisma";
 import { canManageDirectory } from "@/lib/roles";
+import { sendCustomRegistrationSms, sendRegistrationConfirmationSms } from "@/lib/sms/registration-sms";
 import { revalidatePath } from "next/cache";
 
 export type RegActionState = { ok: boolean; message: string };
@@ -226,4 +227,56 @@ export async function markRegistrationPaymentReceived(registrationId: string): P
 
   revalidatePath(`/registrations/${registrationId}`);
   return { ok: true, message: "Payment marked as received." };
+}
+
+export async function sendRegistrationConfirmationSmsAction(
+  registrationId: string,
+): Promise<RegActionState> {
+  const session = await auth();
+  if (!session?.user?.role || !canManageDirectory(session.user.role)) {
+    return { ok: false, message: "You do not have permission." };
+  }
+
+  const r = await sendRegistrationConfirmationSms(registrationId);
+  if (r === "sent") return { ok: true, message: "Confirmation SMS sent." };
+  if (r === "skipped_no_twilio") {
+    return {
+      ok: false,
+      message: "Twilio SMS is not configured (TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN / TWILIO_FROM_PHONE).",
+    };
+  }
+  if (r === "skipped_no_phone") {
+    return { ok: false, message: "Guardian phone is missing or invalid for SMS." };
+  }
+  if (r === "skipped_ineligible") {
+    return { ok: false, message: "Registration must be confirmed with ticket + registration number first." };
+  }
+  return { ok: false, message: "SMS failed to send. Check server logs / Twilio console." };
+}
+
+export async function sendCustomRegistrationSmsAction(
+  registrationId: string,
+  message: string,
+): Promise<RegActionState> {
+  const session = await auth();
+  if (!session?.user?.role || !canManageDirectory(session.user.role)) {
+    return { ok: false, message: "You do not have permission." };
+  }
+  if (!message.trim()) return { ok: false, message: "Message is empty." };
+
+  const r = await sendCustomRegistrationSms(registrationId, message);
+  if (r === "sent") return { ok: true, message: "SMS sent." };
+  if (r === "skipped_no_twilio") {
+    return {
+      ok: false,
+      message: "Twilio SMS is not configured (TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN / TWILIO_FROM_PHONE).",
+    };
+  }
+  if (r === "skipped_no_phone") {
+    return { ok: false, message: "Guardian phone is missing or invalid for SMS." };
+  }
+  if (r === "skipped_ineligible") {
+    return { ok: false, message: "Message is empty." };
+  }
+  return { ok: false, message: "SMS failed to send. Check server logs / Twilio console." };
 }

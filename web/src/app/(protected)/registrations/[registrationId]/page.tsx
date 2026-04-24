@@ -157,6 +157,7 @@ export default async function RegistrationDetailPage({
               expectsPayment={reg.expectsPayment}
               paymentReceivedAt={reg.paymentReceivedAt?.toISOString() ?? null}
               guardianHasEmail={Boolean(g.email?.trim())}
+              guardianHasPhone={Boolean(g.phone?.trim())}
             />
           ) : null}
         </div>

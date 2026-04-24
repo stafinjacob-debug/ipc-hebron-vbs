@@ -20,8 +20,11 @@ function fromDatetimeLocalValue(s: string): Date | null {
 export function FormSettingsForm({
   seasonId,
   initial,
+  hidePublicRegistrationOpen = false,
 }: {
   seasonId: string;
+  /** When true, `publicRegistrationOpen` is omitted from this form (managed elsewhere, e.g. embed workspace). */
+  hidePublicRegistrationOpen?: boolean;
   initial: {
     title: string;
     welcomeMessage: string | null;
@@ -58,7 +61,9 @@ export function FormSettingsForm({
         const maxRaw = String(fd.get("maxTotalRegistrations") ?? "").trim();
         const maxTotalRegistrations = maxRaw ? Math.max(0, parseInt(maxRaw, 10) || 0) : null;
         const waitlistEnabled = fd.get("waitlistEnabled") === "on";
-        const publicRegistrationOpen = fd.get("publicRegistrationOpen") === "on";
+        const publicRegistrationOpen = hidePublicRegistrationOpen
+          ? initial.publicRegistrationOpen
+          : fd.get("publicRegistrationOpen") === "on";
         const minAgeRaw = String(fd.get("minimumParticipantAgeYears") ?? "").trim();
         const minParsed = parseInt(minAgeRaw, 10);
         const minimumParticipantAgeYears =
@@ -321,15 +326,17 @@ export function FormSettingsForm({
           />
           Waitlist when full (otherwise block submit)
         </label>
-        <label className="flex items-center gap-2 text-sm font-medium">
-          <input
-            type="checkbox"
-            name="publicRegistrationOpen"
-            defaultChecked={initial.publicRegistrationOpen}
-            className="size-4 rounded border-foreground/30"
-          />
-          Public signup open for this season (master switch; same as season public settings)
-        </label>
+        {hidePublicRegistrationOpen ? null : (
+          <label className="flex items-center gap-2 text-sm font-medium">
+            <input
+              type="checkbox"
+              name="publicRegistrationOpen"
+              defaultChecked={initial.publicRegistrationOpen}
+              className="size-4 rounded border-foreground/30"
+            />
+            Public signup open for this season (master switch; same as season public settings)
+          </label>
+        )}
       </div>
 
       <button

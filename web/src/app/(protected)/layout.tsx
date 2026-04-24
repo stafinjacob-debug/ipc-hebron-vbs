@@ -15,17 +15,59 @@ export default async function ProtectedLayout({
     redirect("/login");
   }
 
-  const [seasons, dbRow] = await Promise.all([
-    prisma.vbsSeason.findMany({
-      orderBy: [{ year: "desc" }, { startDate: "desc" }],
-      select: { id: true, name: true, year: true },
-    }),
-    findUserRawByEmail(session.user.email),
-  ]);
+  let dbRow: Awaited<ReturnType<typeof findUserRawByEmail>> | undefined;
+  try {
+    dbRow = await findUserRawByEmail(session.user.email);
+  } catch {
+    dbRow = undefined;
+  }
+
+  if (dbRow === undefined) {
+    const role = normalizeStaffRole(session.user.role);
+    let seasons: { id: string; name: string; year: number }[] = [];
+    let seasonsLoaded = false;
+    try {
+      seasons = await prisma.vbsSeason.findMany({
+        orderBy: [{ year: "desc" }, { startDate: "desc" }],
+        select: { id: true, name: true, year: true },
+      });
+      seasonsLoaded = true;
+    } catch {
+      seasons = [];
+    }
+
+    const databaseNotice = !seasonsLoaded
+      ? "Could not reach the database. Season lists and most staff pages will fail until DATABASE_URL is reachable (check Azure PostgreSQL firewall/VNet rules or use a local database in .env.local)."
+      : "Could not verify your staff profile against the database. You are still signed in from your session; retry when the database is reachable.";
+
+    return (
+      <AppShell
+        email={session.user.email}
+        displayName={session.user.name ?? null}
+        role={role}
+        seasons={seasons}
+        databaseNotice={databaseNotice}
+      >
+        {children}
+      </AppShell>
+    );
+  }
 
   if (!dbRow) redirect("/login");
 
   const role = normalizeStaffRole(dbRow.role);
+
+  let seasons: { id: string; name: string; year: number }[] = [];
+  let databaseNotice: string | null = null;
+  try {
+    seasons = await prisma.vbsSeason.findMany({
+      orderBy: [{ year: "desc" }, { startDate: "desc" }],
+      select: { id: true, name: true, year: true },
+    });
+  } catch {
+    databaseNotice =
+      "Could not load seasons from the database. The season switcher is empty until the connection is restored.";
+  }
 
   return (
     <AppShell
@@ -33,6 +75,7 @@ export default async function ProtectedLayout({
       displayName={dbRow.name ?? session.user.name ?? null}
       role={role}
       seasons={seasons}
+      databaseNotice={databaseNotice}
     >
       {children}
     </AppShell>

@@ -96,6 +96,8 @@ export async function savePublicRegistrationSettings(
   revalidatePath("/register");
   revalidatePath("/seasons");
   revalidatePath(`/seasons/${seasonId}/public-settings`);
+  revalidatePath("/registrations/forms");
+  revalidatePath(`/registrations/form-workspace/${seasonId}`);
 
   return { ok: true, message: "Public registration settings saved." };
 }

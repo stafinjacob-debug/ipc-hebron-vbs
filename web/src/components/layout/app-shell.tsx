@@ -11,12 +11,15 @@ export function AppShell({
   displayName,
   role,
   seasons,
+  databaseNotice,
   children,
 }: {
   email: string;
   displayName: string | null;
   role: UserRole;
   seasons: { id: string; name: string; year: number }[];
+  /** Shown when the app could not load seasons from the database (connection issues). */
+  databaseNotice?: string | null;
   children: React.ReactNode;
 }) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -39,6 +42,14 @@ export function AppShell({
               seasons={seasons}
               onMenuClick={() => setMobileNavOpen(true)}
             />
+            {databaseNotice ? (
+              <div
+                className="border-b border-amber-500/40 bg-amber-500/10 px-4 py-2 text-center text-sm text-amber-950 dark:text-amber-100"
+                role="status"
+              >
+                {databaseNotice}
+              </div>
+            ) : null}
             <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
               {children}
             </main>

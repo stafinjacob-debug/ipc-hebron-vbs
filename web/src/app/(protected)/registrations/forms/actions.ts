@@ -1,14 +1,18 @@
 "use server";
 
 import { auth } from "@/auth";
-import { ensureRegistrationFormForSeason } from "@/lib/ensure-registration-form";
+import { ensureRegistrationFormForSeason, getEffectiveDefinition } from "@/lib/ensure-registration-form";
 import { prisma } from "@/lib/prisma";
 import {
   createDefaultFormDefinition,
   definitionToJson,
   formDefinitionSchema,
   parseFormDefinitionJson,
+  type FormDefinitionV1,
 } from "@/lib/registration-form-definition";
+import { getPublicBaseUrl } from "@/lib/public-base-url";
+import { clampRegistrationBackgroundDimmingPercent } from "@/lib/registration-background-scrim";
+import { rulesFromDb } from "@/lib/public-registration";
 import { sendAllApprovedRegistrationsEmailForSubmission } from "@/lib/email/registration-emails";
 import { canManageDirectory } from "@/lib/roles";
 import type { RegistrationFormStatus, RegistrationStatus } from "@/generated/prisma";
@@ -25,6 +29,7 @@ function revalidateSeason(seasonId: string) {
   revalidatePath(`${RF_PATH}/${seasonId}/settings`);
   revalidatePath(`${RF_PATH}/${seasonId}/preview`);
   revalidatePath(`${RF_PATH}/${seasonId}/submissions`);
+  revalidatePath(`/registrations/form-workspace/${seasonId}`);
   revalidatePath("/register");
   revalidatePath("/seasons");
 }
@@ -513,4 +518,116 @@ export async function resendRegistrationConfirmation(submissionId: string): Prom
     return { ok: false, message: "Guardian has no email address on file." };
   }
   return { ok: false, message: "Email failed to send. Check server logs." };
+}
+
+export type FormWorkspacePayload = {
+  seasonId: string;
+  seasonName: string;
+  year: number;
+  formTitle: string;
+  formStatus: string;
+  publishedVersion: number | null;
+  initialDefinition: FormDefinitionV1;
+  previewDraftDefinition: FormDefinitionV1;
+  previewPublishedDefinition: FormDefinitionV1;
+  hasPublishedDefinition: boolean;
+  publicSignupUrl: string;
+  /** Public `/register` surface (same data as season public settings). */
+  publicDisplayInitial: {
+    registrationBackgroundImageUrl: string | null;
+    registrationBackgroundDimmingPercent: number;
+    requireGuardianEmail: boolean;
+    requireGuardianPhone: boolean;
+    requireAllergiesNotes: boolean;
+    welcomeMessage: string;
+  };
+  settingsInitial: {
+    title: string;
+    welcomeMessage: string | null;
+    instructions: string | null;
+    confirmationMessage: string | null;
+    registrationOpensAt: string | null;
+    registrationClosesAt: string | null;
+    maxTotalRegistrations: number | null;
+    waitlistEnabled: boolean;
+    publicRegistrationOpen: boolean;
+    minimumParticipantAgeYears: number | null;
+    maximumParticipantAgeYears: number | null;
+    registrationNumberPrefix: string | null;
+    registrationNumberSeqDigits: number;
+    registrationNumberLastSeq: number;
+  };
+};
+
+export async function loadFormWorkspacePayload(
+  seasonId: string,
+): Promise<{ ok: true; payload: FormWorkspacePayload } | { ok: false; message: string }> {
+  const session = await auth();
+  if (!session?.user?.role || !canManageDirectory(session.user.role)) {
+    return { ok: false, message: "You do not have permission to load the form workspace." };
+  }
+
+  const season = await prisma.vbsSeason.findUnique({
+    where: { id: seasonId },
+    include: { registrationForm: true, publicRegistrationSettings: true },
+  });
+  if (!season) return { ok: false, message: "Season not found." };
+
+  const form =
+    season.registrationForm ?? (await ensureRegistrationFormForSeason(season.id, season.name));
+
+  const initialDefinition = getEffectiveDefinition(form, true) ?? createDefaultFormDefinition();
+  const previewDraftDefinition = initialDefinition;
+  const previewPublishedDefinition =
+    getEffectiveDefinition(form, false) ?? createDefaultFormDefinition();
+  const hasPublishedDefinition = !!form.publishedDefinitionJson;
+
+  const publicBase = await getPublicBaseUrl();
+  const publicSignupUrl = `${publicBase}/register`;
+  const publicRules = rulesFromDb(season.publicRegistrationSettings);
+  const publicWelcome = season.publicRegistrationSettings?.welcomeMessage ?? "";
+
+  return {
+    ok: true,
+    payload: {
+      seasonId: season.id,
+      seasonName: season.name,
+      year: season.year,
+      formTitle: form.title,
+      formStatus: form.status,
+      publishedVersion: form.publishedVersion,
+      initialDefinition,
+      previewDraftDefinition,
+      previewPublishedDefinition,
+      hasPublishedDefinition,
+      publicSignupUrl,
+      publicDisplayInitial: {
+        registrationBackgroundImageUrl:
+          season.publicRegistrationSettings?.registrationBackgroundImageUrl ?? null,
+        registrationBackgroundDimmingPercent: clampRegistrationBackgroundDimmingPercent(
+          season.publicRegistrationSettings?.registrationBackgroundDimmingPercent,
+        ),
+        requireGuardianEmail: publicRules.requireGuardianEmail,
+        requireGuardianPhone: publicRules.requireGuardianPhone,
+        requireAllergiesNotes: publicRules.requireAllergiesNotes,
+        welcomeMessage: publicWelcome,
+      },
+      settingsInitial: {
+        title: form.title,
+        welcomeMessage: form.welcomeMessage,
+        instructions: form.instructions,
+        confirmationMessage: form.confirmationMessage,
+        registrationOpensAt: form.registrationOpensAt?.toISOString() ?? null,
+        registrationClosesAt: form.registrationClosesAt?.toISOString() ?? null,
+        maxTotalRegistrations: form.maxTotalRegistrations,
+        waitlistEnabled: form.waitlistEnabled,
+        publicRegistrationOpen: season.publicRegistrationOpen,
+        minimumParticipantAgeYears: form.minimumParticipantAgeYears,
+        maximumParticipantAgeYears: form.maximumParticipantAgeYears,
+        registrationNumberPrefix: form.registrationNumberPrefix,
+        registrationNumberSeqDigits: form.registrationNumberSeqDigits,
+        registrationNumberLastSeq: form.registrationNumberNextSeq,
+      },
+    },
+  };
 }
