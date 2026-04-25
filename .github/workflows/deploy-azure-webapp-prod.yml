@@ -1,0 +1,94 @@
+# Deploy Next.js standalone build to Azure App Service — Production
+# Secrets required (all prefixed PROD_):
+#   PROD_AZURE_CREDENTIALS, PROD_AZURE_WEBAPP_NAME,
+#   PROD_DATABASE_URL, PROD_AUTH_SECRET, PROD_AUTH_URL
+# Optional: PROD_STRIPE_SECRET_KEY, PROD_STRIPE_WEBHOOK_SECRET,
+#           PROD_AZURE_STORAGE_CONNECTION_STRING
+
+name: Deploy to Azure Web App (Production)
+
+on:
+  push:
+    branches: [prod]
+    paths:
+      - "web/**"
+      - ".github/workflows/deploy-azure-webapp-prod.yml"
+
+  workflow_dispatch: {}
+
+concurrency:
+  group: azure-webapp-production
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install dependencies
+        env:
+          DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
+        run: npm ci
+
+      - name: Apply Prisma migrations
+        env:
+          DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
+        run: npx prisma migrate deploy
+
+      - name: Build standalone bundle
+        env:
+          DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
+          AUTH_SECRET: ${{ secrets.PROD_AUTH_SECRET }}
+          AUTH_URL: ${{ secrets.PROD_AUTH_URL }}
+          STRIPE_SECRET_KEY: ${{ secrets.PROD_STRIPE_SECRET_KEY }}
+          STRIPE_WEBHOOK_SECRET: ${{ secrets.PROD_STRIPE_WEBHOOK_SECRET }}
+          AZURE_STORAGE_CONNECTION_STRING: ${{ secrets.PROD_AZURE_STORAGE_CONNECTION_STRING }}
+        run: npm run build:azure
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.PROD_AZURE_CREDENTIALS }}
+
+      - name: Zip and deploy to Azure Web App
+        working-directory: web/.next/standalone
+        run: |
+          set -euo pipefail
+          zip -rq "$GITHUB_WORKSPACE/deploy-site.zip" .
+          az webapp deploy \
+            --resource-group rg-ipc-hebron-vbs-prod \
+            --name "${{ secrets.PROD_AZURE_WEBAPP_NAME }}" \
+            --src-path "$GITHUB_WORKSPACE/deploy-site.zip" \
+            --type zip \
+            --track-status false \
+            --enable-kudu-warmup false \
+            --timeout 1200000
+
+      - name: Smoke check (production responds)
+        run: |
+          BASE="${{ secrets.PROD_AUTH_URL }}"
+          BASE="${BASE%/}"
+          for i in $(seq 1 40); do
+            code=$(curl -sS -o /dev/null -w "%{http_code}" "$BASE/login" || echo 000)
+            if [ "$code" = "200" ] || [ "$code" = "302" ] || [ "$code" = "307" ]; then
+              echo "OK HTTP $code"
+              exit 0
+            fi
+            echo "attempt $i HTTP $code — waiting 15s…"
+            sleep 15
+          done
+          echo "Site did not return OK within ~10 minutes"
+          exit 1
