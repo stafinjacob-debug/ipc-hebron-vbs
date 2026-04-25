@@ -1,6 +1,6 @@
  "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { registrationBackgroundScrimAlpha } from "@/lib/registration-background-scrim";
 
 export type RegistrationBackgroundMediaProps = {
@@ -18,9 +18,16 @@ export function RegistrationBackgroundMedia({
   variant,
 }: RegistrationBackgroundMediaProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const [videoReady, setVideoReady] = useState(false);
+  const [videoFailed, setVideoFailed] = useState(false);
   const vid = videoUrl?.trim() || null;
   const img = imageUrl?.trim() || null;
   const dim = registrationBackgroundScrimAlpha(dimmingPercent);
+
+  useEffect(() => {
+    setVideoReady(false);
+    setVideoFailed(false);
+  }, [vid]);
 
   useEffect(() => {
     if (!vid) return;
@@ -83,25 +90,34 @@ export function RegistrationBackgroundMedia({
 
   return (
     <>
-      {vid ? (
-        <video
-          ref={videoRef}
-          aria-hidden
-          className={videoLayerClass}
-          src={vid}
-          autoPlay
-          muted
-          loop
-          playsInline
-          preload="metadata"
-        />
-      ) : (
+      {img ? (
         <div
           aria-hidden
           className={imageLayerClass}
           style={{ backgroundImage: `url(${JSON.stringify(img)})` }}
         />
-      )}
+      ) : null}
+      {vid && !videoFailed ? (
+        <video
+          ref={videoRef}
+          aria-hidden
+          className={`${videoLayerClass} transition-opacity duration-500 ${videoReady ? "opacity-100" : "opacity-0"}`}
+          src={vid}
+          poster={img ?? undefined}
+          autoPlay
+          muted
+          loop
+          playsInline
+          preload="auto"
+          onLoadedData={() => setVideoReady(true)}
+          onCanPlay={() => setVideoReady(true)}
+          onPlay={() => setVideoReady(true)}
+          onError={() => {
+            setVideoFailed(true);
+            setVideoReady(false);
+          }}
+        />
+      ) : null}
       <div
         aria-hidden
         className={scrimClass}
