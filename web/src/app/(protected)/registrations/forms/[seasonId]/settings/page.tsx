@@ -56,6 +56,11 @@ export default async function RegistrationFormSettingsPage({
           registrationNumberPrefix: form.registrationNumberPrefix,
           registrationNumberSeqDigits: form.registrationNumberSeqDigits,
           registrationNumberLastSeq: form.registrationNumberNextSeq,
+          stripeCheckoutEnabled: form.stripeCheckoutEnabled,
+          stripeAmountCents: form.stripeAmountCents,
+          stripePricingUnit: form.stripePricingUnit,
+          stripeProcessingFeeMode: form.stripeProcessingFeeMode,
+          stripeProductLabel: form.stripeProductLabel,
         }}
       />
     </div>

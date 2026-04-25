@@ -4,7 +4,8 @@ const nextConfig: NextConfig = {
   output: "standalone",
   experimental: {
     serverActions: {
-      bodySizeLimit: "4mb",
+      /** Public registration background videos allow up to 10 MB; leave headroom for multipart encoding. */
+      bodySizeLimit: "12mb",
     },
   },
 };

@@ -43,6 +43,30 @@ enum RegistrationFormStatus {
   ARCHIVED
 }
 
+/// How the public `/register` wizard sits relative to the background image or video.
+enum PublicRegistrationLayout {
+  /// Centered column over full-bleed media (default).
+  OVERLAY
+  /// Two columns on large screens: form left, media right (stacked on small screens).
+  SPLIT_FORM_LEFT
+  /// Two columns on large screens: media left, form right.
+  SPLIT_FORM_RIGHT
+}
+
+/// How registration fee is calculated when Stripe is enabled.
+enum StripePricingUnit {
+  PER_SUBMISSION
+  PER_CHILD
+}
+
+/// Whether families may opt out of paying the card processing gross-up.
+enum StripeProcessingFeeMode {
+  /// Show a checkbox: if checked, total includes estimated Stripe fees so the church nets the base amount.
+  OPTIONAL
+  /// Total always includes the processing gross-up (no opt-out).
+  REQUIRED
+}
+
 /// How student age is evaluated for class matching.
 enum ClassroomAgeRule {
   REGISTRATION_DATE
@@ -217,8 +241,12 @@ model PublicRegistrationSettings {
   welcomeMessage String? @db.Text
   /// Public URL or site-relative path (e.g. /uploads/...) for /register background when this season is selected.
   registrationBackgroundImageUrl String?
+  /// Optional looping background video (MP4/WebP video). When set, takes precedence over the image for display.
+  registrationBackgroundVideoUrl String?
   /// 0–100: darkness of the overlay on top of the background photo on /register (0 = photo fully visible, 100 = strongest dim).
   registrationBackgroundDimmingPercent Int @default(48)
+  /// Whether the form is centered over the media or split into two columns on large screens.
+  registrationBackgroundLayout PublicRegistrationLayout @default(OVERLAY)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -253,6 +281,15 @@ model RegistrationForm {
   registrationNumberSeqDigits Int @default(3)
   /// Increments atomically when issuing a prefixed registration number for this season’s form.
   registrationNumberNextSeq   Int @default(0)
+
+  /// When true, families are sent to Stripe Checkout after submit until paid (requires STRIPE_* env).
+  stripeCheckoutEnabled       Boolean               @default(false)
+  /// Base registration fee in cents (before optional processing gross-up).
+  stripeAmountCents           Int?
+  stripePricingUnit           StripePricingUnit    @default(PER_SUBMISSION)
+  stripeProcessingFeeMode     StripeProcessingFeeMode @default(OPTIONAL)
+  /// Shown on Stripe Checkout line item (e.g. "Summer VBS 2026 registration").
+  stripeProductLabel          String?
 
   draftDefinitionJson     String? @db.Text
   publishedDefinitionJson String? @db.Text
@@ -296,6 +333,16 @@ model FormSubmission {
   guardianResponses Json
   formVersion       Int      @default(0)
   submittedAt       DateTime @default(now())
+
+  /// Stripe Checkout session id while payment is pending or after completion.
+  stripeCheckoutSessionId   String?   @unique
+  /// pending | paid | canceled (internal; not Stripe’s raw status enum).
+  stripePaymentStatus       String?
+  stripePaidAt              DateTime?
+  /// Final amount charged in cents (after gross-up), if known.
+  stripeAmountChargedCents  Int?
+  /// Whether the payer opted into (or was required to use) processing fee gross-up.
+  stripeCoverProcessingFee  Boolean?
 
   registrations Registration[]
 

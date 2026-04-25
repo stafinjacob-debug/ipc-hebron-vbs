@@ -8,6 +8,7 @@ import {
 } from "@/lib/ensure-registration-form";
 import { prisma } from "@/lib/prisma";
 import { clampRegistrationBackgroundDimmingPercent } from "@/lib/registration-background-scrim";
+import { parsePublicRegistrationLayout } from "@/lib/public-registration-layout";
 import { rulesFromDb } from "@/lib/public-registration";
 import { DynamicRegistrationWizard } from "./dynamic-registration-wizard";
 
@@ -20,7 +21,15 @@ export const metadata: Metadata = {
 
 const CHURCH_DISPLAY_NAME = "IPC Hebron";
 
-export default async function PublicRegisterPage() {
+export default async function PublicRegisterPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ payment?: string; season?: string }>;
+}) {
+  const sp = searchParams ? await searchParams : {};
+  const paymentCanceled = sp.payment === "canceled";
+  const canceledSeasonId = typeof sp.season === "string" ? sp.season.trim() : "";
+
   const seasons = await prisma.vbsSeason.findMany({
     where: { publicRegistrationOpen: true },
     orderBy: [{ year: "desc" }, { startDate: "desc" }],
@@ -42,6 +51,11 @@ export default async function PublicRegisterPage() {
       welcomeMessage: formRow.welcomeMessage ?? s.publicRegistrationSettings?.welcomeMessage ?? null,
       backgroundImageUrl:
         s.publicRegistrationSettings?.registrationBackgroundImageUrl ?? null,
+      backgroundVideoUrl:
+        s.publicRegistrationSettings?.registrationBackgroundVideoUrl ?? null,
+      backgroundLayout: parsePublicRegistrationLayout(
+        s.publicRegistrationSettings?.registrationBackgroundLayout,
+      ),
       backgroundDimmingPercent: clampRegistrationBackgroundDimmingPercent(
         s.publicRegistrationSettings?.registrationBackgroundDimmingPercent,
       ),
@@ -50,6 +64,11 @@ export default async function PublicRegisterPage() {
       definition: getEffectiveDefinition(formRow, false),
       minimumParticipantAgeYears: formRow.minimumParticipantAgeYears,
       maximumParticipantAgeYears: formRow.maximumParticipantAgeYears,
+      stripeCheckoutEnabled: formRow.stripeCheckoutEnabled,
+      stripeAmountCents: formRow.stripeAmountCents,
+      stripePricingUnit: formRow.stripePricingUnit,
+      stripeProcessingFeeMode: formRow.stripeProcessingFeeMode,
+      stripeProductLabel: formRow.stripeProductLabel,
     });
   }
 
@@ -78,6 +97,8 @@ export default async function PublicRegisterPage() {
           contactEmail={contactEmail}
           contactPhone={contactPhone}
           churchDisplayName={CHURCH_DISPLAY_NAME}
+          paymentCanceled={paymentCanceled}
+          initialSeasonId={canceledSeasonId || undefined}
         />
       </div>
 

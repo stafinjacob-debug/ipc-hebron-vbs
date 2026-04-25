@@ -13,6 +13,9 @@
 | `AUTH_URL` | `web/.env.local` | Base URL of the app (e.g. `http://localhost:3000`). |
 | `SEED_ADMIN_EMAIL` | `web/.env.local` (optional) | First admin user email for `npm run db:seed`. |
 | `SEED_ADMIN_PASSWORD` | `web/.env.local` | Strong password for seed admin (and sample volunteer); min 8 characters. |
+| `STRIPE_SECRET_KEY` | `web/.env.local` (optional) | Secret key for Stripe Checkout on `/register` when a form has card payment enabled. Use `sk_test_…` locally. |
+| `STRIPE_WEBHOOK_SECRET` | `web/.env.local` (optional) | Signing secret for `POST /api/stripe/webhook` (Dashboard webhook or `stripe listen`). |
+| `NEXT_PUBLIC_SITE_URL` | `web/.env.local` (optional) | Public site origin for Checkout return URLs; often defaults from `AUTH_URL`. |
 
 Copy from `web/.env.example`. Prisma CLI scripts (`db:migrate`, etc.) use `dotenv-cli` with `.env.local`. The seed script (`npm run db:seed`) loads `web/.env.local` itself from disk, so it does not depend on your shell working directory.
 
@@ -93,6 +96,9 @@ In **Configuration → Application settings** (slot settings as needed):
 | `MICROSOFT_GRAPH_MAILBOX` | App setting | Sender UPN Graph uses (`/users/{mailbox}/sendMail`), e.g. `no-reply@yourdomain.org`. |
 | `EMAIL_FROM_DISPLAY_NAME` | App setting | Optional; friendly “from” name in invite/registration emails. |
 | `REGISTRATION_EMAIL_BRAND` | App setting | Optional; brand line in registration email HTML (see `web/.env.example`). |
+| `STRIPE_SECRET_KEY` | Key Vault or app setting | Required if any published form uses Stripe checkout. |
+| `STRIPE_WEBHOOK_SECRET` | Key Vault or app setting | Signing secret for the production webhook endpoint `https://<your-host>/api/stripe/webhook`. |
+| `NEXT_PUBLIC_SITE_URL` | App setting | Optional; public HTTPS origin if Checkout success/cancel URLs must differ from `AUTH_URL`. |
 | `WEBSITE_RUN_FROM_PACKAGE` | `1` | Often set automatically by zip deploy; confirm if using run-from-package. |
 
 **Startup command** (General settings):
@@ -132,5 +138,6 @@ When you add features, expect additional secrets (stored only in Azure / GitHub 
 - **SMTP** — host, user, password, from-address.  
 - **SMS provider** — API key.  
 - **Azure Blob** — connection string or SAS; prefer managed identity + RBAC where possible.  
+- **Stripe** — `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`; register webhook URL `https://<your-host>/api/stripe/webhook` for `checkout.session.completed`.
 
 See `web/.env.example` for naming suggestions.

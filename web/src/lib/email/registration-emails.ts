@@ -110,8 +110,13 @@ export async function sendSubmissionReceivedEmail(submissionId: string): Promise
     })
     .join("");
 
+  const paidNote = submission.stripePaidAt
+    ? `<p style="margin:0 0 16px;padding:12px 14px;border-radius:12px;background:#ecfdf5;border:1px solid #a7f3d0;color:#065f46;font-size:14px;">Your online payment was received — thank you.</p>`
+    : "";
+
   const inner = `
     <p style="margin:0 0 16px;">Hi ${escapeHtml(gname)},</p>
+    ${paidNote}
     <p style="margin:0 0 16px;">Thank you for registering for <strong>${season}</strong>. We received your submission and our team will review it shortly.</p>
     <p style="margin:0 0 8px;font-size:14px;color:#64748b;">Your reference code</p>
     <p style="margin:0 0 20px;font-size:20px;font-weight:700;letter-spacing:0.04em;color:#0f172a;font-family:ui-monospace,monospace;">${code}</p>

@@ -241,7 +241,9 @@ export function FormWorkspacePanel({
                   seasonId={seasonId}
                   publicRegistrationOpen={settingsInitial.publicRegistrationOpen}
                   registrationBackgroundImageUrl={publicDisplayInitial.registrationBackgroundImageUrl}
+                  registrationBackgroundVideoUrl={publicDisplayInitial.registrationBackgroundVideoUrl}
                   registrationBackgroundDimmingPercent={publicDisplayInitial.registrationBackgroundDimmingPercent}
+                  registrationBackgroundLayout={publicDisplayInitial.registrationBackgroundLayout}
                   requireGuardianEmail={publicDisplayInitial.requireGuardianEmail}
                   requireGuardianPhone={publicDisplayInitial.requireGuardianPhone}
                   requireAllergiesNotes={publicDisplayInitial.requireAllergiesNotes}

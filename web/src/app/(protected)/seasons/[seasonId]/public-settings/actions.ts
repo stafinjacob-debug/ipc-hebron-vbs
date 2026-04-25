@@ -3,9 +3,11 @@
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { canManageDirectory } from "@/lib/roles";
+import { parsePublicRegistrationLayout } from "@/lib/public-registration-layout";
 import {
   deleteLocalRegistrationBackground,
   uploadRegistrationBackgroundImage,
+  uploadRegistrationBackgroundVideo,
 } from "@/lib/registration-background-upload";
 import { revalidatePath } from "next/cache";
 import { clampRegistrationBackgroundDimmingPercent } from "@/lib/registration-background-scrim";
@@ -41,6 +43,8 @@ export async function savePublicRegistrationSettings(
 
   let registrationBackgroundImageUrl =
     existing?.registrationBackgroundImageUrl ?? null;
+  let registrationBackgroundVideoUrl =
+    existing?.registrationBackgroundVideoUrl ?? null;
 
   if (formData.get("removeBackgroundImage") === "on") {
     await deleteLocalRegistrationBackground(registrationBackgroundImageUrl);
@@ -56,6 +60,25 @@ export async function savePublicRegistrationSettings(
       registrationBackgroundImageUrl = uploaded.url;
     }
   }
+
+  if (formData.get("removeBackgroundVideo") === "on") {
+    await deleteLocalRegistrationBackground(registrationBackgroundVideoUrl);
+    registrationBackgroundVideoUrl = null;
+  } else {
+    const vfile = formData.get("backgroundVideo");
+    if (vfile instanceof File && vfile.size > 0) {
+      const uploaded = await uploadRegistrationBackgroundVideo(vfile, seasonId);
+      if (!uploaded.ok) {
+        return { ok: false, message: uploaded.error };
+      }
+      await deleteLocalRegistrationBackground(registrationBackgroundVideoUrl);
+      registrationBackgroundVideoUrl = uploaded.url;
+    }
+  }
+
+  const registrationBackgroundLayout = parsePublicRegistrationLayout(
+    str(formData, "registrationBackgroundLayout"),
+  );
 
   const publicOpen = formData.get("publicRegistrationOpen") === "on";
   const requireGuardianEmail = formData.get("requireGuardianEmail") === "on";
@@ -81,7 +104,9 @@ export async function savePublicRegistrationSettings(
       requireAllergiesNotes,
       welcomeMessage,
       registrationBackgroundImageUrl,
+      registrationBackgroundVideoUrl,
       registrationBackgroundDimmingPercent,
+      registrationBackgroundLayout,
     },
     update: {
       requireGuardianEmail,
@@ -89,7 +114,9 @@ export async function savePublicRegistrationSettings(
       requireAllergiesNotes,
       welcomeMessage,
       registrationBackgroundImageUrl,
+      registrationBackgroundVideoUrl,
       registrationBackgroundDimmingPercent,
+      registrationBackgroundLayout,
     },
   });
 

@@ -40,6 +40,11 @@ export function FormSettingsForm({
     registrationNumberPrefix: string | null;
     registrationNumberSeqDigits: number;
     registrationNumberLastSeq: number;
+    stripeCheckoutEnabled: boolean;
+    stripeAmountCents: number | null;
+    stripePricingUnit: "PER_SUBMISSION" | "PER_CHILD";
+    stripeProcessingFeeMode: "OPTIONAL" | "REQUIRED";
+    stripeProductLabel: string | null;
   };
 }) {
   const router = useRouter();
@@ -84,6 +89,19 @@ export function FormSettingsForm({
         const registrationNumberSeqDigits =
           seqDigRaw && Number.isFinite(seqDigParsed) ? seqDigParsed : initial.registrationNumberSeqDigits;
 
+        const stripeCheckoutEnabled = fd.get("stripeCheckoutEnabled") === "on";
+        const stripeDollarsRaw = String(fd.get("stripeAmountDollars") ?? "").trim();
+        const stripeAmountParsed = stripeDollarsRaw ? Number.parseFloat(stripeDollarsRaw) : NaN;
+        const stripeAmountCents =
+          stripeCheckoutEnabled && Number.isFinite(stripeAmountParsed) && stripeAmountParsed > 0
+            ? Math.round(stripeAmountParsed * 100)
+            : null;
+        const stripePricingUnit =
+          String(fd.get("stripePricingUnit") ?? "") === "PER_CHILD" ? "PER_CHILD" : "PER_SUBMISSION";
+        const stripeProcessingFeeMode =
+          String(fd.get("stripeProcessingFeeMode") ?? "") === "REQUIRED" ? "REQUIRED" : "OPTIONAL";
+        const stripeProductLabel = String(fd.get("stripeProductLabel") ?? "").trim() || null;
+
         if (
           minimumParticipantAgeYears != null &&
           maximumParticipantAgeYears != null &&
@@ -109,6 +127,11 @@ export function FormSettingsForm({
             maximumParticipantAgeYears,
             registrationNumberPrefix,
             registrationNumberSeqDigits,
+            stripeCheckoutEnabled,
+            stripeAmountCents,
+            stripePricingUnit,
+            stripeProcessingFeeMode,
+            stripeProductLabel,
           });
           setMsg(r.message);
           if (r.ok) router.refresh();
@@ -228,6 +251,108 @@ export function FormSettingsForm({
             <> — save a prefix to use sequential numbers instead of the default format.</>
           )}
         </p>
+      </div>
+
+      <div className="space-y-4 rounded-xl border border-foreground/10 p-4">
+        <h2 className="text-sm font-semibold">Stripe online payment</h2>
+        <p className="text-sm text-foreground/70">
+          After families submit the form, they are sent to Stripe Checkout to pay by card. Requires{" "}
+          <code className="rounded bg-foreground/[0.06] px-1 text-xs">STRIPE_SECRET_KEY</code> and a webhook endpoint
+          (see project env docs). Confirmation email is sent after payment succeeds.
+        </p>
+        <label className="flex items-center gap-2 text-sm font-medium">
+          <input
+            type="checkbox"
+            name="stripeCheckoutEnabled"
+            defaultChecked={initial.stripeCheckoutEnabled}
+            className="size-4 rounded border-foreground/30"
+          />
+          Require Stripe payment for this form
+        </label>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label htmlFor="stripeAmountDollars" className="block text-xs font-medium text-foreground/70">
+              Fee (USD)
+            </label>
+            <input
+              id="stripeAmountDollars"
+              name="stripeAmountDollars"
+              type="number"
+              min={0}
+              step={0.01}
+              placeholder="e.g. 25.00"
+              defaultValue={
+                initial.stripeAmountCents != null && initial.stripeAmountCents > 0
+                  ? (initial.stripeAmountCents / 100).toFixed(2)
+                  : ""
+              }
+              className="mt-1 w-full rounded-md border border-foreground/15 bg-background px-3 py-2 text-sm"
+            />
+            <p className="mt-1 text-xs text-foreground/60">Minimum US$0.50 when Stripe is on.</p>
+          </div>
+          <div>
+            <label htmlFor="stripePricingUnit" className="block text-xs font-medium text-foreground/70">
+              Fee applies to
+            </label>
+            <select
+              id="stripePricingUnit"
+              name="stripePricingUnit"
+              defaultValue={initial.stripePricingUnit}
+              className="mt-1 w-full rounded-md border border-foreground/15 bg-background px-3 py-2 text-sm"
+            >
+              <option value="PER_SUBMISSION">One payment per form (all children)</option>
+              <option value="PER_CHILD">Per child (total = fee × number of children)</option>
+            </select>
+          </div>
+        </div>
+        <div>
+          <span className="block text-xs font-medium text-foreground/70">Card processing fee</span>
+          <p className="mt-1 text-xs text-foreground/60">
+            We estimate Stripe&apos;s US card rate (2.9% + 30¢) and can add a gross-up so the church receives the full
+            base amount when families choose to cover fees — or you can require that gross-up for everyone.
+          </p>
+          <div className="mt-2 space-y-2 text-sm">
+            <label className="flex items-start gap-2">
+              <input
+                type="radio"
+                name="stripeProcessingFeeMode"
+                value="OPTIONAL"
+                defaultChecked={initial.stripeProcessingFeeMode === "OPTIONAL"}
+                className="mt-1"
+              />
+              <span>
+                <strong>Optional</strong> — show a checkbox so families can choose to cover processing fees (recommended
+                default).
+              </span>
+            </label>
+            <label className="flex items-start gap-2">
+              <input
+                type="radio"
+                name="stripeProcessingFeeMode"
+                value="REQUIRED"
+                defaultChecked={initial.stripeProcessingFeeMode === "REQUIRED"}
+                className="mt-1"
+              />
+              <span>
+                <strong>Required</strong> — every payment includes the processing gross-up (no opt-out).
+              </span>
+            </label>
+          </div>
+        </div>
+        <div>
+          <label htmlFor="stripeProductLabel" className="block text-xs font-medium text-foreground/70">
+            Checkout product title (optional)
+          </label>
+          <input
+            id="stripeProductLabel"
+            name="stripeProductLabel"
+            type="text"
+            maxLength={120}
+            placeholder="e.g. Summer VBS 2026 registration"
+            defaultValue={initial.stripeProductLabel ?? ""}
+            className="mt-1 w-full rounded-md border border-foreground/15 bg-background px-3 py-2 text-sm"
+          />
+        </div>
       </div>
 
       <div className="space-y-4 rounded-xl border border-foreground/10 p-4">

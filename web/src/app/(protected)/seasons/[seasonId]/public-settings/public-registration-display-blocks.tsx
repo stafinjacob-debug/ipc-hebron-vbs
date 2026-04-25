@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { PublicRegistrationLayout } from "@/generated/prisma";
 
 /** “Accept public responses” gate — same field as season `publicRegistrationOpen`. */
 export function PublicRegistrationGateFields({ publicRegistrationOpen }: { publicRegistrationOpen: boolean }) {
@@ -25,27 +26,97 @@ export function PublicRegistrationGateFields({ publicRegistrationOpen }: { publi
   );
 }
 
+const LAYOUT_OPTIONS: { value: PublicRegistrationLayout; label: string; hint: string }[] = [
+  {
+    value: "OVERLAY",
+    label: "Centered over background",
+    hint: "Form stays in a column on top of a full-screen photo or video (default).",
+  },
+  {
+    value: "SPLIT_FORM_LEFT",
+    label: "Form on the left",
+    hint: "On large screens: form in the left column, media in the right. Stacked on phones.",
+  },
+  {
+    value: "SPLIT_FORM_RIGHT",
+    label: "Form on the right",
+    hint: "On large screens: media on the left, form on the right. Stacked on phones.",
+  },
+];
+
 /** Registration page background — same markup as the full public settings page. */
 export function RegistrationBackgroundFields({
   registrationBackgroundImageUrl,
+  registrationBackgroundVideoUrl,
   registrationBackgroundDimmingPercent,
+  registrationBackgroundLayout,
 }: {
   registrationBackgroundImageUrl: string | null;
+  registrationBackgroundVideoUrl: string | null;
   registrationBackgroundDimmingPercent: number;
+  registrationBackgroundLayout: PublicRegistrationLayout;
 }) {
   return (
     <div className="rounded-xl border border-foreground/10 p-4">
       <h2 className="text-sm font-semibold text-foreground/90">Registration page background</h2>
       <p className="mt-1 text-sm text-foreground/60">
-        Shown full-screen behind the form when parents select this season on{" "}
-        <code className="rounded bg-foreground/10 px-1">/register</code>. JPEG, PNG, WebP, or GIF,
-        max 2.5 MB. Without Azure, files are stored under{" "}
-        <code className="rounded bg-foreground/10 px-1">public/uploads</code> (not ideal for
-        production — use Azure Blob).
+        Shown on <code className="rounded bg-foreground/10 px-1">/register</code> when parents pick
+        this season. Image: JPEG, PNG, WebP, or GIF, max 2.5 MB. Optional video: MP4 or WebM, max
+        10 MB — if both are set, the <strong>video</strong> is used. Without Azure, files go under{" "}
+        <code className="rounded bg-foreground/10 px-1">public/uploads</code>.
       </p>
+
+      <fieldset className="mt-6 space-y-3">
+        <legend className="text-sm font-medium text-foreground/80">Layout on /register</legend>
+        {LAYOUT_OPTIONS.map((opt) => (
+          <label key={opt.value} className="flex cursor-pointer items-start gap-3 rounded-lg border border-transparent px-1 py-1 hover:border-foreground/10">
+            <input
+              type="radio"
+              name="registrationBackgroundLayout"
+              value={opt.value}
+              defaultChecked={registrationBackgroundLayout === opt.value}
+              className="mt-1"
+            />
+            <span>
+              <span className="block text-sm font-medium text-foreground">{opt.label}</span>
+              <span className="mt-0.5 block text-xs text-foreground/55">{opt.hint}</span>
+            </span>
+          </label>
+        ))}
+      </fieldset>
+
+      {registrationBackgroundVideoUrl ? (
+        <div className="mt-6 border-t border-foreground/10 pt-6">
+          <p className="text-xs text-foreground/50">Current background video</p>
+          <video
+            src={registrationBackgroundVideoUrl}
+            className="mt-2 max-h-48 max-w-full rounded-md border border-foreground/15"
+            controls
+            muted
+            playsInline
+          />
+          <label className="mt-3 flex cursor-pointer items-start gap-3">
+            <input type="checkbox" name="removeBackgroundVideo" className="mt-1" />
+            <span className="text-sm text-foreground/80">Remove background video</span>
+          </label>
+        </div>
+      ) : null}
+      <div className="mt-4">
+        <label htmlFor="backgroundVideo" className="text-sm font-medium text-foreground/80">
+          {registrationBackgroundVideoUrl ? "Replace video" : "Upload background video (optional)"}
+        </label>
+        <input
+          id="backgroundVideo"
+          name="backgroundVideo"
+          type="file"
+          accept="video/mp4,video/webm"
+          className="mt-2 block w-full text-sm text-foreground/80 file:mr-3 file:rounded-md file:border-0 file:bg-foreground/10 file:px-3 file:py-2 file:text-sm file:font-medium"
+        />
+      </div>
+
       {registrationBackgroundImageUrl ? (
-        <div className="mt-4">
-          <p className="text-xs text-foreground/50">Current image</p>
+        <div className="mt-6 border-t border-foreground/10 pt-6">
+          <p className="text-xs text-foreground/50">Current image (fallback if no video)</p>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={registrationBackgroundImageUrl}
@@ -60,7 +131,7 @@ export function RegistrationBackgroundFields({
       ) : null}
       <div className="mt-4">
         <label htmlFor="backgroundImage" className="text-sm font-medium text-foreground/80">
-          {registrationBackgroundImageUrl ? "Replace image" : "Upload image"}
+          {registrationBackgroundImageUrl ? "Replace image" : "Upload image (optional)"}
         </label>
         <input
           id="backgroundImage"

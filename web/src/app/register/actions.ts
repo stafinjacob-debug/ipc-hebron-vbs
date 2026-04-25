@@ -16,12 +16,20 @@ import {
 } from "@/lib/class-assignment";
 import { childAgeYearsOnDate } from "@/lib/class-assignment-shared";
 import { parseLocalDate } from "@/lib/schemas/vbs-registration";
+import {
+  computeProcessingGrossUp,
+  computeRegistrationBaseCents,
+  includeProcessingFeeForMode,
+} from "@/lib/stripe-fee-math";
+import { createRegistrationStripeCheckoutSession } from "@/lib/stripe-registration-payment";
 
 export type PublicRegisterState = {
   ok: boolean;
   message: string;
   fieldErrors?: Record<string, string[]>;
   registrationCode?: string;
+  /** When set, the browser should redirect to Stripe Checkout (HTTPS). */
+  stripeCheckoutUrl?: string;
 };
 
 function fdGet(k: string, formData: FormData): string {
@@ -197,6 +205,34 @@ async function submitPublicRegistrationCore(
     formRow.confirmationMessage?.trim() ||
     "Thank you — your registration was received. The church office may follow up to confirm details.";
 
+  const stripeConfigActive =
+    formRow.stripeCheckoutEnabled && (formRow.stripeAmountCents ?? 0) >= 50;
+  if (stripeConfigActive && !process.env.STRIPE_SECRET_KEY?.trim()) {
+    return {
+      ok: false,
+      message:
+        "This form requires online payment, but the payment system is not configured. Please contact the church office.",
+    };
+  }
+
+  const payerFeeOptInEarly =
+    fdGet("stripeCoverProcessingFee", formData) === "true" ||
+    fdGet("stripeCoverProcessingFee", formData) === "on";
+  const includeFeeEarly = includeProcessingFeeForMode(formRow.stripeProcessingFeeMode, payerFeeOptInEarly);
+  const baseEarly = computeRegistrationBaseCents(
+    formRow.stripePricingUnit,
+    formRow.stripeAmountCents,
+    data.children.length,
+  );
+  const totalEarly = computeProcessingGrossUp(baseEarly, includeFeeEarly).totalCents;
+  if (stripeConfigActive && totalEarly < 50) {
+    return {
+      ok: false,
+      message:
+        "The configured fee is too small for card checkout (minimum about US$0.50). Please contact the church office.",
+    };
+  }
+
   type TxOutcome =
     | { kind: "replay"; registrationCode: string; waitlist: boolean; childCount: number }
     | { kind: "new"; submissionId: string; registrationCode: string; waitlist: boolean; childCount: number };
@@ -296,6 +332,7 @@ async function submitPublicRegistrationCore(
             formSubmissionId: submission.id,
             customResponses: Object.keys(c.custom).length ? (c.custom as object) : undefined,
             notes: baseNotes,
+            expectsPayment: stripeConfigActive,
           },
         });
 
@@ -333,6 +370,53 @@ async function submitPublicRegistrationCore(
     );
 
     if (outcome.kind === "new") {
+      if (
+        stripeConfigActive &&
+        outcome.submissionId &&
+        outcome.registrationCode &&
+        outcome.childCount > 0
+      ) {
+        const payerOptIn =
+          fdGet("stripeCoverProcessingFee", formData) === "true" ||
+          fdGet("stripeCoverProcessingFee", formData) === "on";
+        const includeFee = includeProcessingFeeForMode(formRow.stripeProcessingFeeMode, payerOptIn);
+        const baseCents = computeRegistrationBaseCents(
+          formRow.stripePricingUnit,
+          formRow.stripeAmountCents,
+          outcome.childCount,
+        );
+        const { totalCents, processingCents } = computeProcessingGrossUp(baseCents, includeFee);
+
+        const productLabel =
+          formRow.stripeProductLabel?.trim() || `${season.name} — VBS registration`;
+
+        const checkout = await createRegistrationStripeCheckoutSession({
+          formSubmissionId: outcome.submissionId,
+          seasonId,
+          registrationCode: outcome.registrationCode,
+          productLabel,
+          guardianEmail: data.guardian.guardianEmail?.trim() || null,
+          baseCents,
+          totalCents,
+          processingCents,
+          coverProcessingFee: includeFee,
+        });
+
+        if ("error" in checkout) {
+          return {
+            ok: false,
+            message: `${checkout.error} Your reference code is ${outcome.registrationCode}. Please contact the church office to complete payment.`,
+          };
+        }
+
+        return {
+          ok: true,
+          message: "Redirecting to secure card payment…",
+          registrationCode: outcome.registrationCode,
+          stripeCheckoutUrl: checkout.url,
+        };
+      }
+
       void sendSubmissionReceivedEmail(outcome.submissionId).catch((err) => {
         console.error("[sendSubmissionReceivedEmail]", err);
       });

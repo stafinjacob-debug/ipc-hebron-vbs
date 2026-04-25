@@ -7,6 +7,7 @@ import {
 import { createDefaultFormDefinition } from "@/lib/registration-form-definition";
 import { getPublicBaseUrl } from "@/lib/public-base-url";
 import { prisma } from "@/lib/prisma";
+import { parsePublicRegistrationLayout } from "@/lib/public-registration-layout";
 import { clampRegistrationBackgroundDimmingPercent } from "@/lib/registration-background-scrim";
 import { rulesFromDb } from "@/lib/public-registration";
 import { canManageDirectory, canViewOperations } from "@/lib/roles";
@@ -65,8 +66,13 @@ export default async function RegistrationFormWorkspacePage({
         publicDisplayInitial={{
           registrationBackgroundImageUrl:
             season.publicRegistrationSettings?.registrationBackgroundImageUrl ?? null,
+          registrationBackgroundVideoUrl:
+            season.publicRegistrationSettings?.registrationBackgroundVideoUrl ?? null,
           registrationBackgroundDimmingPercent: clampRegistrationBackgroundDimmingPercent(
             season.publicRegistrationSettings?.registrationBackgroundDimmingPercent,
+          ),
+          registrationBackgroundLayout: parsePublicRegistrationLayout(
+            season.publicRegistrationSettings?.registrationBackgroundLayout,
           ),
           requireGuardianEmail: publicRules.requireGuardianEmail,
           requireGuardianPhone: publicRules.requireGuardianPhone,
@@ -88,6 +94,11 @@ export default async function RegistrationFormWorkspacePage({
           registrationNumberPrefix: form.registrationNumberPrefix,
           registrationNumberSeqDigits: form.registrationNumberSeqDigits,
           registrationNumberLastSeq: form.registrationNumberNextSeq,
+          stripeCheckoutEnabled: form.stripeCheckoutEnabled,
+          stripeAmountCents: form.stripeAmountCents,
+          stripePricingUnit: form.stripePricingUnit,
+          stripeProcessingFeeMode: form.stripeProcessingFeeMode,
+          stripeProductLabel: form.stripeProductLabel,
         }}
       />
     </Suspense>

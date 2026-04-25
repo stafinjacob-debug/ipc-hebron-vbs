@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { canManageDirectory } from "@/lib/roles";
 import { clampRegistrationBackgroundDimmingPercent } from "@/lib/registration-background-scrim";
+import { parsePublicRegistrationLayout } from "@/lib/public-registration-layout";
 import { redirect, notFound } from "next/navigation";
 import { PublicRegistrationSettingsForm } from "./settings-form";
 
@@ -41,8 +42,14 @@ export default async function PublicRegistrationSettingsPage({ params }: PagePro
         registrationBackgroundImageUrl={
           season.publicRegistrationSettings?.registrationBackgroundImageUrl ?? null
         }
+        registrationBackgroundVideoUrl={
+          season.publicRegistrationSettings?.registrationBackgroundVideoUrl ?? null
+        }
         registrationBackgroundDimmingPercent={clampRegistrationBackgroundDimmingPercent(
           season.publicRegistrationSettings?.registrationBackgroundDimmingPercent,
+        )}
+        registrationBackgroundLayout={parsePublicRegistrationLayout(
+          season.publicRegistrationSettings?.registrationBackgroundLayout,
         )}
       />
     </div>

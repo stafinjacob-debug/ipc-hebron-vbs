@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import Link from "next/link";
+import type { PublicRegistrationLayout } from "@/generated/prisma";
 import {
   savePublicRegistrationSettings,
   type SavePublicSettingsState,
@@ -12,7 +13,9 @@ type Props = {
   seasonId: string;
   publicRegistrationOpen: boolean;
   registrationBackgroundImageUrl: string | null;
+  registrationBackgroundVideoUrl: string | null;
   registrationBackgroundDimmingPercent: number;
+  registrationBackgroundLayout: PublicRegistrationLayout;
 };
 
 const initial: SavePublicSettingsState | null = null;
@@ -41,7 +44,9 @@ export function PublicRegistrationSettingsForm(p: Props) {
 
       <RegistrationBackgroundFields
         registrationBackgroundImageUrl={p.registrationBackgroundImageUrl}
+        registrationBackgroundVideoUrl={p.registrationBackgroundVideoUrl}
         registrationBackgroundDimmingPercent={p.registrationBackgroundDimmingPercent}
+        registrationBackgroundLayout={p.registrationBackgroundLayout}
       />
 
       <p className="rounded-lg border border-foreground/10 bg-foreground/[0.03] px-4 py-3 text-sm text-foreground/70">

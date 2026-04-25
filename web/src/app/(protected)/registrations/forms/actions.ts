@@ -12,10 +12,15 @@ import {
 } from "@/lib/registration-form-definition";
 import { getPublicBaseUrl } from "@/lib/public-base-url";
 import { clampRegistrationBackgroundDimmingPercent } from "@/lib/registration-background-scrim";
+import { parsePublicRegistrationLayout } from "@/lib/public-registration-layout";
 import { rulesFromDb } from "@/lib/public-registration";
 import { sendAllApprovedRegistrationsEmailForSubmission } from "@/lib/email/registration-emails";
 import { canManageDirectory } from "@/lib/roles";
-import type { RegistrationFormStatus, RegistrationStatus } from "@/generated/prisma";
+import type {
+  PublicRegistrationLayout,
+  RegistrationFormStatus,
+  RegistrationStatus,
+} from "@/generated/prisma";
 import { revalidatePath } from "next/cache";
 
 export type ActionState = { ok: boolean; message: string };
@@ -164,6 +169,11 @@ export async function updateRegistrationFormSettings(
     maximumParticipantAgeYears: number | null;
     registrationNumberPrefix: string | null;
     registrationNumberSeqDigits: number;
+    stripeCheckoutEnabled: boolean;
+    stripeAmountCents: number | null;
+    stripePricingUnit: "PER_SUBMISSION" | "PER_CHILD";
+    stripeProcessingFeeMode: "OPTIONAL" | "REQUIRED";
+    stripeProductLabel: string | null;
   },
 ): Promise<ActionState> {
   const session = await auth();
@@ -211,6 +221,18 @@ export async function updateRegistrationFormSettings(
 
   const seqDigits = Math.min(8, Math.max(2, Math.floor(data.registrationNumberSeqDigits) || 3));
 
+  let stripeAmountCents: number | null = null;
+  if (data.stripeCheckoutEnabled) {
+    const raw = data.stripeAmountCents;
+    if (raw == null || raw < 50) {
+      return {
+        ok: false,
+        message: "Stripe is on: set a registration fee of at least US$0.50 (50 cents) per unit.",
+      };
+    }
+    stripeAmountCents = Math.min(99_999_99, Math.floor(raw));
+  }
+
   await prisma.$transaction([
     prisma.vbsSeason.update({
       where: { id: seasonId },
@@ -231,6 +253,11 @@ export async function updateRegistrationFormSettings(
         maximumParticipantAgeYears: maxAge,
         registrationNumberPrefix,
         registrationNumberSeqDigits: seqDigits,
+        stripeCheckoutEnabled: data.stripeCheckoutEnabled,
+        stripeAmountCents: data.stripeCheckoutEnabled ? stripeAmountCents : null,
+        stripePricingUnit: data.stripePricingUnit,
+        stripeProcessingFeeMode: data.stripeProcessingFeeMode,
+        stripeProductLabel: data.stripeProductLabel?.trim() ? data.stripeProductLabel.trim() : null,
         updatedByUserId: session.user.id ?? undefined,
       },
     }),
@@ -288,6 +315,11 @@ export async function cloneRegistrationFormFromSeason(
       registrationNumberPrefix: srcForm.registrationNumberPrefix,
       registrationNumberSeqDigits: srcForm.registrationNumberSeqDigits,
       registrationNumberNextSeq: 0,
+      stripeCheckoutEnabled: srcForm.stripeCheckoutEnabled,
+      stripeAmountCents: srcForm.stripeAmountCents,
+      stripePricingUnit: srcForm.stripePricingUnit,
+      stripeProcessingFeeMode: srcForm.stripeProcessingFeeMode,
+      stripeProductLabel: srcForm.stripeProductLabel,
       updatedByUserId: session.user.id ?? undefined,
     },
   });
@@ -535,7 +567,9 @@ export type FormWorkspacePayload = {
   /** Public `/register` surface (same data as season public settings). */
   publicDisplayInitial: {
     registrationBackgroundImageUrl: string | null;
+    registrationBackgroundVideoUrl: string | null;
     registrationBackgroundDimmingPercent: number;
+    registrationBackgroundLayout: PublicRegistrationLayout;
     requireGuardianEmail: boolean;
     requireGuardianPhone: boolean;
     requireAllergiesNotes: boolean;
@@ -556,6 +590,11 @@ export type FormWorkspacePayload = {
     registrationNumberPrefix: string | null;
     registrationNumberSeqDigits: number;
     registrationNumberLastSeq: number;
+    stripeCheckoutEnabled: boolean;
+    stripeAmountCents: number | null;
+    stripePricingUnit: "PER_SUBMISSION" | "PER_CHILD";
+    stripeProcessingFeeMode: "OPTIONAL" | "REQUIRED";
+    stripeProductLabel: string | null;
   };
 };
 
@@ -604,8 +643,13 @@ export async function loadFormWorkspacePayload(
       publicDisplayInitial: {
         registrationBackgroundImageUrl:
           season.publicRegistrationSettings?.registrationBackgroundImageUrl ?? null,
+        registrationBackgroundVideoUrl:
+          season.publicRegistrationSettings?.registrationBackgroundVideoUrl ?? null,
         registrationBackgroundDimmingPercent: clampRegistrationBackgroundDimmingPercent(
           season.publicRegistrationSettings?.registrationBackgroundDimmingPercent,
+        ),
+        registrationBackgroundLayout: parsePublicRegistrationLayout(
+          season.publicRegistrationSettings?.registrationBackgroundLayout,
         ),
         requireGuardianEmail: publicRules.requireGuardianEmail,
         requireGuardianPhone: publicRules.requireGuardianPhone,
@@ -627,6 +671,11 @@ export async function loadFormWorkspacePayload(
         registrationNumberPrefix: form.registrationNumberPrefix,
         registrationNumberSeqDigits: form.registrationNumberSeqDigits,
         registrationNumberLastSeq: form.registrationNumberNextSeq,
+        stripeCheckoutEnabled: form.stripeCheckoutEnabled,
+        stripeAmountCents: form.stripeAmountCents,
+        stripePricingUnit: form.stripePricingUnit,
+        stripeProcessingFeeMode: form.stripeProcessingFeeMode,
+        stripeProductLabel: form.stripeProductLabel,
       },
     },
   };

@@ -6,6 +6,7 @@ import {
   savePublicRegistrationSettings,
   type SavePublicSettingsState,
 } from "../../../seasons/[seasonId]/public-settings/actions";
+import type { PublicRegistrationLayout } from "@/generated/prisma";
 import {
   PublicRegistrationGateFields,
   PublicRegistrationRequiredFields,
@@ -19,7 +20,9 @@ export function WorkspacePublicDisplayForm({
   seasonId,
   publicRegistrationOpen,
   registrationBackgroundImageUrl,
+  registrationBackgroundVideoUrl,
   registrationBackgroundDimmingPercent,
+  registrationBackgroundLayout,
   requireGuardianEmail,
   requireGuardianPhone,
   requireAllergiesNotes,
@@ -28,7 +31,9 @@ export function WorkspacePublicDisplayForm({
   seasonId: string;
   publicRegistrationOpen: boolean;
   registrationBackgroundImageUrl: string | null;
+  registrationBackgroundVideoUrl: string | null;
   registrationBackgroundDimmingPercent: number;
+  registrationBackgroundLayout: PublicRegistrationLayout;
   requireGuardianEmail: boolean;
   requireGuardianPhone: boolean;
   requireAllergiesNotes: boolean;
@@ -62,7 +67,9 @@ export function WorkspacePublicDisplayForm({
 
       <RegistrationBackgroundFields
         registrationBackgroundImageUrl={registrationBackgroundImageUrl}
+        registrationBackgroundVideoUrl={registrationBackgroundVideoUrl}
         registrationBackgroundDimmingPercent={registrationBackgroundDimmingPercent}
+        registrationBackgroundLayout={registrationBackgroundLayout}
       />
 
       <PublicRegistrationRequiredFields

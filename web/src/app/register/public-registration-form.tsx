@@ -10,7 +10,6 @@ import {
   Lock,
   Plus,
   Shield,
-  Sparkles,
   Trash2,
   UserRound,
   X,
@@ -19,11 +18,11 @@ import {
   defaultPublicFieldRules,
   type PublicRegistrationFieldRules,
 } from "@/lib/public-registration";
-import {
-  clampRegistrationBackgroundDimmingPercent,
-  registrationBackgroundScrimAlpha,
-} from "@/lib/registration-background-scrim";
+import type { PublicRegistrationLayout } from "@/generated/prisma";
+import { clampRegistrationBackgroundDimmingPercent } from "@/lib/registration-background-scrim";
 import { formatPhoneInput, phoneDigits } from "@/lib/phone-format";
+import { RegistrationBackgroundMedia } from "./registration-background-media";
+import { RegistrationHeroBrand } from "./registration-hero-brand";
 import { submitPublicRegistration, type PublicRegisterState } from "./actions";
 
 export type PublicSeasonOption = {
@@ -34,6 +33,8 @@ export type PublicSeasonOption = {
   endDate: string;
   welcomeMessage: string | null;
   backgroundImageUrl: string | null;
+  backgroundVideoUrl?: string | null;
+  backgroundLayout?: PublicRegistrationLayout;
   /** 0–100: overlay alpha on the background photo. */
   backgroundDimmingPercent: number;
   rules: PublicRegistrationFieldRules;
@@ -295,36 +296,17 @@ export function PublicRegistrationForm({
 
   return (
     <div className="relative isolate pb-28 md:pb-8">
-      {current?.backgroundImageUrl ? (
-        <>
-          <div
-            aria-hidden
-            className="pointer-events-none fixed inset-0 -z-20 scale-105 bg-cover bg-center bg-no-repeat"
-            style={{
-              backgroundImage: `url(${JSON.stringify(current.backgroundImageUrl)})`,
-            }}
-          />
-          <div
-            aria-hidden
-            className="pointer-events-none fixed inset-0 -z-10"
-            style={{
-              backgroundColor: `rgba(10, 10, 10, ${registrationBackgroundScrimAlpha(dimmingPercent)})`,
-            }}
-          />
-        </>
-      ) : (
-        <div
-          aria-hidden
-          className="pointer-events-none fixed inset-0 -z-10 bg-gradient-to-b from-brand-muted/45 via-background to-background dark:from-brand-muted/15"
-        />
-      )}
+      <RegistrationBackgroundMedia
+        videoUrl={current?.backgroundVideoUrl}
+        imageUrl={current?.backgroundImageUrl}
+        dimmingPercent={dimmingPercent}
+        variant="fixed"
+      />
 
       <div className="relative z-0 mx-auto max-w-lg sm:max-w-xl">
         {/* Hero */}
         <div className="rounded-2xl border border-brand/25 bg-gradient-to-br from-brand-muted/60 to-white px-5 py-6 text-center shadow-md dark:from-brand-muted/25 dark:to-neutral-900 dark:border-brand/35 sm:px-8">
-          <div className="mx-auto flex size-14 items-center justify-center rounded-2xl bg-brand text-brand-foreground shadow-md">
-            <Sparkles className="size-7" aria-hidden />
-          </div>
+          <RegistrationHeroBrand churchDisplayName={churchDisplayName} />
           <p className="mt-3 text-xs font-semibold uppercase tracking-wider text-brand">{churchDisplayName}</p>
           <h1 className="mt-1 text-2xl font-bold tracking-tight text-neutral-900 dark:text-neutral-50 sm:text-3xl">
             {current?.name ?? "Vacation Bible School"}

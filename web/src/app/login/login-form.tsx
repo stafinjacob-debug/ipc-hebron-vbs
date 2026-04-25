@@ -37,10 +37,10 @@ export function LoginForm() {
   return (
     <form
       onSubmit={onSubmit}
-      className="space-y-4 rounded-xl border border-foreground/10 bg-foreground/[0.02] p-6"
+      className="space-y-4 rounded-xl border border-stone-200/80 bg-white/60 p-6 dark:border-stone-200/70 dark:bg-white/55"
     >
       <div>
-        <label htmlFor="email" className="block text-sm font-medium text-foreground/80">
+        <label htmlFor="email" className="block text-sm font-medium text-stone-700">
           Email
         </label>
         <input
@@ -51,11 +51,11 @@ export function LoginForm() {
           required
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          className="mt-1 w-full rounded-md border border-foreground/15 bg-background px-3 py-2 text-foreground"
+          className="mt-1 w-full rounded-md border border-stone-200 bg-white px-3 py-2 text-stone-900 shadow-sm outline-none ring-brand/30 placeholder:text-stone-400 focus:border-teal-400 focus:ring-2"
         />
       </div>
       <div>
-        <label htmlFor="password" className="block text-sm font-medium text-foreground/80">
+        <label htmlFor="password" className="block text-sm font-medium text-stone-700">
           Password
         </label>
         <input
@@ -66,14 +66,14 @@ export function LoginForm() {
           required
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          className="mt-1 w-full rounded-md border border-foreground/15 bg-background px-3 py-2 text-foreground"
+          className="mt-1 w-full rounded-md border border-stone-200 bg-white px-3 py-2 text-stone-900 shadow-sm outline-none ring-brand/30 placeholder:text-stone-400 focus:border-teal-400 focus:ring-2"
         />
       </div>
-      {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+      {error && <p className="text-sm text-red-600">{error}</p>}
       <button
         type="submit"
         disabled={pending}
-        className="w-full rounded-md bg-foreground px-4 py-2.5 text-sm font-medium text-background hover:opacity-90 disabled:opacity-50"
+        className="w-full rounded-md bg-stone-900 px-4 py-2.5 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
       >
         {pending ? "Signing in…" : "Sign in"}
       </button>

@@ -13,6 +13,7 @@ import {
   UserSquare2,
 } from "lucide-react";
 import type { UserRole } from "@/generated/prisma";
+import { OrganizationLogo } from "@/components/layout/organization-logo";
 import { canSeeMainNavLink } from "@/lib/permissions";
 
 const NAV: {
@@ -98,13 +99,18 @@ export function AdminSidebar({
       >
         <div className="border-b border-foreground/10 px-4 py-4">
           <Link href="/dashboard" className="block min-w-0" onClick={onMobileClose}>
-            <span className="block text-[15px] font-semibold tracking-tight text-foreground">
-              <span className="text-brand">IPC Hebron</span> VBS
-            </span>
-            <span className="mt-1 block text-[11px] font-medium text-foreground/50">Admin Portal</span>
-            <span className="mt-2 inline-flex rounded-md border border-foreground/10 bg-foreground/[0.04] px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-foreground/55">
-              Staff
-            </span>
+            <div className="flex gap-3">
+              <OrganizationLogo className="h-11 w-11 shrink-0 object-contain" />
+              <div className="min-w-0">
+                <span className="block text-[15px] font-semibold tracking-tight text-foreground">
+                  <span className="text-brand">IPC Hebron</span> VBS
+                </span>
+                <span className="mt-1 block text-[11px] font-medium text-foreground/50">Admin Portal</span>
+                <span className="mt-2 inline-flex rounded-md border border-foreground/10 bg-foreground/[0.04] px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-foreground/55">
+                  Staff
+                </span>
+              </div>
+            </div>
           </Link>
         </div>
 
