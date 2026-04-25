@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { sendSubmissionReceivedEmail } from "@/lib/email/registration-emails";
 import { prisma } from "@/lib/prisma";
 import { getStripeClient } from "@/lib/stripe-registration-payment";
 import { RegisterThanksView } from "./register-thanks-view";
@@ -47,6 +48,43 @@ export default async function RegisterThanksPage({
   const code = session.metadata?.vbsRegistrationCode?.trim() ?? "—";
   const paid = session.payment_status === "paid";
   const seasonId = session.metadata?.vbsSeasonId?.trim() ?? "";
+  const submissionId = session.metadata?.vbsFormSubmissionId?.trim() ?? "";
+
+  // Fallback safety net for local/dev testing: if webhook delivery is not configured yet,
+  // mark this submission paid when Stripe says this Checkout Session is paid.
+  if (paid && submissionId) {
+    const existing = await prisma.formSubmission.findUnique({
+      where: { id: submissionId },
+      select: { stripePaymentStatus: true },
+    });
+    if (existing && existing.stripePaymentStatus !== "paid") {
+      const paidAt = new Date();
+      const charged =
+        typeof session.amount_total === "number" && session.amount_total > 0
+          ? session.amount_total
+          : null;
+      await prisma.$transaction([
+        prisma.formSubmission.update({
+          where: { id: submissionId },
+          data: {
+            stripePaymentStatus: "paid",
+            stripePaidAt: paidAt,
+            ...(charged != null ? { stripeAmountChargedCents: charged } : {}),
+          },
+        }),
+        prisma.registration.updateMany({
+          where: { formSubmissionId: submissionId },
+          data: {
+            paymentReceivedAt: paidAt,
+            expectsPayment: false,
+          },
+        }),
+      ]);
+      void sendSubmissionReceivedEmail(submissionId).catch((err) => {
+        console.error("[register/thanks] sendSubmissionReceivedEmail", err);
+      });
+    }
+  }
 
   let seasonName: string | null = null;
   if (seasonId) {

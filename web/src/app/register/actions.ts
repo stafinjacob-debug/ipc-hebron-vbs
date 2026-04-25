@@ -127,6 +127,8 @@ async function submitPublicRegistrationCore(
     };
   }
 
+  const smsConsent = fdGet("smsConsent", formData) === "true";
+
   const parsed = parseDynamicRegistrationForm(formData, def, rules);
   if (!parsed.ok) {
     return {
@@ -137,6 +139,13 @@ async function submitPublicRegistrationCore(
   }
 
   const data = parsed;
+  if (smsConsent && !data.guardian.guardianPhone?.trim()) {
+    return {
+      ok: false,
+      message: "Please provide a phone number to receive SMS updates.",
+      fieldErrors: { guardianPhone: ["Phone required for SMS consent"] },
+    };
+  }
 
   const clientSubmitKey = resolveClientSubmitKey(formData);
   if (
@@ -297,7 +306,10 @@ async function submitPublicRegistrationCore(
           formId: formRow.id,
           guardianId: guardian.id,
           clientSubmitKey,
-          guardianResponses: data.guardianCustom as object,
+          guardianResponses: {
+            ...(data.guardianCustom as Record<string, unknown>),
+            smsConsentForEventUpdates: smsConsent,
+          },
           formVersion: formRow.publishedVersion,
         },
       });

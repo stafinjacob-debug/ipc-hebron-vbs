@@ -133,12 +133,168 @@ function visible(field: FormFieldDef, ctx: Record<string, string>): boolean {
   return (ctx[field.showWhen.fieldKey] ?? "") === field.showWhen.equals;
 }
 
-const labelClass = "block text-sm font-semibold text-neutral-900 dark:text-neutral-100";
-const hintClass = "mt-1 text-xs text-neutral-500 dark:text-neutral-400";
+const labelClass = "block text-sm font-semibold text-neutral-100";
+const hintClass = "mt-1 text-xs text-neutral-300/80";
 const inputClass =
-  "mt-1.5 w-full min-h-11 rounded-xl border border-neutral-200 bg-white px-3.5 py-2.5 text-base text-neutral-900 shadow-sm placeholder:text-neutral-400 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/25 dark:border-neutral-600 dark:bg-neutral-900 dark:text-neutral-100 dark:placeholder:text-neutral-500";
+  "mt-1.5 w-full min-h-11 rounded-xl border border-white/20 bg-white/12 px-3.5 py-2.5 text-base text-white shadow-sm placeholder:text-neutral-300/70 focus:border-brand/80 focus:outline-none focus:ring-2 focus:ring-brand/30";
 const sectionCard =
-  "rounded-2xl border border-neutral-200/90 bg-white p-5 shadow-sm dark:border-neutral-700 dark:bg-neutral-950 sm:p-6";
+  "rounded-2xl border border-white/12 bg-black/35 p-5 shadow-[0_10px_30px_rgba(0,0,0,0.25)] backdrop-blur-md sm:p-6";
+
+const ALLERGY_PRESET_OPTIONS = [
+  "Peanut / tree nut allergy",
+  "Dairy allergy",
+  "Egg allergy",
+  "Gluten sensitivity / celiac",
+  "Medication allergy",
+  "Asthma or inhaler needed",
+] as const;
+
+type AllergyChoiceState = {
+  answer: "yes" | "no" | "";
+  selected: string[];
+  other: string;
+};
+
+function parseAllergyChoiceState(rawValue: string): AllergyChoiceState {
+  const trimmed = rawValue.trim();
+  if (!trimmed) return { answer: "", selected: [], other: "" };
+  if (/^none$/i.test(trimmed)) return { answer: "no", selected: [], other: "" };
+
+  const chunks = trimmed
+    .split(/[;\n]+/)
+    .map((c) => c.trim())
+    .filter(Boolean);
+  const selected: string[] = [];
+  const otherParts: string[] = [];
+
+  for (const chunk of chunks) {
+    const preset = ALLERGY_PRESET_OPTIONS.find((option) => option.toLowerCase() === chunk.toLowerCase());
+    if (preset) {
+      selected.push(preset);
+      continue;
+    }
+    const otherMatch = /^other:\s*(.+)$/i.exec(chunk);
+    if (otherMatch?.[1]) {
+      otherParts.push(otherMatch[1].trim());
+      continue;
+    }
+    otherParts.push(chunk);
+  }
+
+  return {
+    answer: "yes",
+    selected: Array.from(new Set(selected)),
+    other: otherParts.join("; "),
+  };
+}
+
+function serializeAllergyChoiceState(state: AllergyChoiceState): string {
+  if (state.answer === "no") return "None";
+  if (state.answer !== "yes") return "";
+  const parts: string[] = [...state.selected];
+  if (state.other.trim()) parts.push(`Other: ${state.other.trim()}`);
+  return parts.join("; ");
+}
+
+function AllergiesFieldInput({
+  field,
+  value,
+  onChange,
+  required,
+  helperText,
+}: {
+  field: FormFieldDef;
+  value: string;
+  onChange: (v: string) => void;
+  required: boolean;
+  helperText?: string;
+}) {
+  const [state, setState] = useState<AllergyChoiceState>(() => parseAllergyChoiceState(value));
+
+  useEffect(() => {
+    const currentSerialized = serializeAllergyChoiceState(state);
+    if (value === currentSerialized) return;
+    setState(parseAllergyChoiceState(value));
+  }, [value, state]);
+
+  const sync = useCallback(
+    (next: AllergyChoiceState) => {
+      setState(next);
+      onChange(serializeAllergyChoiceState(next));
+    },
+    [onChange],
+  );
+
+  return (
+    <div>
+      <p className={labelClass}>
+        {field.label}
+        {required ? <span className="text-red-600"> *</span> : <span className="font-normal text-neutral-500"> (optional)</span>}
+      </p>
+      <p className={hintClass}>{helperText}</p>
+      <div className="mt-2 space-y-2">
+        <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-neutral-200 bg-white px-3 py-3 dark:border-neutral-600 dark:bg-neutral-900">
+          <input
+            type="radio"
+            name={`allergy-answer-${field.id}`}
+            checked={state.answer === "no"}
+            onChange={() => sync({ answer: "no", selected: [], other: "" })}
+            className="size-4 accent-brand"
+          />
+          <span className="text-sm font-medium text-neutral-800 dark:text-neutral-200">No</span>
+        </label>
+        <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-neutral-200 bg-white px-3 py-3 dark:border-neutral-600 dark:bg-neutral-900">
+          <input
+            type="radio"
+            name={`allergy-answer-${field.id}`}
+            checked={state.answer === "yes"}
+            onChange={() => sync({ ...state, answer: "yes" })}
+            className="size-4 accent-brand"
+          />
+          <span className="text-sm font-medium text-neutral-800 dark:text-neutral-200">Yes</span>
+        </label>
+      </div>
+
+      {state.answer === "yes" ? (
+        <div className="mt-3 space-y-2 rounded-xl border border-neutral-200 bg-neutral-50/70 p-3 dark:border-neutral-700 dark:bg-neutral-900/60">
+          <p className="text-sm font-medium text-neutral-900 dark:text-neutral-100">Select all that apply:</p>
+          {ALLERGY_PRESET_OPTIONS.map((option) => {
+            const checked = state.selected.includes(option);
+            return (
+              <label key={option} className="flex cursor-pointer items-center gap-2 text-sm text-neutral-800 dark:text-neutral-200">
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  onChange={(e) => {
+                    const nextSelected = e.target.checked
+                      ? [...state.selected, option]
+                      : state.selected.filter((x) => x !== option);
+                    sync({ ...state, selected: nextSelected });
+                  }}
+                  className="size-4 accent-brand"
+                />
+                {option}
+              </label>
+            );
+          })}
+          <div className="pt-1">
+            <label htmlFor={`allergy-other-${field.id}`} className="text-sm font-medium text-neutral-900 dark:text-neutral-100">
+              Other
+            </label>
+            <textarea
+              id={`allergy-other-${field.id}`}
+              value={state.other}
+              onChange={(e) => sync({ ...state, other: e.target.value })}
+              rows={2}
+              className={`${inputClass} mt-1 resize-y`}
+              placeholder="Add any other allergy or medical notes"
+            />
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 function SectionHeader({
   icon: Icon,
@@ -200,6 +356,17 @@ function renderFieldInput(
       field.key === "allergiesNotes" && rules.requireAllergiesNotes
         ? "Required for this program — you can enter “None” if not applicable."
         : field.helperText;
+    if (field.key === "allergiesNotes") {
+      return (
+        <AllergiesFieldInput
+          field={field}
+          value={value}
+          onChange={onChange}
+          required={req}
+          helperText={allergiesHelper ?? "Optional — helps teachers keep everyone safe."}
+        />
+      );
+    }
     return (
       <div>
         {commonLabel}
@@ -366,6 +533,7 @@ export function DynamicRegistrationWizard({
   const [guardian, setGuardian] = useState<Record<string, string>>({});
   const [children, setChildren] = useState<Array<{ id: string; values: Record<string, string> }>>([]);
   const [confirmAccurate, setConfirmAccurate] = useState(false);
+  const [smsConsent, setSmsConsent] = useState(false);
   const [emailBlurred, setEmailBlurred] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
   const [ageGateError, setAgeGateError] = useState<{ childIndex: number; message: string } | null>(null);
@@ -447,6 +615,7 @@ export function DynamicRegistrationWizard({
     setChildren([{ id: newChildId(), values: Object.fromEntries(childFieldKeys.map((k) => [k, ""])) }]);
     setStep(0);
     setConfirmAccurate(false);
+    setSmsConsent(false);
     setLocalError(null);
     setAgeGateError(null);
     setLiveDobAgeByChild({});
@@ -585,6 +754,9 @@ export function DynamicRegistrationWizard({
           }
         }
         if (!confirmAccurate) return "Please confirm the information is accurate to continue.";
+        if (smsConsent && !(guardian.guardianPhone ?? "").trim()) {
+          return "Please provide a phone number to receive SMS updates.";
+        }
       }
       return null;
     },
@@ -596,6 +768,7 @@ export function DynamicRegistrationWizard({
       guardian,
       children,
       confirmAccurate,
+      smsConsent,
       rules,
       current?.minimumParticipantAgeYears,
       current?.maximumParticipantAgeYears,
@@ -699,17 +872,17 @@ export function DynamicRegistrationWizard({
 
   function renderWizardContent(season: PublicSeasonOption, formDef: FormDefinitionV1): React.ReactNode {
     return (
-      <>
-        <div className="rounded-2xl border border-brand/25 bg-gradient-to-br from-brand-muted/60 to-white px-5 py-6 text-center shadow-md dark:from-brand-muted/25 dark:to-neutral-900 dark:border-brand/35 sm:px-8">
+      <div className="rounded-3xl border border-white/10 bg-black/40 shadow-[0_20px_60px_rgba(0,0,0,0.45),0_0_48px_rgba(255,220,100,0.12)] backdrop-blur-xl">
+        <div className="px-5 pt-6 text-center sm:px-8">
           <RegistrationHeroBrand churchDisplayName={churchDisplayName} />
-          <p className="mt-3 text-xs font-semibold uppercase tracking-wider text-brand">{churchDisplayName}</p>
-          <h1 className="mt-1 text-2xl font-bold tracking-tight text-neutral-900 dark:text-neutral-50 sm:text-3xl">
+          <p className="mt-3 text-xs font-semibold uppercase tracking-wider text-brand/90">{churchDisplayName}</p>
+          <h1 className="mt-1 text-2xl font-bold tracking-tight text-white sm:text-3xl">
             {season.formTitle || season.name}
           </h1>
-          <p className="mt-2 text-sm font-medium text-neutral-700 dark:text-neutral-300">
+          <p className="mt-2 text-sm font-medium text-neutral-200/90">
             {formatEventRange(season.startDate, season.endDate)}
           </p>
-          <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-neutral-600 dark:text-neutral-400">
+          <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-neutral-200/85">
             {season.welcomeMessage?.trim() ||
               `Please complete this form to register your ${children.length > 1 ? "children" : "child"} for VBS.`}
           </p>
@@ -728,22 +901,23 @@ export function DynamicRegistrationWizard({
           </div>
         ) : null}
 
-        <div className="mt-6 px-1">
-          <div className="flex items-center justify-between text-xs font-medium text-neutral-500 dark:text-neutral-400">
+        <div className="mt-5 px-1">
+          <div className="flex items-center justify-between text-xs font-medium text-neutral-300/90">
             <span>
               Step {step + 1} of {TOTAL_STEPS}
             </span>
-            <span className="text-neutral-700 dark:text-neutral-300">{STEP_LABELS[step]}</span>
+            <span className="text-neutral-100">{STEP_LABELS[step]}</span>
           </div>
-          <div className="mt-2 h-2 overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-800">
+          <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/15">
             <div
               className="h-full rounded-full bg-brand transition-[width] duration-300 ease-out"
               style={{ width: `${((step + 1) / TOTAL_STEPS) * 100}%` }}
             />
           </div>
+          <div className="mt-4 border-t border-white/10" />
         </div>
 
-        <form action={formAction} className="mt-6 space-y-5">
+        <form action={formAction} className="space-y-6 px-6 pb-8 sm:px-9">
           <div className="pointer-events-none absolute -left-[10000px] h-0 w-0 overflow-hidden opacity-0">
             <label htmlFor="company">Company</label>
             <input type="text" id="company" name="company" tabIndex={-1} autoComplete="off" />
@@ -753,6 +927,7 @@ export function DynamicRegistrationWizard({
           <input type="hidden" name="__vbsSubmitNonce" value={clientSubmitKey} readOnly />
           <input type="hidden" name="childCount" value={children.length} readOnly />
           <input type="hidden" name="confirmedAccurate" value={confirmAccurate ? "true" : "false"} readOnly />
+          <input type="hidden" name="smsConsent" value={smsConsent ? "true" : "false"} readOnly />
           {stripePayment.active && stripePayment.mode === "REQUIRED" ? (
             <input type="hidden" name="stripeCoverProcessingFee" value="true" readOnly />
           ) : null}
@@ -828,8 +1003,12 @@ export function DynamicRegistrationWizard({
               )}
               {guardianSections.map((sec) => (
                 <div key={sec.id} className="mb-6 last:mb-0">
-                  <h3 className="mb-3 text-sm font-bold text-neutral-800 dark:text-neutral-200">{sec.title}</h3>
-                  {sec.description ? <p className="mb-3 text-sm text-neutral-600">{sec.description}</p> : null}
+                  {guardianSections.length > 1 ? (
+                    <>
+                      <h3 className="mb-3 text-sm font-bold text-white">{sec.title}</h3>
+                      {sec.description ? <p className="mb-3 text-sm text-neutral-300/85">{sec.description}</p> : null}
+                    </>
+                  ) : null}
                   <div className="grid gap-4 sm:grid-cols-2">
                     {formDef.fields
                       .filter((f) => f.sectionId === sec.id)
@@ -1064,7 +1243,7 @@ export function DynamicRegistrationWizard({
               </ul>
               {consentSections.map((sec) => (
                 <div key={sec.id} className="mt-5">
-                  <h3 className="font-semibold text-neutral-900 dark:text-neutral-50">{sec.title}</h3>
+                  {consentSections.length > 1 ? <h3 className="font-semibold text-neutral-100">{sec.title}</h3> : null}
                   {formDef.fields
                     .filter((f) => f.sectionId === sec.id)
                     .map((f) => {
@@ -1110,6 +1289,18 @@ export function DynamicRegistrationWizard({
                 <span className="text-sm">
                   I confirm the information is accurate to the best of my knowledge, and I agree to the church using it
                   for this VBS event.
+                </span>
+              </label>
+              <label className="mt-3 flex cursor-pointer items-start gap-3 rounded-xl border border-neutral-200 bg-white px-4 py-4 dark:border-neutral-600 dark:bg-neutral-900">
+                <input
+                  type="checkbox"
+                  checked={smsConsent}
+                  onChange={(e) => setSmsConsent(e.target.checked)}
+                  className="mt-1 size-5 accent-brand"
+                />
+                <span className="text-sm">
+                  I agree to receive SMS text messages on my provided phone number for VBS event updates and
+                  announcements.
                 </span>
               </label>
             </div>
@@ -1164,6 +1355,10 @@ export function DynamicRegistrationWizard({
                       </li>
                     ))}
                   </ul>
+                </div>
+                <div>
+                  <p className="text-xs font-bold uppercase text-neutral-500">SMS updates</p>
+                  <p className="mt-1 text-neutral-600">{smsConsent ? "Consented" : "Not consented"}</p>
                 </div>
                 {stripePayment.active ? (
                   <div className="mt-5 rounded-xl border border-neutral-200 bg-neutral-50 p-4 dark:border-neutral-600 dark:bg-neutral-900/60">
@@ -1308,18 +1503,22 @@ export function DynamicRegistrationWizard({
             </div>
           </div>
         </form>
-      </>
+      </div>
     );
   }
 
   const layout: PublicRegistrationLayout = current.backgroundLayout;
   const isSplit = layout === "SPLIT_FORM_LEFT" || layout === "SPLIT_FORM_RIGHT";
+  const splitGridClass =
+    layout === "SPLIT_FORM_LEFT"
+      ? "grid grid-cols-1 gap-0 lg:grid-cols-[min(32rem,40vw)_1fr] lg:min-h-[calc(100dvh-7rem)] lg:items-stretch"
+      : "grid grid-cols-1 gap-0 lg:grid-cols-[1fr_min(32rem,40vw)] lg:min-h-[calc(100dvh-7rem)] lg:items-stretch";
 
   return (
     <div
       className={
         isSplit
-          ? "relative isolate mx-auto w-full max-w-6xl pb-28 md:pb-8"
+          ? "relative isolate mx-auto w-full max-w-none pb-28 md:pb-8"
           : "relative isolate pb-28 md:pb-8"
       }
     >
@@ -1332,16 +1531,16 @@ export function DynamicRegistrationWizard({
         />
       ) : null}
       {isSplit ? (
-        <div className="grid grid-cols-1 gap-0 lg:grid-cols-2 lg:min-h-[calc(100dvh-7rem)] lg:items-stretch">
+        <div className={splitGridClass}>
           <div
             className={
               (layout === "SPLIT_FORM_LEFT"
                 ? "order-2 lg:col-start-1 lg:row-start-1"
                 : "order-2 lg:col-start-2 lg:row-start-1") +
-              " relative z-10 flex w-full justify-center px-4 pt-6 pb-28 lg:justify-center lg:px-8 lg:pb-8 lg:pt-12"
+              " relative z-10 flex w-full justify-center border-l border-stone-200/60 bg-white/92 px-4 pt-6 pb-28 shadow-[inset_1px_0_0_rgba(255,255,255,0.85)] backdrop-blur-md lg:justify-center lg:px-6 lg:pb-8 lg:pt-10"
             }
           >
-            <div className="relative w-full max-w-lg sm:max-w-xl">
+            <div className="relative w-full max-w-2xl">
               {renderWizardContent(current, def)}
             </div>
           </div>
@@ -1350,7 +1549,7 @@ export function DynamicRegistrationWizard({
               (layout === "SPLIT_FORM_LEFT"
                 ? "order-1 lg:col-start-2 lg:row-start-1"
                 : "order-1 lg:col-start-1 lg:row-start-1") +
-              " relative min-h-[38vh] w-full lg:min-h-full"
+              " relative min-h-[46vh] w-full overflow-hidden lg:min-h-full"
             }
           >
             <RegistrationBackgroundMedia
@@ -1358,6 +1557,14 @@ export function DynamicRegistrationWizard({
               imageUrl={current.backgroundImageUrl}
               dimmingPercent={current.backgroundDimmingPercent}
               variant="split"
+            />
+            <div
+              aria-hidden
+              className={
+                layout === "SPLIT_FORM_LEFT"
+                  ? "pointer-events-none absolute inset-y-0 left-0 hidden w-20 bg-gradient-to-r from-white to-transparent lg:block"
+                  : "pointer-events-none absolute inset-y-0 right-0 hidden w-20 bg-gradient-to-l from-white to-transparent lg:block"
+              }
             />
           </div>
         </div>

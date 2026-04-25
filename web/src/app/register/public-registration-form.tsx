@@ -156,6 +156,7 @@ export function PublicRegistrationForm({
 
   const [children, setChildren] = useState<ChildDraft[]>(() => [newChildRow()]);
   const [confirmAccurate, setConfirmAccurate] = useState(false);
+  const [smsConsent, setSmsConsent] = useState(false);
 
   const [localError, setLocalError] = useState<string | null>(null);
 
@@ -214,6 +215,9 @@ export function PublicRegistrationForm({
       }
       if (s === 2) {
         if (!confirmAccurate) return "Please confirm the information is accurate to continue.";
+        if (smsConsent && !phoneDigits(guardianPhone)) {
+          return "Please provide a valid phone number to receive SMS updates.";
+        }
       }
       return null;
     },
@@ -225,6 +229,7 @@ export function PublicRegistrationForm({
       guardianPhone,
       children,
       confirmAccurate,
+      smsConsent,
       rules,
     ],
   );
@@ -353,6 +358,7 @@ export function PublicRegistrationForm({
           <input type="hidden" name="guardianPhone" value={guardianPhone} />
           <input type="hidden" name="childrenPayload" value={childrenPayload} />
           <input type="hidden" name="confirmedAccurate" value={confirmAccurate ? "true" : "false"} />
+          <input type="hidden" name="smsConsent" value={smsConsent ? "true" : "false"} />
 
           {state && !state.ok && !hasFieldErrors(state) && (
             <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-100">
@@ -695,6 +701,18 @@ export function PublicRegistrationForm({
                   church using it for this VBS event.
                 </span>
               </label>
+              <label className="mt-3 flex cursor-pointer items-start gap-3 rounded-xl border border-neutral-200 bg-white px-4 py-4 dark:border-neutral-600 dark:bg-neutral-900">
+                <input
+                  type="checkbox"
+                  checked={smsConsent}
+                  onChange={(e) => setSmsConsent(e.target.checked)}
+                  className="mt-1 size-5 shrink-0 rounded accent-brand"
+                />
+                <span className="text-sm text-neutral-800 dark:text-neutral-200">
+                  I agree to receive SMS text messages on my provided phone number for VBS event updates and
+                  announcements.
+                </span>
+              </label>
               {state?.fieldErrors?.confirmedAccurate && (
                 <p className={`${hintClass} mt-2 text-red-600`}>{state.fieldErrors.confirmedAccurate[0]}</p>
               )}
@@ -743,6 +761,10 @@ export function PublicRegistrationForm({
                       </li>
                     ))}
                   </ul>
+                </div>
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-wide text-neutral-500">SMS updates</p>
+                  <p className="mt-1 text-neutral-600 dark:text-neutral-400">{smsConsent ? "Consented" : "Not consented"}</p>
                 </div>
               </div>
             </div>

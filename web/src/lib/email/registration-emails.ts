@@ -29,13 +29,16 @@ function emailShell(inner: string): string {
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>${brand}</title>
 </head>
-<body style="margin:0;padding:0;background:#f1f5f9;font-family:Segoe UI,system-ui,sans-serif;">
+<body style="margin:0;padding:0;background:#eef6ff;font-family:'Segoe UI','Helvetica Neue',Arial,sans-serif;">
   <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f1f5f9;padding:24px 12px;">
     <tr>
       <td align="center">
         <table role="presentation" width="100%" style="max-width:560px;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 10px 40px rgba(15,23,42,0.08);">
           <tr>
-            <td style="background:linear-gradient(135deg,#1d4ed8 0%,#0ea5e9 100%);padding:28px 24px;text-align:center;">
+            <td style="padding:0;height:6px;background:#1e90ff;"></td>
+          </tr>
+          <tr>
+            <td style="background:linear-gradient(120deg,#ffd447 0%,#17bebb 55%,#6a4c93 100%);padding:28px 24px;text-align:center;">
               <p style="margin:0;font-size:11px;letter-spacing:0.2em;text-transform:uppercase;color:rgba(255,255,255,0.85);">Vacation Bible School</p>
               <h1 style="margin:8px 0 0;font-size:24px;font-weight:700;color:#ffffff;">${brand}</h1>
             </td>
@@ -188,23 +191,31 @@ export async function sendRegistrationApprovedEmail(
   const dates = `${reg.season.startDate.toLocaleDateString()} – ${reg.season.endDate.toLocaleDateString()}`;
 
   const inner = `
+    <h2 style="margin:0 0 8px;font-size:30px;line-height:1.2;font-weight:800;color:#0f172a;">&#127775; You&apos;re In! Welcome to Illumination Station!</h2>
+    <p style="margin:0 0 8px;font-size:18px;line-height:1.4;color:#1e293b;"><strong>${escapeHtml(childName)}</strong> is all set for <strong>${season}</strong>!</p>
+    <p style="margin:0 0 18px;font-size:14px;line-height:1.5;color:#0f766e;"><strong>&#128161; Shining a light on who Jesus really is &mdash; John 8:12</strong></p>
     <p style="margin:0 0 16px;">Hi ${escapeHtml(gname)},</p>
-    <p style="margin:0 0 16px;">Great news — <strong>${escapeHtml(childName)}</strong> is <strong>confirmed</strong> for <strong>${season}</strong>!</p>
-    <div style="background:linear-gradient(180deg,#f0f9ff 0%,#ffffff 100%);border:1px solid #bae6fd;border-radius:12px;padding:20px;margin:0 0 20px;">
-      <p style="margin:0 0 8px;font-size:12px;text-transform:uppercase;letter-spacing:0.08em;color:#0369a1;">Registration number</p>
-      <p style="margin:0 0 16px;font-size:22px;font-weight:800;letter-spacing:0.06em;color:#0c4a6e;font-family:ui-monospace,monospace;">${num}</p>
-      <p style="margin:0;font-size:14px;color:#475569;"><strong>Dates:</strong> ${escapeHtml(dates)}<br/>
+    <p style="margin:0 0 16px;">We can&apos;t wait to welcome your family. Keep this check-in info handy for a smooth first day.</p>
+    <div style="border:1px dashed #8bd3ff;border-radius:12px;padding:16px 18px;background:#f0f8ff;margin:0 0 20px;">
+      <p style="margin:0 0 8px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;color:#0369a1;">&#127915; Your Check-in Code</p>
+      <p style="margin:0 0 16px;font-size:24px;font-weight:800;letter-spacing:0.06em;color:#0c4a6e;font-family:ui-monospace,Consolas,monospace;">${num}</p>
+      <p style="margin:0;font-size:14px;line-height:1.6;color:#334155;"><strong>Dates:</strong> ${escapeHtml(dates)}<br/>
       <strong>Class:</strong> ${cls}<br/>
       <strong>Family ref:</strong> ${ref}</p>
     </div>
-    <p style="margin:0 0 12px;font-weight:600;color:#0f172a;">Check-in QR code</p>
-    <p style="margin:0 0 8px;font-size:14px;color:#64748b;">Show this at the welcome desk or open the link on your phone.</p>
-    <div style="text-align:center;margin:16px 0;padding:16px;background:#f8fafc;border-radius:12px;">
+    <p style="margin:0 0 8px;font-size:18px;line-height:1.35;font-weight:700;color:#0f172a;">&#10024; Scan this at check-in to shine right in!</p>
+    <p style="margin:0 0 10px;font-size:14px;color:#475569;">Show this at the welcome desk or open it on your phone.</p>
+    <div style="text-align:center;margin:16px 0;padding:20px;background:#f7f7f7;border-radius:16px;">
       <img src="cid:${cid}" width="200" height="200" alt="Registration QR code" style="display:inline-block;border-radius:8px;" />
     </div>
-    <p style="margin:16px 0 0;font-size:13px;word-break:break-all;">
-      <a href="${escapeHtml(ticketUrl)}" style="color:#2563eb;">Open digital ticket</a>
+    <p style="margin:18px 0 0;text-align:center;">
+      <a href="${escapeHtml(ticketUrl)}" style="display:inline-block;background:#00c2a8;color:#ffffff;padding:12px 18px;border-radius:999px;text-decoration:none;font-weight:700;">&#128241; Open Digital Ticket</a>
     </p>
+    <hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0;" />
+    <p style="margin:0 0 8px;font-size:16px;font-weight:700;color:#0f172a;">What&apos;s next?</p>
+    <p style="margin:0 0 4px;font-size:14px;color:#334155;">&#128231; You&apos;ll receive updates via email</p>
+    <p style="margin:0 0 4px;font-size:14px;color:#334155;">&#128105;&#8205;&#127979; Class assignments will be shared soon</p>
+    <p style="margin:0;font-size:14px;color:#334155;">&#127881; Get ready for fun, games, and learning!</p>
   `;
 
   const { result, error } = await sendHtml(
@@ -273,21 +284,36 @@ export async function sendAllApprovedRegistrationsEmailForSubmission(submissionI
     const season = escapeHtml(reg.season.name);
     const cls = reg.classroom ? escapeHtml(reg.classroom.name) : "To be assigned";
     blocks += `
-      <div style="border:1px solid #e2e8f0;border-radius:12px;padding:16px;margin:0 0 16px;background:#fafafa;">
+      <div style="border:1px dashed #8bd3ff;border-radius:12px;padding:16px;margin:0 0 16px;background:#f0f8ff;">
         <p style="margin:0 0 8px;font-weight:700;color:#0f172a;">${childName}</p>
-        <p style="margin:0 0 4px;font-size:14px;color:#475569;"><strong>Registration #</strong> ${num}</p>
+        <p style="margin:0 0 8px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;color:#0369a1;">&#127915; Your Check-in Code</p>
+        <p style="margin:0 0 10px;font-size:22px;font-weight:800;letter-spacing:0.06em;color:#0c4a6e;font-family:ui-monospace,Consolas,monospace;">${num}</p>
         <p style="margin:0 0 12px;font-size:14px;color:#475569;">${season} · ${cls}</p>
-        <div style="text-align:center;"><img src="cid:${cid}" width="180" height="180" alt="QR" style="border-radius:8px;" /></div>
-        <p style="margin:12px 0 0;text-align:center;font-size:12px;"><a href="${escapeHtml(ticketUrl)}" style="color:#2563eb;">Open ticket</a></p>
+        <p style="margin:0 0 8px;font-size:16px;line-height:1.35;font-weight:700;color:#0f172a;">&#10024; Scan this at check-in to shine right in!</p>
+        <p style="margin:0 0 10px;font-size:13px;color:#64748b;">Show this at the welcome desk or open it on your phone.</p>
+        <div style="text-align:center;padding:16px;background:#f7f7f7;border-radius:14px;">
+          <img src="cid:${cid}" width="180" height="180" alt="QR" style="border-radius:8px;" />
+        </div>
+        <p style="margin:14px 0 0;text-align:center;">
+          <a href="${escapeHtml(ticketUrl)}" style="display:inline-block;background:#00c2a8;color:#ffffff;padding:10px 16px;border-radius:999px;text-decoration:none;font-size:13px;font-weight:700;">&#128241; Open Digital Ticket</a>
+        </p>
       </div>`;
     i++;
   }
 
   const gname = `${submission.guardian.firstName} ${submission.guardian.lastName}`.trim();
   const inner = `
+    <h2 style="margin:0 0 8px;font-size:30px;line-height:1.2;font-weight:800;color:#0f172a;">&#127775; You&apos;re In! Welcome to Illumination Station!</h2>
+    <p style="margin:0 0 8px;font-size:18px;line-height:1.4;color:#1e293b;">Your family&apos;s confirmed VBS check-in passes are ready.</p>
+    <p style="margin:0 0 18px;font-size:14px;line-height:1.5;color:#0f766e;"><strong>&#128161; Shining a light on who Jesus really is &mdash; John 8:12</strong></p>
     <p style="margin:0 0 16px;">Hi ${escapeHtml(gname)},</p>
-    <p style="margin:0 0 16px;">Here are the confirmed VBS registrations and check-in QR codes for your family.</p>
+    <p style="margin:0 0 16px;">Here are the confirmed VBS registrations and QR check-in codes for your family.</p>
     ${blocks}
+    <hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0;" />
+    <p style="margin:0 0 8px;font-size:16px;font-weight:700;color:#0f172a;">What&apos;s next?</p>
+    <p style="margin:0 0 4px;font-size:14px;color:#334155;">&#128231; You&apos;ll receive updates via email</p>
+    <p style="margin:0 0 4px;font-size:14px;color:#334155;">&#128105;&#8205;&#127979; Class assignments will be shared soon</p>
+    <p style="margin:0;font-size:14px;color:#334155;">&#127881; Get ready for fun, games, and learning!</p>
   `;
 
   const { result, error } = await sendHtml(
