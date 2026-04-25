@@ -809,13 +809,13 @@ export function PublicRegistrationForm({
           </div>
 
           {/* Mobile sticky bar (inside form so submit works) */}
-          <div className="fixed inset-x-0 bottom-0 z-40 border-t border-neutral-200 bg-white/95 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-[0_-4px_20px_rgba(0,0,0,0.08)] backdrop-blur-md dark:border-neutral-800 dark:bg-neutral-950/95 md:hidden">
+          <div className="fixed inset-x-0 bottom-0 z-40 border-t border-white/12 bg-black/70 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-10px_28px_rgba(0,0,0,0.35)] backdrop-blur-xl md:hidden">
             <div className="mx-auto flex max-w-lg gap-2">
               {step > 0 ? (
                 <button
                   type="button"
                   onClick={goBack}
-                  className="inline-flex min-h-12 min-w-[44px] flex-1 items-center justify-center gap-1 rounded-xl border border-neutral-300 text-sm font-semibold dark:border-neutral-600"
+                  className="inline-flex min-h-12 min-w-[44px] flex-1 items-center justify-center gap-1 rounded-xl border border-white/20 bg-white/10 text-sm font-semibold text-white"
                 >
                   <ChevronLeft className="size-4" aria-hidden />
                   Back

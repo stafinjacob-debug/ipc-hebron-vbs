@@ -136,9 +136,9 @@ function visible(field: FormFieldDef, ctx: Record<string, string>): boolean {
 const labelClass = "block text-sm font-semibold text-neutral-100";
 const hintClass = "mt-1 text-xs text-neutral-300/80";
 const inputClass =
-  "mt-1.5 w-full min-h-11 rounded-xl border border-white/20 bg-white/12 px-3.5 py-2.5 text-base text-white shadow-sm placeholder:text-neutral-300/70 focus:border-brand/80 focus:outline-none focus:ring-2 focus:ring-brand/30";
+  "mt-1.5 w-full min-h-11 rounded-xl border border-white/35 bg-white px-3.5 py-2.5 text-base text-neutral-900 shadow-sm placeholder:text-neutral-500 focus:border-brand/80 focus:outline-none focus:ring-2 focus:ring-brand/30";
 const sectionCard =
-  "rounded-2xl border border-white/12 bg-black/35 p-5 shadow-[0_10px_30px_rgba(0,0,0,0.25)] backdrop-blur-md sm:p-6";
+  "rounded-2xl border border-white/12 bg-black/40 p-5 shadow-[0_10px_30px_rgba(0,0,0,0.25)] backdrop-blur-md sm:p-6 lg:p-5";
 
 const ALLERGY_PRESET_OPTIONS = [
   "Peanut / tree nut allergy",
@@ -311,8 +311,8 @@ function SectionHeader({
         <Icon className="size-5" aria-hidden />
       </span>
       <div>
-        <h2 className="text-lg font-bold text-neutral-900 dark:text-neutral-50">{title}</h2>
-        <p className="mt-0.5 text-sm text-neutral-600 dark:text-neutral-400">{description}</p>
+        <h2 className="text-lg font-bold text-neutral-100">{title}</h2>
+        <p className="mt-0.5 text-sm text-neutral-200/85">{description}</p>
       </div>
     </div>
   );
@@ -411,7 +411,7 @@ function renderFieldInput(
         <legend className={labelClass}>{field.label}</legend>
         <div className="mt-2 space-y-2">
           {field.options.map((o) => (
-            <label key={o.value} className="flex cursor-pointer items-center gap-2 text-sm">
+            <label key={o.value} className="flex cursor-pointer items-center gap-2 text-sm text-neutral-100">
               <input
                 type="radio"
                 value={o.value}
@@ -873,16 +873,16 @@ export function DynamicRegistrationWizard({
   function renderWizardContent(season: PublicSeasonOption, formDef: FormDefinitionV1): React.ReactNode {
     return (
       <div className="rounded-3xl border border-white/10 bg-black/40 shadow-[0_20px_60px_rgba(0,0,0,0.45),0_0_48px_rgba(255,220,100,0.12)] backdrop-blur-xl">
-        <div className="px-5 pt-6 text-center sm:px-8">
+        <div className="px-5 pt-6 text-center sm:px-8 lg:px-7 lg:pt-5">
           <RegistrationHeroBrand churchDisplayName={churchDisplayName} />
           <p className="mt-3 text-xs font-semibold uppercase tracking-wider text-brand/90">{churchDisplayName}</p>
-          <h1 className="mt-1 text-2xl font-bold tracking-tight text-white sm:text-3xl">
+          <h1 className="mt-1 text-2xl font-bold tracking-tight text-white sm:text-3xl lg:text-[1.9rem]">
             {season.formTitle || season.name}
           </h1>
-          <p className="mt-2 text-sm font-medium text-neutral-200/90">
+          <p className="mt-2 text-sm font-medium text-neutral-200/90 lg:mt-2 lg:text-sm">
             {formatEventRange(season.startDate, season.endDate)}
           </p>
-          <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-neutral-200/85">
+          <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-neutral-200/85 lg:mt-3 lg:text-sm">
             {season.welcomeMessage?.trim() ||
               `Please complete this form to register your ${children.length > 1 ? "children" : "child"} for VBS.`}
           </p>
@@ -901,7 +901,7 @@ export function DynamicRegistrationWizard({
           </div>
         ) : null}
 
-        <div className="mt-5 px-1">
+        <div className="mt-5 px-1 lg:mt-4">
           <div className="flex items-center justify-between text-xs font-medium text-neutral-300/90">
             <span>
               Step {step + 1} of {TOTAL_STEPS}
@@ -917,7 +917,7 @@ export function DynamicRegistrationWizard({
           <div className="mt-4 border-t border-white/10" />
         </div>
 
-        <form action={formAction} className="space-y-6 px-6 pb-8 sm:px-9">
+        <form action={formAction} className="space-y-6 px-6 pb-8 sm:px-9 lg:space-y-5 lg:px-7 lg:pb-6">
           <div className="pointer-events-none absolute -left-[10000px] h-0 w-0 overflow-hidden opacity-0">
             <label htmlFor="company">Company</label>
             <input type="text" id="company" name="company" tabIndex={-1} autoComplete="off" />
@@ -1464,13 +1464,13 @@ export function DynamicRegistrationWizard({
             </div>
           </div>
 
-          <div className="fixed inset-x-0 bottom-0 z-40 border-t border-neutral-200 bg-white/95 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-[0_-4px_20px_rgba(0,0,0,0.08)] backdrop-blur-md dark:border-neutral-800 dark:bg-neutral-950/95 md:hidden">
+          <div className="fixed inset-x-0 bottom-0 z-40 border-t border-white/12 bg-black/70 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-10px_28px_rgba(0,0,0,0.35)] backdrop-blur-xl md:hidden">
             <div className="mx-auto flex max-w-lg gap-2">
               {step > 0 ? (
                 <button
                   type="button"
                   onClick={goBack}
-                  className="inline-flex min-h-12 flex-1 items-center justify-center gap-1 rounded-xl border border-neutral-300 text-sm font-semibold dark:border-neutral-600"
+                  className="inline-flex min-h-12 flex-1 items-center justify-center gap-1 rounded-xl border border-white/20 bg-white/10 text-sm font-semibold text-white"
                 >
                   <ChevronLeft className="size-4" aria-hidden />
                   Back
@@ -1511,8 +1511,8 @@ export function DynamicRegistrationWizard({
   const isSplit = layout === "SPLIT_FORM_LEFT" || layout === "SPLIT_FORM_RIGHT";
   const splitGridClass =
     layout === "SPLIT_FORM_LEFT"
-      ? "grid grid-cols-1 gap-0 lg:grid-cols-[min(32rem,40vw)_1fr] lg:min-h-[calc(100dvh-7rem)] lg:items-stretch"
-      : "grid grid-cols-1 gap-0 lg:grid-cols-[1fr_min(32rem,40vw)] lg:min-h-[calc(100dvh-7rem)] lg:items-stretch";
+      ? "grid grid-cols-1 gap-0 lg:grid-cols-[min(38rem,46vw)_1fr] lg:min-h-[calc(100dvh-8.5rem)] lg:items-stretch"
+      : "grid grid-cols-1 gap-0 lg:grid-cols-[1fr_min(38rem,46vw)] lg:min-h-[calc(100dvh-8.5rem)] lg:items-stretch";
 
   return (
     <div
@@ -1546,7 +1546,7 @@ export function DynamicRegistrationWizard({
               (layout === "SPLIT_FORM_LEFT"
                 ? "order-2 lg:col-start-1 lg:row-start-1"
                 : "order-2 lg:col-start-2 lg:row-start-1") +
-              " relative z-10 flex w-full justify-center px-4 pt-6 pb-28 lg:border-l lg:border-stone-200/60 lg:bg-white/92 lg:shadow-[inset_1px_0_0_rgba(255,255,255,0.85)] lg:backdrop-blur-md lg:justify-center lg:px-6 lg:pb-8 lg:pt-10"
+              " relative z-10 flex w-full justify-center px-4 pt-6 pb-28 lg:border-l lg:border-stone-200/60 lg:bg-white/92 lg:shadow-[inset_1px_0_0_rgba(255,255,255,0.85)] lg:backdrop-blur-md lg:justify-center lg:px-6 lg:pb-5 lg:pt-7"
             }
           >
             <div className="relative w-full max-w-2xl">
