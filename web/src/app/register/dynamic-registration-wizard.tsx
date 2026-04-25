@@ -1529,7 +1529,16 @@ export function DynamicRegistrationWizard({
           dimmingPercent={current.backgroundDimmingPercent}
           variant="fixed"
         />
-      ) : null}
+      ) : (
+        <div className="lg:hidden">
+          <RegistrationBackgroundMedia
+            videoUrl={current.backgroundVideoUrl}
+            imageUrl={current.backgroundImageUrl}
+            dimmingPercent={current.backgroundDimmingPercent}
+            variant="fixed"
+          />
+        </div>
+      )}
       {isSplit ? (
         <div className={splitGridClass}>
           <div
@@ -1537,7 +1546,7 @@ export function DynamicRegistrationWizard({
               (layout === "SPLIT_FORM_LEFT"
                 ? "order-2 lg:col-start-1 lg:row-start-1"
                 : "order-2 lg:col-start-2 lg:row-start-1") +
-              " relative z-10 flex w-full justify-center border-l border-stone-200/60 bg-white/92 px-4 pt-6 pb-28 shadow-[inset_1px_0_0_rgba(255,255,255,0.85)] backdrop-blur-md lg:justify-center lg:px-6 lg:pb-8 lg:pt-10"
+              " relative z-10 flex w-full justify-center px-4 pt-6 pb-28 lg:border-l lg:border-stone-200/60 lg:bg-white/92 lg:shadow-[inset_1px_0_0_rgba(255,255,255,0.85)] lg:backdrop-blur-md lg:justify-center lg:px-6 lg:pb-8 lg:pt-10"
             }
           >
             <div className="relative w-full max-w-2xl">
@@ -1549,7 +1558,7 @@ export function DynamicRegistrationWizard({
               (layout === "SPLIT_FORM_LEFT"
                 ? "order-1 lg:col-start-2 lg:row-start-1"
                 : "order-1 lg:col-start-1 lg:row-start-1") +
-              " relative min-h-[46vh] w-full overflow-hidden lg:min-h-full"
+              " relative hidden w-full overflow-hidden lg:block lg:min-h-full"
             }
           >
             <RegistrationBackgroundMedia
