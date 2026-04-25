@@ -697,20 +697,20 @@ export function DynamicRegistrationWizard({
     );
   }
 
-  function renderWizardContent(): React.ReactNode {
+  function renderWizardContent(season: PublicSeasonOption, formDef: FormDefinitionV1): React.ReactNode {
     return (
       <>
         <div className="rounded-2xl border border-brand/25 bg-gradient-to-br from-brand-muted/60 to-white px-5 py-6 text-center shadow-md dark:from-brand-muted/25 dark:to-neutral-900 dark:border-brand/35 sm:px-8">
           <RegistrationHeroBrand churchDisplayName={churchDisplayName} />
           <p className="mt-3 text-xs font-semibold uppercase tracking-wider text-brand">{churchDisplayName}</p>
           <h1 className="mt-1 text-2xl font-bold tracking-tight text-neutral-900 dark:text-neutral-50 sm:text-3xl">
-            {current.formTitle || current.name}
+            {season.formTitle || season.name}
           </h1>
           <p className="mt-2 text-sm font-medium text-neutral-700 dark:text-neutral-300">
-            {formatEventRange(current.startDate, current.endDate)}
+            {formatEventRange(season.startDate, season.endDate)}
           </p>
           <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-neutral-600 dark:text-neutral-400">
-            {current.welcomeMessage?.trim() ||
+            {season.welcomeMessage?.trim() ||
               `Please complete this form to register your ${children.length > 1 ? "children" : "child"} for VBS.`}
           </p>
         </div>
@@ -757,8 +757,8 @@ export function DynamicRegistrationWizard({
             <input type="hidden" name="stripeCoverProcessingFee" value="true" readOnly />
           ) : null}
 
-          {def.fields.map((f) => {
-            const sec = def.sections.find((s) => s.id === f.sectionId);
+          {formDef.fields.map((f) => {
+            const sec = formDef.sections.find((s) => s.id === f.sectionId);
             if (sec?.audience !== "guardian" && sec?.audience !== "consent") return null;
             if (f.type === "sectionHeader" || f.type === "staticText") return null;
             const v = guardian[f.key] ?? "";
@@ -831,7 +831,7 @@ export function DynamicRegistrationWizard({
                   <h3 className="mb-3 text-sm font-bold text-neutral-800 dark:text-neutral-200">{sec.title}</h3>
                   {sec.description ? <p className="mb-3 text-sm text-neutral-600">{sec.description}</p> : null}
                   <div className="grid gap-4 sm:grid-cols-2">
-                    {def.fields
+                    {formDef.fields
                       .filter((f) => f.sectionId === sec.id)
                       .map((f) => {
                         if (f.type === "sectionHeader" || f.type === "staticText") {
@@ -881,13 +881,13 @@ export function DynamicRegistrationWizard({
               />
               {(() => {
                 const minOk =
-                  current.minimumParticipantAgeYears != null &&
-                  current.minimumParticipantAgeYears >= 1;
+                  season.minimumParticipantAgeYears != null &&
+                  season.minimumParticipantAgeYears >= 1;
                 const maxOk =
-                  current.maximumParticipantAgeYears != null &&
-                  current.maximumParticipantAgeYears >= 1;
+                  season.maximumParticipantAgeYears != null &&
+                  season.maximumParticipantAgeYears >= 1;
                 if (!minOk && !maxOk) return null;
-                const startLabel = new Date(current.startDate).toLocaleDateString(undefined, {
+                const startLabel = new Date(season.startDate).toLocaleDateString(undefined, {
                   month: "long",
                   day: "numeric",
                   year: "numeric",
@@ -897,20 +897,20 @@ export function DynamicRegistrationWizard({
                     {minOk && maxOk ? (
                       <>
                         Each child must be between{" "}
-                        <span className="font-semibold">{current.minimumParticipantAgeYears}</span> and{" "}
-                        <span className="font-semibold">{current.maximumParticipantAgeYears}</span> years old on{" "}
+                        <span className="font-semibold">{season.minimumParticipantAgeYears}</span> and{" "}
+                        <span className="font-semibold">{season.maximumParticipantAgeYears}</span> years old on{" "}
                         {startLabel} (first day of this VBS).
                       </>
                     ) : minOk ? (
                       <>
                         Each child must be at least{" "}
-                        <span className="font-semibold">{current.minimumParticipantAgeYears}</span> years old on{" "}
+                        <span className="font-semibold">{season.minimumParticipantAgeYears}</span> years old on{" "}
                         {startLabel} (first day of this VBS).
                       </>
                     ) : (
                       <>
                         Each child must be at most{" "}
-                        <span className="font-semibold">{current.maximumParticipantAgeYears}</span> years old on{" "}
+                        <span className="font-semibold">{season.maximumParticipantAgeYears}</span> years old on{" "}
                         {startLabel} (first day of this VBS).
                       </>
                     )}
@@ -919,7 +919,7 @@ export function DynamicRegistrationWizard({
               })()}
               {children.map((ch, idx) => {
                 const childShowsDob = childSections
-                  .flatMap((sec) => def.fields.filter((field) => field.sectionId === sec.id))
+                  .flatMap((sec) => formDef.fields.filter((field) => field.sectionId === sec.id))
                   .some(
                     (field) =>
                       field.key === "childDateOfBirth" &&
@@ -953,7 +953,7 @@ export function DynamicRegistrationWizard({
                     </div>
                     <div className="grid gap-4 sm:grid-cols-2">
                       {childSections.flatMap((sec) =>
-                        def.fields
+                        formDef.fields
                           .filter((field) => field.sectionId === sec.id)
                           .map((field) => {
                             if (field.type === "sectionHeader" || field.type === "staticText") {
@@ -1065,7 +1065,7 @@ export function DynamicRegistrationWizard({
               {consentSections.map((sec) => (
                 <div key={sec.id} className="mt-5">
                   <h3 className="font-semibold text-neutral-900 dark:text-neutral-50">{sec.title}</h3>
-                  {def.fields
+                  {formDef.fields
                     .filter((f) => f.sectionId === sec.id)
                     .map((f) => {
                       if (!visible(f, guardian)) return null;
@@ -1342,7 +1342,7 @@ export function DynamicRegistrationWizard({
             }
           >
             <div className="relative w-full max-w-lg sm:max-w-xl">
-              {renderWizardContent()}
+              {renderWizardContent(current, def)}
             </div>
           </div>
           <div
@@ -1363,7 +1363,7 @@ export function DynamicRegistrationWizard({
         </div>
       ) : (
         <div className="relative z-0 mx-auto max-w-lg sm:max-w-xl">
-          {renderWizardContent()}
+          {renderWizardContent(current, def)}
         </div>
       )}
     </div>
