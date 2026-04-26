@@ -30,9 +30,10 @@ export default async function PublicRegisterPage({
   const paymentCanceled = sp.payment === "canceled";
   const canceledSeasonId = typeof sp.season === "string" ? sp.season.trim() : "";
 
-  let seasons:
-    | Awaited<ReturnType<typeof prisma.vbsSeason.findMany>>
-    | [] = [];
+  type SeasonRow = Awaited<ReturnType<typeof prisma.vbsSeason.findMany<{
+    include: { publicRegistrationSettings: true; registrationForm: true };
+  }>>>[number];
+  let seasons: SeasonRow[] = [];
   let dbUnavailable = false;
   try {
     seasons = await prisma.vbsSeason.findMany({
