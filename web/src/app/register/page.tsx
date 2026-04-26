@@ -30,11 +30,20 @@ export default async function PublicRegisterPage({
   const paymentCanceled = sp.payment === "canceled";
   const canceledSeasonId = typeof sp.season === "string" ? sp.season.trim() : "";
 
-  const seasons = await prisma.vbsSeason.findMany({
-    where: { publicRegistrationOpen: true },
-    orderBy: [{ year: "desc" }, { startDate: "desc" }],
-    include: { publicRegistrationSettings: true, registrationForm: true },
-  });
+  let seasons:
+    | Awaited<ReturnType<typeof prisma.vbsSeason.findMany>>
+    | [] = [];
+  let dbUnavailable = false;
+  try {
+    seasons = await prisma.vbsSeason.findMany({
+      where: { publicRegistrationOpen: true },
+      orderBy: [{ year: "desc" }, { startDate: "desc" }],
+      include: { publicRegistrationSettings: true, registrationForm: true },
+    });
+  } catch (err) {
+    dbUnavailable = true;
+    console.error("[register page] failed to load seasons", err);
+  }
 
   const options = [];
   for (const s of seasons) {
@@ -91,6 +100,12 @@ export default async function PublicRegisterPage({
       </header>
 
       <div className="px-4 pb-16 pt-8 sm:pb-12 sm:pt-10">
+        {dbUnavailable ? (
+          <div className="mx-auto mb-4 max-w-6xl rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-100">
+            Registration is temporarily unavailable because the database connection timed out. Please try again in a
+            minute.
+          </div>
+        ) : null}
         <DynamicRegistrationWizard
           seasons={options}
           clientSubmitKey={clientSubmitKey}

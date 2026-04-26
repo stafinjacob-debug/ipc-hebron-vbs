@@ -78,6 +78,13 @@ function primaryCtaLabel(seasons: OpenPublicRegistrationSummary[]): string {
   return "Go to registration";
 }
 
+function displayThemeTag(theme: string | null): string | null {
+  if (!theme) return null;
+  const normalized = theme.trim().toLowerCase();
+  if (normalized.startsWith("seed data")) return null;
+  return theme;
+}
+
 export function LoginPageClient({ seasons }: { seasons: OpenPublicRegistrationSummary[] }) {
   const [staffOpen, setStaffOpen] = useState(false);
   const [reduceMotion, setReduceMotion] = useState(false);
@@ -278,16 +285,17 @@ export function LoginPageClient({ seasons }: { seasons: OpenPublicRegistrationSu
                     {seasons.map((s) => {
                       const badge = statusBadgeUI(s.statusBadge);
                       const ageLine = formatAgeRangeForCard(s);
+                      const themeTag = displayThemeTag(s.theme);
                       return (
                         <li key={s.id}>
                           <div className="rounded-2xl border border-white/70 bg-white/55 p-4 ring-1 ring-inset ring-white/55 transition [box-shadow:inset_0_1px_0_rgba(255,255,255,0.75)] hover:border-violet-300/55 hover:bg-white/70 dark:border-white/65 dark:bg-white/50 dark:ring-white/50 dark:hover:border-violet-300/50 dark:hover:bg-white/62 sm:rounded-[1.35rem] sm:p-5">
                             <div className="flex min-w-0 flex-col gap-3">
                               <div className="flex flex-wrap items-start justify-between gap-3">
                                 <div className="min-w-0 flex-1 space-y-3">
-                                    {s.theme ? (
+                                    {themeTag ? (
                                       <p className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-violet-300/55 bg-gradient-to-r from-violet-500/12 to-fuchsia-500/10 px-2.5 py-1 text-[11px] font-semibold leading-snug text-violet-900 shadow-sm">
                                         <Sparkles className="size-3.5 shrink-0 text-amber-600" aria-hidden />
-                                        <span className="line-clamp-2">{s.theme}</span>
+                                        <span className="line-clamp-2">{themeTag}</span>
                                       </p>
                                     ) : null}
                                     <div className="flex flex-wrap items-end gap-x-2 gap-y-1">

@@ -233,7 +233,7 @@ function AllergiesFieldInput({
       </p>
       <p className={hintClass}>{helperText}</p>
       <div className="mt-2 space-y-2">
-        <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-neutral-200 bg-white px-3 py-3 dark:border-neutral-600 dark:bg-neutral-900">
+        <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-white/15 bg-white/8 px-3 py-3">
           <input
             type="radio"
             name={`allergy-answer-${field.id}`}
@@ -241,9 +241,9 @@ function AllergiesFieldInput({
             onChange={() => sync({ answer: "no", selected: [], other: "" })}
             className="size-4 accent-brand"
           />
-          <span className="text-sm font-medium text-neutral-800 dark:text-neutral-200">No</span>
+          <span className="text-sm font-medium text-neutral-100">No</span>
         </label>
-        <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-neutral-200 bg-white px-3 py-3 dark:border-neutral-600 dark:bg-neutral-900">
+        <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-white/15 bg-white/8 px-3 py-3">
           <input
             type="radio"
             name={`allergy-answer-${field.id}`}
@@ -251,17 +251,17 @@ function AllergiesFieldInput({
             onChange={() => sync({ ...state, answer: "yes" })}
             className="size-4 accent-brand"
           />
-          <span className="text-sm font-medium text-neutral-800 dark:text-neutral-200">Yes</span>
+          <span className="text-sm font-medium text-neutral-100">Yes</span>
         </label>
       </div>
 
       {state.answer === "yes" ? (
-        <div className="mt-3 space-y-2 rounded-xl border border-neutral-200 bg-neutral-50/70 p-3 dark:border-neutral-700 dark:bg-neutral-900/60">
-          <p className="text-sm font-medium text-neutral-900 dark:text-neutral-100">Select all that apply:</p>
+        <div className="mt-3 space-y-2 rounded-xl border border-white/15 bg-black/25 p-3">
+          <p className="text-sm font-medium text-neutral-100">Select all that apply:</p>
           {ALLERGY_PRESET_OPTIONS.map((option) => {
             const checked = state.selected.includes(option);
             return (
-              <label key={option} className="flex cursor-pointer items-center gap-2 text-sm text-neutral-800 dark:text-neutral-200">
+              <label key={option} className="flex cursor-pointer items-center gap-2 text-sm text-neutral-100">
                 <input
                   type="checkbox"
                   checked={checked}
@@ -278,7 +278,7 @@ function AllergiesFieldInput({
             );
           })}
           <div className="pt-1">
-            <label htmlFor={`allergy-other-${field.id}`} className="text-sm font-medium text-neutral-900 dark:text-neutral-100">
+            <label htmlFor={`allergy-other-${field.id}`} className="text-sm font-medium text-neutral-100">
               Other
             </label>
             <textarea
@@ -1072,7 +1072,7 @@ export function DynamicRegistrationWizard({
                   year: "numeric",
                 });
                 return (
-                  <p className="mb-4 rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-neutral-700 dark:border-neutral-600 dark:bg-neutral-900/80 dark:text-neutral-300">
+                  <p className="mb-4 rounded-lg border border-white/15 bg-white/8 px-3 py-2 text-sm text-neutral-100/90">
                     {minOk && maxOk ? (
                       <>
                         Each child must be between{" "}
@@ -1111,7 +1111,7 @@ export function DynamicRegistrationWizard({
                 return (
                   <div
                     key={ch.id}
-                    className="mb-4 rounded-xl border border-neutral-200 bg-neutral-50/80 p-4 dark:border-neutral-700 dark:bg-neutral-900/50"
+                    className="mb-4 rounded-xl border border-white/15 bg-black/30 p-4"
                   >
                     <div className="mb-3 flex items-center justify-between">
                       <span className="text-sm font-bold text-brand">Child {idx + 1}</span>
@@ -1262,9 +1262,9 @@ export function DynamicRegistrationWizard({
                 </div>
               ))}
               {(contactEmail || contactPhone) && (
-                <div className="mt-5 rounded-xl border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm dark:border-neutral-700 dark:bg-neutral-900/60">
+                <div className="mt-5 rounded-xl border border-white/15 bg-white/10 px-4 py-3 text-sm">
                   <p className="font-semibold">Questions?</p>
-                  <p className="mt-1 text-neutral-600 dark:text-neutral-400">
+                  <p className="mt-1 text-neutral-200/90">
                     {contactEmail ? (
                       <a href={`mailto:${contactEmail}`} className="font-medium text-brand underline">
                         {contactEmail}
@@ -1279,7 +1279,7 @@ export function DynamicRegistrationWizard({
                   </p>
                 </div>
               )}
-              <label className="mt-6 flex cursor-pointer items-start gap-3 rounded-xl border border-neutral-200 bg-white px-4 py-4 dark:border-neutral-600 dark:bg-neutral-900">
+              <label className="mt-6 flex cursor-pointer items-start gap-3 rounded-xl border border-white/15 bg-white/10 px-4 py-4">
                 <input
                   type="checkbox"
                   checked={confirmAccurate}
@@ -1291,7 +1291,7 @@ export function DynamicRegistrationWizard({
                   for this VBS event.
                 </span>
               </label>
-              <label className="mt-3 flex cursor-pointer items-start gap-3 rounded-xl border border-neutral-200 bg-white px-4 py-4 dark:border-neutral-600 dark:bg-neutral-900">
+              <label className="mt-3 flex cursor-pointer items-start gap-3 rounded-xl border border-white/15 bg-white/10 px-4 py-4">
                 <input
                   type="checkbox"
                   checked={smsConsent}
@@ -1331,9 +1331,9 @@ export function DynamicRegistrationWizard({
                   <p className="text-xs font-bold uppercase text-neutral-500">Children ({children.length})</p>
                   <ul className="mt-2 space-y-2">
                     {children.map((ch, i) => (
-                      <li key={ch.id} className="rounded-lg border border-neutral-200 p-2 dark:border-neutral-700">
+                      <li key={ch.id} className="rounded-lg border border-white/15 bg-black/20 p-2">
                         <span className="font-semibold">Child {i + 1}</span>
-                        <ul className="mt-1 text-neutral-600">
+                        <ul className="mt-1 text-neutral-200/90">
                           {Object.entries(ch.values).map(([k, v]) =>
                             v ? (
                               <li key={k}>
@@ -1358,7 +1358,7 @@ export function DynamicRegistrationWizard({
                 </div>
                 <div>
                   <p className="text-xs font-bold uppercase text-neutral-500">SMS updates</p>
-                  <p className="mt-1 text-neutral-600">{smsConsent ? "Consented" : "Not consented"}</p>
+                  <p className="mt-1 text-neutral-200/90">{smsConsent ? "Consented" : "Not consented"}</p>
                 </div>
                 {stripePayment.active ? (
                   <div className="mt-5 rounded-xl border border-neutral-200 bg-neutral-50 p-4 dark:border-neutral-600 dark:bg-neutral-900/60">

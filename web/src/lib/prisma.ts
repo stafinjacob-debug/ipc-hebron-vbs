@@ -13,7 +13,12 @@ function getPool(): Pool {
     throw new Error("DATABASE_URL is not set. Add it to .env.local (see .env.example).");
   }
   if (!globalForPrisma.pgPool) {
-    globalForPrisma.pgPool = new Pool({ connectionString: url });
+    globalForPrisma.pgPool = new Pool({
+      connectionString: url,
+      // Avoid long hangs on unreachable DB hosts (helps local dev feedback loop).
+      connectionTimeoutMillis: 8_000,
+      idleTimeoutMillis: 30_000,
+    });
   }
   return globalForPrisma.pgPool;
 }
