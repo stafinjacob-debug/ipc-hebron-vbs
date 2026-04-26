@@ -3,6 +3,12 @@
  * Do not import Prisma or Node-only modules from this file.
  */
 
+import {
+  formatVbsParticipantAgeAsOfLabel,
+  VBS_PARTICIPANT_MAX_YEARS,
+  VBS_PARTICIPANT_MIN_YEARS,
+} from "@/lib/vbs-participant-age-gate";
+
 /** Visual status for the public landing card (UX scan). */
 export type PublicRegistrationCardBadge = "open" | "closing_soon" | "waitlist" | "full";
 
@@ -25,13 +31,6 @@ export type OpenPublicRegistrationSummary = {
   waitlistEnabled: boolean;
 };
 
-function ageRangeLabel(min: number | null, max: number | null): string | null {
-  if (min != null && max != null) return `Ages ${min}–${max}`;
-  if (min != null) return `Ages ${min}+`;
-  if (max != null) return `Up to age ${max}`;
-  return null;
-}
-
-export function formatAgeRangeForCard(summary: OpenPublicRegistrationSummary): string | null {
-  return ageRangeLabel(summary.minimumParticipantAgeYears, summary.maximumParticipantAgeYears);
+export function formatAgeRangeForCard(_summary: OpenPublicRegistrationSummary): string | null {
+  return `Ages ${VBS_PARTICIPANT_MIN_YEARS}–${VBS_PARTICIPANT_MAX_YEARS} (as of ${formatVbsParticipantAgeAsOfLabel()})`;
 }

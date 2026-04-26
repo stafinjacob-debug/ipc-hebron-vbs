@@ -1,12 +1,13 @@
 "use client";
 
 import type React from "react";
-import { Fragment, useActionState, useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useActionState, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Baby,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
+  FileText,
   Heart,
   Lock,
   Plus,
@@ -20,7 +21,13 @@ import {
   defaultPublicFieldRules,
   type PublicRegistrationFieldRules,
 } from "@/lib/public-registration";
-import { childAgeYearsOnDate } from "@/lib/class-assignment-shared";
+import {
+  formatVbsParticipantAgeAsOfLabel,
+  publicVbsParticipantAgeYearsOnGateDate,
+  VBS_PARTICIPANT_MAX_YEARS,
+  VBS_PARTICIPANT_MIN_YEARS,
+} from "@/lib/vbs-participant-age-gate";
+import type { WaiverSupplementalFieldDef } from "@/lib/waiver-merge-fields";
 import type { FormDefinitionV1, FormFieldDef } from "@/lib/registration-form-definition";
 import { sortSections } from "@/lib/registration-form-definition";
 import { formatPhoneInput, phoneDigits } from "@/lib/phone-format";
@@ -35,6 +42,16 @@ import type { PublicRegistrationLayout } from "@/generated/prisma";
 import { RegistrationBackgroundMedia } from "./registration-background-media";
 import { RegistrationHeroBrand } from "./registration-hero-brand";
 import { submitPublicRegistration, type PublicRegisterState } from "./actions";
+
+/** Compact waiver flags/text per season — passed separately from `seasons` so RSC→client payload cannot drop them behind a large `definition`. */
+export type PublicSeasonWaiverSnapshot = {
+  enabled: boolean;
+  title: string | null;
+  description: string | null;
+  body: string | null;
+  mergeFieldKeys: string[];
+  supplementalFields: WaiverSupplementalFieldDef[];
+};
 
 export type PublicSeasonOption = {
   id: string;
@@ -60,6 +77,14 @@ export type PublicSeasonOption = {
   stripePricingUnit: "PER_SUBMISSION" | "PER_CHILD";
   stripeProcessingFeeMode: "OPTIONAL" | "REQUIRED";
   stripeProductLabel: string | null;
+  waiverEnabled: boolean;
+  waiverTitle: string | null;
+  waiverDescription: string | null;
+  waiverBody: string | null;
+  /** Field keys (from this form) copied onto each child’s signed waiver PDF. */
+  waiverMergeFieldKeys: string[];
+  /** Extra per-child prompts on the waiver step; answers are stored on the PDF. */
+  waiverSupplementalFields: WaiverSupplementalFieldDef[];
 };
 
 export type RegisterContactProps = {
@@ -68,9 +93,20 @@ export type RegisterContactProps = {
   churchDisplayName: string;
 };
 
-const STEP_LABELS = ["Your information", "Children", "Privacy", "Review"] as const;
-const TOTAL_STEPS = STEP_LABELS.length;
 const initial: PublicRegisterState | null = null;
+
+function defaultSignedAtLocal(): string {
+  const now = new Date();
+  return new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+}
+
+type WaiverRowState = {
+  signerName: string;
+  signedAtIso: string;
+  signatureDataUrl: string;
+  accepted: boolean;
+  supplemental: Record<string, string>;
+};
 
 function hasFieldErrors(s: PublicRegisterState | null): boolean {
   return !!s?.fieldErrors && Object.keys(s.fieldErrors).length > 0;
@@ -89,26 +125,24 @@ function emailLooksValid(v: string): boolean {
 
 /** Client step validation + server messages — used to show age errors by the DOB field instead of only at the top. */
 function parseChildAgeGateError(message: string): { childIndex: number; message: string } | null {
-  const withColon = /^Child (\d+):\s*(.+)$/i.exec(message.trim());
-  if (withColon && /first day of VBS/i.test(withColon[2])) {
+  const trimmed = message.trim();
+  const cutoffHit = /September\s+1,\s*2025/i.test(trimmed);
+  if (!cutoffHit) return null;
+  const withColon = /^Child (\d+):\s*(.+)$/i.exec(trimmed);
+  if (withColon) {
     const n = Number.parseInt(withColon[1], 10);
-    if (Number.isFinite(n) && n >= 1) return { childIndex: n - 1, message: message.trim() };
+    if (Number.isFinite(n) && n >= 1) return { childIndex: n - 1, message: trimmed };
   }
-  const noColon = /^Child (\d+)\s+must be\s+(at least|at most)\s+/i.exec(message.trim());
-  if (noColon && /first day of VBS/i.test(message)) {
+  const noColon = /^Child (\d+)\s+must be\s+(at least|at most)\s+/i.exec(trimmed);
+  if (noColon) {
     const n = Number.parseInt(noColon[1], 10);
-    if (Number.isFinite(n) && n >= 1) return { childIndex: n - 1, message: message.trim() };
+    if (Number.isFinite(n) && n >= 1) return { childIndex: n - 1, message: trimmed };
   }
   return null;
 }
 
-type AgeRuleSeason = Pick<PublicSeasonOption, "minimumParticipantAgeYears" | "maximumParticipantAgeYears" | "startDate">;
-
-/** Returns the same message shape as step validation when DOB fails age rules; `null` if rules off, incomplete, or OK. */
-function childAgeGateMessageForDob(dobStr: string, childIndex: number, season: AgeRuleSeason): string | null {
-  const minY = season.minimumParticipantAgeYears;
-  const maxY = season.maximumParticipantAgeYears;
-  if (!((minY != null && minY >= 1) || (maxY != null && maxY >= 1))) return null;
+/** Returns the same message shape as step validation when DOB fails age rules; `null` if incomplete or OK. */
+function childAgeGateMessageForDob(dobStr: string, childIndex: number): string | null {
   const trimmed = dobStr.trim();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return null;
   let dob: Date;
@@ -117,13 +151,13 @@ function childAgeGateMessageForDob(dobStr: string, childIndex: number, season: A
   } catch {
     return null;
   }
-  const asOf = new Date(season.startDate);
-  const age = childAgeYearsOnDate(dob, asOf);
-  if (minY != null && minY >= 1 && age < minY) {
-    return `Child ${childIndex + 1}: Must be at least ${minY} years old on the first day of VBS.`;
+  const age = publicVbsParticipantAgeYearsOnGateDate(dob);
+  const cutoffLabel = formatVbsParticipantAgeAsOfLabel();
+  if (age < VBS_PARTICIPANT_MIN_YEARS) {
+    return `Child ${childIndex + 1}: Must be at least ${VBS_PARTICIPANT_MIN_YEARS} years old as of ${cutoffLabel}.`;
   }
-  if (maxY != null && maxY >= 1 && age > maxY) {
-    return `Child ${childIndex + 1}: Must be at most ${maxY} years old on the first day of VBS.`;
+  if (age > VBS_PARTICIPANT_MAX_YEARS) {
+    return `Child ${childIndex + 1}: Must be at most ${VBS_PARTICIPANT_MAX_YEARS} years old as of ${cutoffLabel}.`;
   }
   return null;
 }
@@ -139,6 +173,56 @@ const inputClass =
   "mt-1.5 w-full min-h-11 rounded-xl border border-white/35 bg-white px-3.5 py-2.5 text-base text-neutral-900 shadow-sm placeholder:text-neutral-500 focus:border-brand/80 focus:outline-none focus:ring-2 focus:ring-brand/30";
 const sectionCard =
   "rounded-2xl border border-white/12 bg-black/40 p-5 shadow-[0_10px_30px_rgba(0,0,0,0.25)] backdrop-blur-md sm:p-6 lg:p-5";
+
+const TYPED_SIG_W = 560;
+const TYPED_SIG_H = 160;
+
+/** PNG data URL from typed signer name (matches server `PNG_SIG_RE` for waiver PDF). */
+function typedSignaturePngDataUrl(name: string): string {
+  const text = name.trim();
+  if (!text || typeof document === "undefined") return "";
+  const canvas = document.createElement("canvas");
+  canvas.width = TYPED_SIG_W;
+  canvas.height = TYPED_SIG_H;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return "";
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, TYPED_SIG_W, TYPED_SIG_H);
+  ctx.fillStyle = "#0f172a";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  const maxW = TYPED_SIG_W - 40;
+  let fontSize = 40;
+  const applyFont = () => {
+    ctx.font = `italic ${fontSize}px "Segoe Script", "Apple Chancery", "Brush Script MT", "Snell Roundhand", cursive, serif`;
+  };
+  applyFont();
+  while (fontSize > 14 && ctx.measureText(text).width > maxW) {
+    fontSize -= 2;
+    applyFont();
+  }
+  ctx.fillText(text, TYPED_SIG_W / 2, TYPED_SIG_H / 2);
+  return canvas.toDataURL("image/png");
+}
+
+function TypedSignaturePreview({ dataUrl }: { dataUrl: string }) {
+  if (!dataUrl.trim()) {
+    return (
+      <div className="flex min-h-[160px] items-center justify-center rounded-lg border border-dashed border-neutral-300/60 bg-white/90 px-4 text-center text-sm text-neutral-600">
+        Your signature appears here automatically when you enter the signer name above.
+      </div>
+    );
+  }
+  return (
+    <img
+      src={dataUrl}
+      alt=""
+      width={TYPED_SIG_W}
+      height={TYPED_SIG_H}
+      className="mx-auto h-auto max-h-40 w-full max-w-full rounded-lg border border-neutral-200 bg-white object-contain"
+    />
+  );
+}
 
 const ALLERGY_PRESET_OPTIONS = [
   "Peanut / tree nut allergy",
@@ -233,7 +317,11 @@ function AllergiesFieldInput({
     <div>
       <p className={labelClass}>
         {field.label}
-        {required ? <span className="text-red-600"> *</span> : <span className="font-normal text-neutral-500"> (optional)</span>}
+        {required ? (
+          <span className="text-red-400"> *</span>
+        ) : (
+          <span className="font-normal text-neutral-400/90"> (optional)</span>
+        )}
       </p>
       <p className={hintClass}>{helperText}</p>
       <div className="mt-2 space-y-2">
@@ -330,7 +418,7 @@ function renderFieldInput(
   opts?: { onBlur?: () => void; onBlurWithValue?: (value: string) => void; fieldInstanceKey?: string },
 ) {
   if (field.type === "sectionHeader") {
-    return <h3 className="mt-4 text-base font-bold text-neutral-900 dark:text-neutral-50">{field.label}</h3>;
+    return <h3 className="mt-4 text-base font-bold text-neutral-100">{field.label}</h3>;
   }
   if (field.type === "staticText") {
     return (
@@ -351,7 +439,11 @@ function renderFieldInput(
   const commonLabel = (
     <label htmlFor={inputId} className={labelClass}>
       {field.label}
-      {req ? <span className="text-red-600"> *</span> : <span className="font-normal text-neutral-500"> (optional)</span>}
+      {req ? (
+        <span className="text-red-400"> *</span>
+      ) : (
+        <span className="font-normal text-neutral-400/90"> (optional)</span>
+      )}
     </label>
   );
 
@@ -443,8 +535,10 @@ function renderFieldInput(
           className="mt-1 size-5 accent-brand"
         />
         <span>
-          <span className="font-semibold text-neutral-900 dark:text-neutral-100">{field.label}</span>
-          {field.helperText ? <span className="mt-1 block text-sm text-neutral-600">{field.helperText}</span> : null}
+          <span className="font-semibold text-neutral-100">{field.label}</span>
+          {field.helperText ? (
+            <span className="mt-1 block text-sm text-neutral-300/90">{field.helperText}</span>
+          ) : null}
         </span>
       </label>
     );
@@ -459,7 +553,7 @@ function renderFieldInput(
           onChange={(e) => onChange(e.target.checked ? "true" : "")}
           className="size-5 accent-brand"
         />
-        <span className="text-sm font-medium">{field.label}</span>
+        <span className="text-sm font-medium text-neutral-100">{field.label}</span>
       </label>
     );
   }
@@ -514,6 +608,7 @@ function renderFieldInput(
 
 export function DynamicRegistrationWizard({
   seasons,
+  waiverBySeasonId,
   clientSubmitKey,
   contactEmail,
   contactPhone,
@@ -522,6 +617,8 @@ export function DynamicRegistrationWizard({
   initialSeasonId,
 }: {
   seasons: PublicSeasonOption[];
+  /** Waiver settings keyed by season id (small payload; avoids losing `waiverEnabled` next to a large form definition). */
+  waiverBySeasonId: Record<string, PublicSeasonWaiverSnapshot>;
   /** Per page load — must match server action `submitPublicRegistration` idempotency check. */
   clientSubmitKey: string;
   paymentCanceled?: boolean;
@@ -539,16 +636,39 @@ export function DynamicRegistrationWizard({
   const [children, setChildren] = useState<Array<{ id: string; values: Record<string, string> }>>([]);
   const [confirmAccurate, setConfirmAccurate] = useState(false);
   const [smsConsent, setSmsConsent] = useState(false);
+  const [waiverPerChild, setWaiverPerChild] = useState<WaiverRowState[]>([]);
   const [emailBlurred, setEmailBlurred] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
   const [ageGateError, setAgeGateError] = useState<{ childIndex: number; message: string } | null>(null);
   /** Live age messages keyed by child index (set on DOB change/blur when date is complete). */
   const [liveDobAgeByChild, setLiveDobAgeByChild] = useState<Record<number, string>>({});
   const [coverProcessingFee, setCoverProcessingFee] = useState(false);
+  /** Single native submit control so Enter / mobile browsers cannot activate a hidden duplicate submit. */
+  const nativeSubmitRef = useRef<HTMLButtonElement>(null);
 
   const current = useMemo(() => seasons.find((s) => s.id === seasonId), [seasons, seasonId]);
   const def = current?.definition;
   const rules = current?.rules ?? defaultPublicFieldRules;
+
+  const waiverSnap = useMemo((): PublicSeasonWaiverSnapshot | null => {
+    const fromMap = waiverBySeasonId[seasonId];
+    if (fromMap) return fromMap;
+    const c = seasons.find((s) => s.id === seasonId);
+    if (!c) return null;
+    return {
+      enabled: c.waiverEnabled === true,
+      title: c.waiverTitle,
+      description: c.waiverDescription,
+      body: c.waiverBody,
+      mergeFieldKeys: c.waiverMergeFieldKeys ?? [],
+      supplementalFields: c.waiverSupplementalFields ?? [],
+    };
+  }, [waiverBySeasonId, seasonId, seasons]);
+
+  const waiverSupplementalSig = useMemo(
+    () => JSON.stringify(waiverSnap?.supplementalFields ?? []),
+    [waiverSnap?.supplementalFields],
+  );
 
   const stripePayment = useMemo(() => {
     if (!current) return { active: false as const };
@@ -573,6 +693,18 @@ export function DynamicRegistrationWizard({
     };
   }, [current, children.length, coverProcessingFee]);
 
+  /** When true, waiver signatures live on their own step so Privacy → Review cannot skip them. */
+  const waiverStepActive = waiverSnap?.enabled === true;
+  const stepLabels = useMemo(
+    () =>
+      waiverStepActive
+        ? (["Your information", "Children", "Privacy", "Waiver", "Review"] as const)
+        : (["Your information", "Children", "Privacy", "Review"] as const),
+    [waiverStepActive],
+  );
+  const totalSteps = stepLabels.length;
+  const reviewStepIndex = waiverStepActive ? 4 : 3;
+
   const guardianSections = useMemo(() => {
     if (!def) return [];
     return sortSections(def).filter((s) => s.audience === "guardian");
@@ -595,6 +727,8 @@ export function DynamicRegistrationWizard({
       .filter((f) => ids.has(f.sectionId) && f.type !== "sectionHeader" && f.type !== "staticText")
       .map((f) => f.key);
   }, [def, childSections]);
+
+  const childRowIds = useMemo(() => children.map((c) => c.id).join(","), [children]);
 
   const reviewChildDobFieldMessages = useMemo((): Record<number, string> | null => {
     const fe = state?.fieldErrors;
@@ -621,6 +755,7 @@ export function DynamicRegistrationWizard({
     setStep(0);
     setConfirmAccurate(false);
     setSmsConsent(false);
+    setWaiverPerChild([]);
     setLocalError(null);
     setAgeGateError(null);
     setLiveDobAgeByChild({});
@@ -628,10 +763,48 @@ export function DynamicRegistrationWizard({
     setCoverProcessingFee(false);
   }, [seasonId, def, childFieldKeys]);
 
+  useEffect(() => {
+    if (!waiverSnap?.enabled || !def) {
+      setWaiverPerChild([]);
+      return;
+    }
+    const defs = waiverSnap.supplementalFields ?? [];
+    const emptySupp = () => Object.fromEntries(defs.map((d) => [d.key, ""]));
+    const gName = `${guardian.guardianFirstName ?? ""} ${guardian.guardianLastName ?? ""}`.trim();
+    setWaiverPerChild((prev) =>
+      children.map((_, idx) => {
+        const p = prev[idx];
+        const baseSupp = emptySupp();
+        if (p) {
+          return {
+            ...p,
+            supplemental: { ...baseSupp, ...p.supplemental },
+            signatureDataUrl: typedSignaturePngDataUrl(p.signerName),
+          };
+        }
+        return {
+          signerName: gName,
+          signedAtIso: defaultSignedAtLocal(),
+          signatureDataUrl: typedSignaturePngDataUrl(gName),
+          accepted: false,
+          supplemental: baseSupp,
+        };
+      }),
+    );
+  }, [
+    waiverSnap?.enabled,
+    waiverSupplementalSig,
+    children.length,
+    childRowIds,
+    def,
+    guardian.guardianFirstName,
+    guardian.guardianLastName,
+  ]);
+
   const applyLiveDobAgeCheck = useCallback(
     (childIndex: number, dobStr: string) => {
       if (!current) return;
-      const msg = childAgeGateMessageForDob(dobStr, childIndex, current);
+      const msg = childAgeGateMessageForDob(dobStr, childIndex);
       setLiveDobAgeByChild((prev) => {
         const next = { ...prev };
         if (msg) next[childIndex] = msg;
@@ -640,7 +813,7 @@ export function DynamicRegistrationWizard({
       });
       setAgeGateError((ag) => (ag?.childIndex === childIndex ? null : ag));
     },
-    [current],
+    [],
   );
 
   useEffect(() => {
@@ -660,7 +833,7 @@ export function DynamicRegistrationWizard({
   }, [ageGateError, liveDobAgeByChild]);
 
   useEffect(() => {
-    if (step !== 3 || !reviewChildDobFieldMessages) return;
+    if (step !== reviewStepIndex || !reviewChildDobFieldMessages) return;
     const firstKey = Object.keys(reviewChildDobFieldMessages).sort((a, b) => Number(a) - Number(b))[0];
     if (firstKey === undefined) return;
     const id = `review-child-dob-age-${firstKey}`;
@@ -668,7 +841,7 @@ export function DynamicRegistrationWizard({
       document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "center" });
     });
     return () => window.cancelAnimationFrame(t);
-  }, [step, reviewChildDobFieldMessages]);
+  }, [step, reviewStepIndex, reviewChildDobFieldMessages]);
 
   const formatEventRange = useCallback((startIso: string, endIso: string) => {
     const start = new Date(startIso);
@@ -726,7 +899,7 @@ export function DynamicRegistrationWizard({
         }
         if (current) {
           for (let i = 0; i < children.length; i++) {
-            const msg = childAgeGateMessageForDob(children[i].values.childDateOfBirth ?? "", i, current);
+            const msg = childAgeGateMessageForDob(children[i].values.childDateOfBirth ?? "", i);
             if (msg) return msg;
           }
         }
@@ -756,6 +929,33 @@ export function DynamicRegistrationWizard({
         if (smsConsent && !(guardian.guardianPhone ?? "").trim()) {
           return "Please provide a phone number to receive SMS updates.";
         }
+        return null;
+      }
+      if (s === 3 && waiverStepActive) {
+        if (waiverPerChild.length !== children.length) {
+          return "Waiver forms are still loading — try again in a moment.";
+        }
+        const waiverChildLabel = (i: number) => {
+          const row = children[i]?.values;
+          const n = `${row?.childFirstName ?? ""} ${row?.childLastName ?? ""}`.trim();
+          return n || `Child ${i + 1}`;
+        };
+        const defs = waiverSnap?.supplementalFields ?? [];
+        for (let i = 0; i < children.length; i++) {
+          const label = waiverChildLabel(i);
+          const w = waiverPerChild[i];
+          if (!w) return `${label}: complete the waiver section.`;
+          if (!w.signerName.trim()) return `${label}: enter the signer name on the waiver.`;
+          if (!w.signedAtIso.trim()) return `${label}: choose the waiver signature date and time.`;
+          if (!w.signatureDataUrl.trim()) return `${label}: enter the signer name to generate the electronic signature.`;
+          if (!w.accepted) return `${label}: accept the waiver terms to continue.`;
+          for (const d of defs) {
+            if (d.required && !(w.supplemental[d.key] ?? "").trim()) {
+              return `${label}: fill in “${d.label}” on the waiver.`;
+            }
+          }
+        }
+        return null;
       }
       return null;
     },
@@ -768,10 +968,11 @@ export function DynamicRegistrationWizard({
       children,
       confirmAccurate,
       smsConsent,
+      waiverPerChild,
       rules,
-      current?.minimumParticipantAgeYears,
-      current?.maximumParticipantAgeYears,
-      current?.startDate,
+      waiverStepActive,
+      waiverSupplementalSig,
+      waiverSnap,
     ],
   );
 
@@ -781,7 +982,7 @@ export function DynamicRegistrationWizard({
       setLocalError(null);
       setAgeGateError(null);
       if (step === 1) setLiveDobAgeByChild({});
-      setStep((x) => Math.min(x + 1, TOTAL_STEPS - 1));
+      setStep((x) => Math.min(x + 1, totalSteps - 1));
       return;
     }
     const ageGate = step === 1 ? parseChildAgeGateError(err) : null;
@@ -905,20 +1106,35 @@ export function DynamicRegistrationWizard({
         <div className="mt-5 px-1 lg:mt-4">
           <div className="flex items-center justify-between text-xs font-medium text-neutral-300/90">
             <span>
-              Step {step + 1} of {TOTAL_STEPS}
+              Step {step + 1} of {totalSteps}
             </span>
-            <span className="text-neutral-100">{STEP_LABELS[step]}</span>
+            <span className="text-neutral-100">{stepLabels[step] ?? ""}</span>
           </div>
           <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/15">
             <div
               className="h-full rounded-full bg-brand transition-[width] duration-300 ease-out"
-              style={{ width: `${((step + 1) / TOTAL_STEPS) * 100}%` }}
+              style={{ width: `${((step + 1) / totalSteps) * 100}%` }}
             />
           </div>
           <div className="mt-4 border-t border-white/10" />
         </div>
 
-        <form action={formAction} className="space-y-6 px-6 pb-8 sm:px-9 lg:space-y-5 lg:px-7 lg:pb-6">
+        <form
+          action={formAction}
+          className="space-y-6 px-6 pb-8 sm:px-9 lg:space-y-5 lg:px-7 lg:pb-6"
+          onSubmit={(e) => {
+            if (step !== reviewStepIndex) {
+              e.preventDefault();
+            }
+          }}
+          onKeyDown={(e) => {
+            if (e.key !== "Enter") return;
+            if (step === reviewStepIndex) return;
+            const t = e.target as HTMLElement;
+            if (t.tagName === "TEXTAREA") return;
+            e.preventDefault();
+          }}
+        >
           <div className="pointer-events-none absolute -left-[10000px] h-0 w-0 overflow-hidden opacity-0">
             <label htmlFor="company">Company</label>
             <input type="text" id="company" name="company" tabIndex={-1} autoComplete="off" />
@@ -929,6 +1145,20 @@ export function DynamicRegistrationWizard({
           <input type="hidden" name="childCount" value={children.length} readOnly />
           <input type="hidden" name="confirmedAccurate" value={confirmAccurate ? "true" : "false"} readOnly />
           <input type="hidden" name="smsConsent" value={smsConsent ? "true" : "false"} readOnly />
+          <input
+            type="hidden"
+            name="waiverPerChildJson"
+            value={JSON.stringify(
+              waiverPerChild.map((w) => ({
+                signerName: w.signerName,
+                signedAtIso: w.signedAtIso,
+                signatureDataUrl: w.signatureDataUrl,
+                accepted: w.accepted,
+                supplemental: w.supplemental,
+              })),
+            )}
+            readOnly
+          />
           {stripePayment.active && stripePayment.mode === "REQUIRED" ? (
             <input type="hidden" name="stripeCoverProcessingFee" value="true" readOnly />
           ) : null}
@@ -957,7 +1187,7 @@ export function DynamicRegistrationWizard({
             !state.ok &&
             hasFieldErrors(state) &&
             !(
-              step === 3 &&
+              step === reviewStepIndex &&
               state.fieldErrors &&
               Object.keys(state.fieldErrors).length > 0 &&
               Object.keys(state.fieldErrors).every((k) => /^childDateOfBirth__\d+$/.test(k))
@@ -1059,44 +1289,12 @@ export function DynamicRegistrationWizard({
                 title="Children attending VBS"
                 description="Add every child who will participate on this form."
               />
-              {(() => {
-                const minOk =
-                  season.minimumParticipantAgeYears != null &&
-                  season.minimumParticipantAgeYears >= 1;
-                const maxOk =
-                  season.maximumParticipantAgeYears != null &&
-                  season.maximumParticipantAgeYears >= 1;
-                if (!minOk && !maxOk) return null;
-                const startLabel = new Date(season.startDate).toLocaleDateString(undefined, {
-                  month: "long",
-                  day: "numeric",
-                  year: "numeric",
-                });
-                return (
-                  <p className="mb-4 rounded-lg border border-white/15 bg-white/8 px-3 py-2 text-sm text-neutral-100/90">
-                    {minOk && maxOk ? (
-                      <>
-                        Each child must be between{" "}
-                        <span className="font-semibold">{season.minimumParticipantAgeYears}</span> and{" "}
-                        <span className="font-semibold">{season.maximumParticipantAgeYears}</span> years old on{" "}
-                        {startLabel} (first day of this VBS).
-                      </>
-                    ) : minOk ? (
-                      <>
-                        Each child must be at least{" "}
-                        <span className="font-semibold">{season.minimumParticipantAgeYears}</span> years old on{" "}
-                        {startLabel} (first day of this VBS).
-                      </>
-                    ) : (
-                      <>
-                        Each child must be at most{" "}
-                        <span className="font-semibold">{season.maximumParticipantAgeYears}</span> years old on{" "}
-                        {startLabel} (first day of this VBS).
-                      </>
-                    )}
-                  </p>
-                );
-              })()}
+              <p className="mb-4 rounded-lg border border-white/15 bg-white/8 px-3 py-2 text-sm text-neutral-100/90">
+                Each child must be between{" "}
+                <span className="font-semibold">{VBS_PARTICIPANT_MIN_YEARS}</span> and{" "}
+                <span className="font-semibold">{VBS_PARTICIPANT_MAX_YEARS}</span> years old (whole years) as of{" "}
+                <span className="font-semibold">{formatVbsParticipantAgeAsOfLabel()}</span>.
+              </p>
               {children.map((ch, idx) => {
                 const childShowsDob = childSections
                   .flatMap((sec) => formDef.fields.filter((field) => field.sectionId === sec.id))
@@ -1230,9 +1428,9 @@ export function DynamicRegistrationWizard({
               <SectionHeader
                 icon={Shield}
                 title="Privacy & consent"
-                description="Your family’s details are handled with care."
+                description="Your family’s details are handled with care. Confirm below to continue."
               />
-              <ul className="space-y-3 text-sm text-neutral-700 dark:text-neutral-300">
+              <ul className="space-y-3 text-sm text-neutral-200/95">
                 <li className="flex gap-2">
                   <Lock className="mt-0.5 size-4 shrink-0 text-brand" aria-hidden />
                   <span>
@@ -1266,7 +1464,7 @@ export function DynamicRegistrationWizard({
                 </div>
               ))}
               {(contactEmail || contactPhone) && (
-                <div className="mt-5 rounded-xl border border-white/15 bg-white/10 px-4 py-3 text-sm">
+                <div className="mt-5 rounded-xl border border-white/15 bg-white/10 px-4 py-3 text-sm text-neutral-100">
                   <p className="font-semibold">Questions?</p>
                   <p className="mt-1 text-neutral-200/90">
                     {contactEmail ? (
@@ -1290,7 +1488,7 @@ export function DynamicRegistrationWizard({
                   onChange={(e) => setConfirmAccurate(e.target.checked)}
                   className="mt-1 size-5 accent-brand"
                 />
-                <span className="text-sm">
+                <span className="text-sm leading-relaxed text-neutral-100">
                   I confirm the information is accurate to the best of my knowledge, and I agree to the church using it
                   for this VBS event.
                 </span>
@@ -1302,15 +1500,177 @@ export function DynamicRegistrationWizard({
                   onChange={(e) => setSmsConsent(e.target.checked)}
                   className="mt-1 size-5 accent-brand"
                 />
-                <span className="text-sm">
-                  I agree to receive SMS text messages on my provided phone number for VBS event updates and
-                  announcements.
+                <span className="text-sm leading-relaxed text-neutral-100">
+                  I agree to receive SMS text messages on my provided phone number for VBS event updates and announcements.
                 </span>
               </label>
             </div>
           )}
 
-          {step === 3 && (
+          {step === 3 && waiverStepActive && (
+            <div className={sectionCard}>
+              <SectionHeader
+                icon={FileText}
+                title="Digital waiver"
+                description={
+                  children.length > 1
+                    ? `You’re registering ${children.length} children — use a separate card for each. The name on each card is who this waiver is for.`
+                    : "Please read and sign below. You’ll review everything on the next step."
+                }
+              />
+              <div className="mt-5 space-y-4">
+                <div className="rounded-xl border border-white/15 bg-white/10 p-4">
+                  <h3 className="text-base font-bold text-neutral-100">
+                    {waiverSnap?.title?.trim() || "Medical Liability Release Form"}
+                  </h3>
+                  {waiverSnap?.description?.trim() ? (
+                    <p className="mt-2 whitespace-pre-wrap text-sm text-neutral-300/95">
+                      {waiverSnap.description.trim()}
+                    </p>
+                  ) : null}
+                  <p
+                    className={`whitespace-pre-wrap text-sm leading-relaxed text-neutral-200/90 ${waiverSnap?.description?.trim() ? "mt-3" : "mt-2"}`}
+                  >
+                    {waiverSnap?.body?.trim() ||
+                      "I understand and accept the program waiver and consent to participation for the children listed in this submission."}
+                  </p>
+                  <p className="mt-3 text-xs text-neutral-300/90">
+                    {children.length > 1
+                      ? "Each card matches one child from the previous step — sign every card before continuing."
+                      : "The participant name below is taken from the child you entered on the previous step."}
+                  </p>
+                </div>
+                {children.map((ch, idx) => {
+                  const w = waiverPerChild[idx];
+                  const fname = ch.values.childFirstName ?? "";
+                  const lname = ch.values.childLastName ?? "";
+                  const childName = `${fname} ${lname}`.trim() || `Child ${idx + 1}`;
+                  const multi = children.length > 1;
+                  return (
+                    <div key={ch.id} className="rounded-xl border border-brand/30 bg-black/30 p-4">
+                      <p className="text-xs font-bold uppercase tracking-wide text-brand">
+                        {multi ? `Waiver ${idx + 1} of ${children.length}` : "Waiver for"}
+                      </p>
+                      <p className="mt-1 text-xl font-bold leading-snug text-neutral-50">{childName}</p>
+                      {multi ? (
+                        <p className="mt-2 text-sm text-neutral-300/95">
+                          Everything in this card (questions, signature, and agreement) applies only to{" "}
+                          <strong>{childName}</strong>.
+                        </p>
+                      ) : null}
+                      {!w ? (
+                        <p className="mt-2 text-sm text-neutral-400">Preparing waiver…</p>
+                      ) : (
+                        <>
+                          {(waiverSnap?.supplementalFields ?? []).length > 0 ? (
+                            <div className="mt-4 space-y-3">
+                              {(waiverSnap?.supplementalFields ?? []).map((d) => (
+                                <div key={d.key}>
+                                  <label className={labelClass}>
+                                    {d.label}
+                                    {d.required ? <span className="text-red-400"> *</span> : null}
+                                  </label>
+                                  <input
+                                    value={w.supplemental[d.key] ?? ""}
+                                    onChange={(e) =>
+                                      setWaiverPerChild((prev) => {
+                                        const n = [...prev];
+                                        const row = n[idx];
+                                        if (!row) return prev;
+                                        n[idx] = {
+                                          ...row,
+                                          supplemental: { ...row.supplemental, [d.key]: e.target.value },
+                                        };
+                                        return n;
+                                      })
+                                    }
+                                    className={inputClass}
+                                  />
+                                </div>
+                              ))}
+                            </div>
+                          ) : null}
+                          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                            <div>
+                              <label className={labelClass}>Signer name</label>
+                              <input
+                                value={w.signerName}
+                                onChange={(e) => {
+                                  const v = e.target.value;
+                                  setWaiverPerChild((prev) => {
+                                    const n = [...prev];
+                                    const row = n[idx];
+                                    if (!row) return prev;
+                                    n[idx] = {
+                                      ...row,
+                                      signerName: v,
+                                      signatureDataUrl: typedSignaturePngDataUrl(v),
+                                    };
+                                    return n;
+                                  });
+                                }}
+                                placeholder="Parent/guardian full name"
+                                className={inputClass}
+                              />
+                            </div>
+                            <div>
+                              <label className={labelClass}>Signed at</label>
+                              <input
+                                type="datetime-local"
+                                value={w.signedAtIso}
+                                onChange={(e) =>
+                                  setWaiverPerChild((prev) => {
+                                    const n = [...prev];
+                                    const row = n[idx];
+                                    if (!row) return prev;
+                                    n[idx] = { ...row, signedAtIso: e.target.value };
+                                    return n;
+                                  })
+                                }
+                                className={inputClass}
+                              />
+                            </div>
+                          </div>
+                          <div className="mt-4">
+                            <p className={labelClass}>Electronic signature</p>
+                            <p className="mt-1 text-xs text-neutral-400">
+                              Generated from the signer name above — no drawing required.
+                            </p>
+                            <div className="mt-2 rounded-xl border border-white/15 bg-white/10 p-3">
+                              <TypedSignaturePreview dataUrl={w.signatureDataUrl} />
+                            </div>
+                          </div>
+                          <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-xl border border-white/15 bg-black/20 px-4 py-3">
+                            <input
+                              type="checkbox"
+                              checked={w.accepted}
+                              onChange={(e) =>
+                                setWaiverPerChild((prev) => {
+                                  const n = [...prev];
+                                  const row = n[idx];
+                                  if (!row) return prev;
+                                  n[idx] = { ...row, accepted: e.target.checked };
+                                  return n;
+                                })
+                              }
+                              className="mt-1 size-5 accent-brand"
+                            />
+                            <span className="text-sm text-neutral-100">
+                              I have read this waiver for <strong>{childName}</strong> and agree to its terms. I
+                              understand this electronic signature (from the typed name above) will be stored with this
+                              registration.
+                            </span>
+                          </label>
+                        </>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {step === reviewStepIndex && (
             <div className={sectionCard}>
               <SectionHeader
                 icon={CheckCircle2}
@@ -1319,31 +1679,56 @@ export function DynamicRegistrationWizard({
               />
               <div className="space-y-4 text-sm">
                 <div>
-                  <p className="text-xs font-bold uppercase text-neutral-500">Guardian</p>
-                  <ul className="mt-1 space-y-1">
-                    {Object.entries(guardian).map(([k, v]) =>
-                      v ? (
-                        <li key={k}>
-                          <span className="text-neutral-500">{k}: </span>
-                          <span className="font-medium text-neutral-900 dark:text-neutral-50">{v}</span>
-                        </li>
-                      ) : null,
+                  <p className="text-xs font-bold uppercase text-neutral-400">Guardian</p>
+                  <ul className="mt-1 space-y-1.5">
+                    {guardianSections.flatMap((sec) =>
+                      formDef.fields
+                        .filter(
+                          (f) =>
+                            f.sectionId === sec.id &&
+                            f.type !== "sectionHeader" &&
+                            f.type !== "staticText" &&
+                            visible(f, guardian),
+                        )
+                        .map((f) => {
+                          const v = guardian[f.key] ?? "";
+                          if (!String(v).trim()) return null;
+                          return (
+                            <li key={f.key} className="flex flex-wrap gap-x-2 gap-y-0.5">
+                              <span className="text-neutral-300">{f.label?.trim() || f.key}</span>
+                              <span className="font-medium text-neutral-50">{v}</span>
+                            </li>
+                          );
+                        }),
                     )}
                   </ul>
                 </div>
                 <div>
-                  <p className="text-xs font-bold uppercase text-neutral-500">Children ({children.length})</p>
+                  <p className="text-xs font-bold uppercase text-neutral-400">Children ({children.length})</p>
                   <ul className="mt-2 space-y-2">
                     {children.map((ch, i) => (
                       <li key={ch.id} className="rounded-lg border border-white/15 bg-black/20 p-2">
-                        <span className="font-semibold">Child {i + 1}</span>
-                        <ul className="mt-1 text-neutral-200/90">
-                          {Object.entries(ch.values).map(([k, v]) =>
-                            v ? (
-                              <li key={k}>
-                                {k}: {v}
-                              </li>
-                            ) : null,
+                        <span className="font-semibold text-neutral-100">Child {i + 1}</span>
+                        <ul className="mt-1 space-y-1.5 text-neutral-200/95">
+                          {childSections.flatMap((sec) =>
+                            formDef.fields
+                              .filter(
+                                (f) =>
+                                  f.sectionId === sec.id &&
+                                  f.type !== "sectionHeader" &&
+                                  f.type !== "staticText" &&
+                                  visible(f, ch.values),
+                              )
+                              .map((f) => {
+                                const v = ch.values[f.key] ?? "";
+                                if (!String(v).trim()) return null;
+                                return (
+                                  <li key={f.key} className="flex flex-wrap gap-x-2 gap-y-0.5">
+                                    <span className="text-neutral-300">{f.label?.trim() || f.key}</span>
+                                    <span className="font-medium text-neutral-50">{v}</span>
+                                  </li>
+                                );
+                              }),
                           )}
                         </ul>
                         {reviewChildDobFieldMessages?.[i] ? (
@@ -1361,9 +1746,18 @@ export function DynamicRegistrationWizard({
                   </ul>
                 </div>
                 <div>
-                  <p className="text-xs font-bold uppercase text-neutral-500">SMS updates</p>
+                  <p className="text-xs font-bold uppercase text-neutral-400">SMS updates</p>
                   <p className="mt-1 text-neutral-200/90">{smsConsent ? "Consented" : "Not consented"}</p>
                 </div>
+                {waiverStepActive && waiverPerChild.length === children.length ? (
+                  <div className="rounded-lg border border-white/15 bg-white/8 px-3 py-2.5">
+                    <p className="text-xs font-bold uppercase text-neutral-400">Waiver</p>
+                    <p className="mt-1 text-sm text-neutral-200/95">
+                      Digital waiver signed for {children.length}{" "}
+                      {children.length === 1 ? "child" : "children"} ({season.name}).
+                    </p>
+                  </div>
+                ) : null}
                 {stripePayment.active ? (
                   <div className="mt-5 rounded-xl border border-neutral-200 bg-neutral-50 p-4 dark:border-neutral-600 dark:bg-neutral-900/60">
                     <p className="text-xs font-bold uppercase text-neutral-500">Card payment</p>
@@ -1433,17 +1827,17 @@ export function DynamicRegistrationWizard({
                 <button
                   type="button"
                   onClick={goBack}
-                  className="inline-flex min-h-11 items-center gap-1 rounded-xl border border-neutral-300 px-4 py-2 text-sm font-semibold dark:border-neutral-600"
+                  className="inline-flex min-h-11 items-center gap-1 rounded-xl border border-white/25 bg-white/10 px-4 py-2 text-sm font-semibold text-neutral-100 shadow-sm hover:bg-white/15"
                 >
                   <ChevronLeft className="size-4" aria-hidden />
                   Back
                 </button>
               ) : (
-                <span className="text-sm text-neutral-500">Need help? Check the privacy step.</span>
+                <span className="text-sm text-neutral-300/90">Need help? Check the privacy step.</span>
               )}
             </div>
             <div>
-              {step < TOTAL_STEPS - 1 ? (
+              {step < totalSteps - 1 ? (
                 <button
                   type="button"
                   onClick={goNext}
@@ -1454,8 +1848,15 @@ export function DynamicRegistrationWizard({
                 </button>
               ) : (
                 <button
-                  type="submit"
+                  type="button"
                   disabled={pending}
+                  aria-label={
+                    stripePayment.active ? "Submit registration and continue to card payment" : "Submit registration"
+                  }
+                  onClick={() => {
+                    if (step !== reviewStepIndex) return;
+                    nativeSubmitRef.current?.click();
+                  }}
                   className="inline-flex min-h-11 rounded-xl bg-brand px-6 py-2.5 text-sm font-semibold text-brand-foreground disabled:opacity-50"
                 >
                   {pending
@@ -1482,7 +1883,7 @@ export function DynamicRegistrationWizard({
               ) : (
                 <div className="min-h-12 flex-1" />
               )}
-              {step < TOTAL_STEPS - 1 ? (
+              {step < totalSteps - 1 ? (
                 <button
                   type="button"
                   onClick={goNext}
@@ -1493,8 +1894,15 @@ export function DynamicRegistrationWizard({
                 </button>
               ) : (
                 <button
-                  type="submit"
+                  type="button"
                   disabled={pending}
+                  aria-label={
+                    stripePayment.active ? "Submit registration and continue to card payment" : "Submit registration"
+                  }
+                  onClick={() => {
+                    if (step !== reviewStepIndex) return;
+                    nativeSubmitRef.current?.click();
+                  }}
                   className="inline-flex min-h-12 flex-[2] items-center justify-center rounded-xl bg-brand text-sm font-semibold text-brand-foreground disabled:opacity-50"
                 >
                   {pending
@@ -1506,6 +1914,19 @@ export function DynamicRegistrationWizard({
               )}
             </div>
           </div>
+
+          {step === reviewStepIndex ? (
+            <button
+              ref={nativeSubmitRef}
+              type="submit"
+              tabIndex={-1}
+              aria-hidden="true"
+              disabled={pending}
+              className="sr-only"
+            >
+              Submit registration
+            </button>
+          ) : null}
         </form>
       </div>
     );

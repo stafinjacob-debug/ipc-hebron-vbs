@@ -39,6 +39,8 @@ export type FormWorkspacePanelProps = FormWorkspacePayload & {
   editorPreviewSameTab?: boolean;
   /** Inline embed: Preview in editor switches to the Preview tab. */
   onEditorPreviewNavigate?: () => void;
+  /** After settings save succeeds (embed: bump tick to refetch workspace payload). */
+  onFormSettingsSaveSuccess?: () => void;
 };
 
 export function FormWorkspacePanel({
@@ -48,6 +50,7 @@ export function FormWorkspacePanel({
   editorPreviewHref,
   editorPreviewSameTab,
   onEditorPreviewNavigate,
+  onFormSettingsSaveSuccess,
   seasonId,
   seasonName,
   year,
@@ -60,6 +63,7 @@ export function FormWorkspacePanel({
   hasPublishedDefinition,
   settingsInitial,
   paymentConditionFieldOptions,
+  waiverMergeFieldOptions,
   publicSignupUrl,
   publicDisplayInitial,
 }: FormWorkspacePanelProps) {
@@ -268,10 +272,13 @@ export function FormWorkspacePanel({
               </p>
             )}
             <FormSettingsForm
+              key={settingsInitial.settingsStamp}
               seasonId={seasonId}
               initial={settingsParsed}
               hidePublicRegistrationOpen={variant === "embed"}
               paymentConditionFieldOptions={paymentConditionFieldOptions}
+              waiverMergeFieldOptions={waiverMergeFieldOptions}
+              onSaveSuccess={onFormSettingsSaveSuccess}
             />
           </div>
         ) : null}
@@ -282,7 +289,13 @@ export function FormWorkspacePanel({
 
 export type FormWorkspacePageClientProps = Omit<
   FormWorkspacePanelProps,
-  "variant" | "activeTab" | "onTabChange" | "editorPreviewHref" | "editorPreviewSameTab" | "onEditorPreviewNavigate"
+  | "variant"
+  | "activeTab"
+  | "onTabChange"
+  | "editorPreviewHref"
+  | "editorPreviewSameTab"
+  | "onEditorPreviewNavigate"
+  | "onFormSettingsSaveSuccess"
 >;
 
 export function FormWorkspacePageClient(props: FormWorkspacePageClientProps) {

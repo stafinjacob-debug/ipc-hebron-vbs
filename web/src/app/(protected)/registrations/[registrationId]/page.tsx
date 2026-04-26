@@ -26,6 +26,7 @@ export default async function RegistrationDetailPage({
       season: true,
       classroom: true,
       formSubmission: { select: { id: true, registrationCode: true } },
+      waiverAgreement: { select: { pdfUrl: true, signedAt: true, signerName: true } },
     },
   });
 
@@ -119,6 +120,24 @@ export default async function RegistrationDetailPage({
               <p className="mt-2 text-sm text-foreground/80">Medical notes on file (staff only).</p>
             ) : null}
           </section>
+
+          {reg.waiverAgreement ? (
+            <section className="rounded-xl border border-foreground/10 bg-surface-elevated p-5">
+              <h2 className="text-sm font-semibold text-foreground">Signed waiver</h2>
+              <p className="mt-2 text-sm text-foreground/80">
+                Signed by <span className="font-medium text-foreground">{reg.waiverAgreement.signerName}</span> on{" "}
+                {reg.waiverAgreement.signedAt.toLocaleString()}.
+              </p>
+              <p className="mt-3">
+                <a
+                  href={`/api/registrations/${reg.id}/waiver-pdf`}
+                  className="inline-flex items-center gap-2 rounded-lg border border-foreground/20 bg-foreground/[0.04] px-3 py-2 text-sm font-medium text-brand underline-offset-4 hover:bg-foreground/[0.07] hover:underline"
+                >
+                  Download signed waiver (PDF)
+                </a>
+              </p>
+            </section>
+          ) : null}
 
           <section className="rounded-xl border border-foreground/10 bg-surface-elevated p-5">
             <h2 className="text-sm font-semibold text-foreground">Guardian</h2>

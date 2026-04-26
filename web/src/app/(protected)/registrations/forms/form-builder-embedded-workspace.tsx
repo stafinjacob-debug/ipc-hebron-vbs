@@ -10,8 +10,12 @@ export function FormBuilderEmbeddedWorkspace({ seasonId }: { seasonId: string })
   const [status, setStatus] = useState<"loading" | "error" | "ready">("loading");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [payload, setPayload] = useState<FormWorkspacePayload | null>(null);
+  const [reloadTick, setReloadTick] = useState(0);
 
   const goPreviewFromEditor = useCallback(() => setTab("preview"), []);
+  const onFormSettingsSaveSuccess = useCallback(() => {
+    setReloadTick((t) => t + 1);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -30,7 +34,7 @@ export function FormBuilderEmbeddedWorkspace({ seasonId }: { seasonId: string })
     return () => {
       cancelled = true;
     };
-  }, [seasonId]);
+  }, [seasonId, reloadTick]);
 
   if (status === "loading") {
     return (
@@ -55,6 +59,7 @@ export function FormBuilderEmbeddedWorkspace({ seasonId }: { seasonId: string })
         activeTab={tab}
         onTabChange={setTab}
         onEditorPreviewNavigate={goPreviewFromEditor}
+        onFormSettingsSaveSuccess={onFormSettingsSaveSuccess}
         {...payload}
       />
     </div>

@@ -15,7 +15,12 @@ import {
   fetchClassroomsForAutoAssign,
   resolveAutoClassAssignment,
 } from "@/lib/class-assignment";
-import { childAgeYearsOnDate } from "@/lib/class-assignment-shared";
+import {
+  formatVbsParticipantAgeAsOfLabel,
+  publicVbsParticipantAgeYearsOnGateDate,
+  VBS_PARTICIPANT_MAX_YEARS,
+  VBS_PARTICIPANT_MIN_YEARS,
+} from "@/lib/vbs-participant-age-gate";
 import { parseLocalDate } from "@/lib/schemas/vbs-registration";
 import {
   computeProcessingGrossUp,
@@ -24,6 +29,16 @@ import {
 } from "@/lib/stripe-fee-math";
 import { createRegistrationStripeCheckoutSession } from "@/lib/stripe-registration-payment";
 import { makeCheckInToken, makeUniqueRegistrationNumber } from "@/lib/registration-identity";
+import {
+  buildSupplementalPdfRows,
+  buildWaiverMergeRows,
+  filterWaiverMergeKeysToDef,
+  parseWaiverMergeFieldKeysFromDb,
+  parseWaiverPerChildPayload,
+  parseWaiverSupplementalDefsFromDb,
+  type WaiverPerChildSubmit,
+} from "@/lib/waiver-merge-fields";
+import { renderWaiverPdfBuffer, storeWaiverPdf } from "@/lib/waiver-pdf";
 
 export type PublicRegisterState = {
   ok: boolean;
@@ -236,6 +251,18 @@ async function submitPublicRegistrationCore(
   }
 
   const data = parsed;
+
+  const supplementalDefs = parseWaiverSupplementalDefsFromDb(formRow.waiverSupplementalFields);
+  const mergeKeys = filterWaiverMergeKeysToDef(def, parseWaiverMergeFieldKeysFromDb(formRow.waiverMergeFieldKeys));
+
+  let waiverPerChild: WaiverPerChildSubmit[] | null = null;
+  if (formRow.waiverEnabled) {
+    const wRaw = fdGet("waiverPerChildJson", formData).trim();
+    const wParsed = parseWaiverPerChildPayload(wRaw, data.children.length, supplementalDefs);
+    if (!wParsed.ok) return { ok: false, message: wParsed.message };
+    waiverPerChild = wParsed.value;
+  }
+
   if (smsConsent && !data.guardian.guardianPhone?.trim()) {
     return {
       ok: false,
@@ -268,42 +295,30 @@ async function submitPublicRegistrationCore(
     };
   }
 
-  const minYears = formRow.minimumParticipantAgeYears;
-  const maxYears = formRow.maximumParticipantAgeYears;
-  if (
-    (minYears != null && minYears >= 1) ||
-    (maxYears != null && maxYears >= 1)
-  ) {
-    const asOf = season.startDate;
-    const startLabel = asOf.toLocaleDateString(undefined, {
-      month: "long",
-      day: "numeric",
-      year: "numeric",
-    });
-    for (let i = 0; i < dobDates.length; i++) {
-      const age = childAgeYearsOnDate(dobDates[i], asOf);
-      if (minYears != null && minYears >= 1 && age < minYears) {
-        return {
-          ok: false,
-          message: `Child ${i + 1} must be at least ${minYears} years old on the first day of VBS (${startLabel}).`,
-          fieldErrors: {
-            [`childDateOfBirth__${i}`]: [
-              `Children must be at least ${minYears} on the program start date (${startLabel}).`,
-            ],
-          },
-        };
-      }
-      if (maxYears != null && maxYears >= 1 && age > maxYears) {
-        return {
-          ok: false,
-          message: `Child ${i + 1} must be at most ${maxYears} years old on the first day of VBS (${startLabel}).`,
-          fieldErrors: {
-            [`childDateOfBirth__${i}`]: [
-              `Children must be at most ${maxYears} on the program start date (${startLabel}).`,
-            ],
-          },
-        };
-      }
+  const cutoffLabel = formatVbsParticipantAgeAsOfLabel();
+  for (let i = 0; i < dobDates.length; i++) {
+    const age = publicVbsParticipantAgeYearsOnGateDate(dobDates[i]);
+    if (age < VBS_PARTICIPANT_MIN_YEARS) {
+      return {
+        ok: false,
+        message: `Child ${i + 1}: Must be at least ${VBS_PARTICIPANT_MIN_YEARS} years old as of ${cutoffLabel}.`,
+        fieldErrors: {
+          [`childDateOfBirth__${i}`]: [
+            `Must be at least ${VBS_PARTICIPANT_MIN_YEARS} years old as of ${cutoffLabel} (whole years).`,
+          ],
+        },
+      };
+    }
+    if (age > VBS_PARTICIPANT_MAX_YEARS) {
+      return {
+        ok: false,
+        message: `Child ${i + 1}: Must be at most ${VBS_PARTICIPANT_MAX_YEARS} years old as of ${cutoffLabel}.`,
+        fieldErrors: {
+          [`childDateOfBirth__${i}`]: [
+            `Must be at most ${VBS_PARTICIPANT_MAX_YEARS} years old as of ${cutoffLabel} (whole years).`,
+          ],
+        },
+      };
     }
   }
 
@@ -356,6 +371,7 @@ async function submitPublicRegistrationCore(
         waitlist: boolean;
         childCount: number;
         stripePaymentSkippedByRule: boolean;
+        registrationIds: string[];
       };
 
   let outcome: TxOutcome;
@@ -429,6 +445,7 @@ async function submitPublicRegistrationCore(
       const registeredAt = new Date();
       const classrooms = await fetchClassroomsForAutoAssign(tx, seasonId);
 
+      const registrationIds: string[] = [];
       for (let i = 0; i < data.children.length; i++) {
         const c = data.children[i];
         const child = await tx.child.create({
@@ -458,6 +475,7 @@ async function submitPublicRegistrationCore(
           notes: baseNotes,
           expectsPayment: stripeCheckoutRequired,
         });
+        registrationIds.push(reg.id);
 
         const childFieldContext: Record<string, string | boolean | number | null> = {
           ...c.custom,
@@ -488,12 +506,63 @@ async function submitPublicRegistrationCore(
         waitlist,
         childCount: data.children.length,
         stripePaymentSkippedByRule,
+        registrationIds,
       };
     },
       { maxWait: 20_000, timeout: 60_000 },
     );
 
     if (outcome.kind === "new") {
+      if (formRow.waiverEnabled && waiverPerChild && outcome.registrationIds.length === data.children.length) {
+        try {
+          for (let i = 0; i < data.children.length; i++) {
+            const c = data.children[i];
+            const w = waiverPerChild[i];
+            const primaryChildName = `${c.childFirstName} ${c.childLastName}`.trim();
+            const mergeRows = buildWaiverMergeRows(def, mergeKeys, data.guardian, data.guardianCustom, c);
+            const supplementalRows = buildSupplementalPdfRows(supplementalDefs, w.supplemental);
+            const capturedFieldsJson = {
+              primaryChildName,
+              mergeRows,
+              supplemental: w.supplemental ?? {},
+              mergeKeysUsed: mergeKeys,
+            };
+            const pdfBuffer = await renderWaiverPdfBuffer({
+              title: formRow.waiverTitle?.trim() || "Medical Liability Release Form",
+              description: formRow.waiverDescription?.trim() || null,
+              body:
+                formRow.waiverBody?.trim() ||
+                "I understand and accept the waiver terms for this VBS program.",
+              seasonName: season.name,
+              primaryChildName,
+              mergeRows,
+              supplementalRows,
+              signerName: w.signerName,
+              signedAtIso: w.signedAtIso,
+              signatureDataUrl: w.signatureDataUrl,
+            });
+            const pdfUrl = await storeWaiverPdf(pdfBuffer, seasonId, outcome.registrationIds[i]!);
+            await prisma.waiverAgreement.create({
+              data: {
+                registrationId: outcome.registrationIds[i]!,
+                seasonId,
+                signerName: w.signerName,
+                signedAt: new Date(w.signedAtIso),
+                signatureDataUrl: w.signatureDataUrl,
+                pdfUrl,
+                capturedFieldsJson,
+              },
+            });
+          }
+        } catch (err) {
+          console.error("[waiver pdf save]", err);
+          return {
+            ok: false,
+            message: "We could not save the waiver document. Please try again.",
+          };
+        }
+      }
+
       if (
         stripeCheckoutRequired &&
         outcome.submissionId &&

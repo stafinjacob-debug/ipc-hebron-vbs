@@ -115,45 +115,71 @@ export default async function RegistrationsPage({
   if (!canViewOperations(session.user.role)) redirect("/dashboard");
   const sp = await searchParams;
 
-  const [
-    totalRegistrations,
-    pendingRegistrations,
-    confirmedRegistrations,
-    waitlistRegistrations,
-    unassignedActive,
-    needsPaymentCount,
-  ] = await Promise.all([
-    prisma.registration.count(),
-    prisma.registration.count({ where: { status: "PENDING" } }),
-    prisma.registration.count({ where: { status: "CONFIRMED" } }),
-    prisma.registration.count({ where: { status: "WAITLIST" } }),
-    prisma.registration.count({
-      where: {
-        classroomId: null,
-        status: { in: ["PENDING", "CONFIRMED", "WAITLIST"] },
-      },
-    }),
-    prisma.registration.count({
-      where: {
-        expectsPayment: true,
-        paymentReceivedAt: null,
-      },
-    }),
-  ]);
+  let totalRegistrations = 0;
+  let pendingRegistrations = 0;
+  let confirmedRegistrations = 0;
+  let waitlistRegistrations = 0;
+  let unassignedActive = 0;
+  let needsPaymentCount = 0;
+  let seasons: Array<{
+    id: string;
+    name: string;
+    year: number;
+    classrooms: Array<{ id: string; name: string }>;
+    registrationForm: { publishedDefinitionJson: string | null; draftDefinitionJson: string | null } | null;
+  }> = [];
+  try {
+    [
+      totalRegistrations,
+      pendingRegistrations,
+      confirmedRegistrations,
+      waitlistRegistrations,
+      unassignedActive,
+      needsPaymentCount,
+    ] = await Promise.all([
+      prisma.registration.count(),
+      prisma.registration.count({ where: { status: "PENDING" } }),
+      prisma.registration.count({ where: { status: "CONFIRMED" } }),
+      prisma.registration.count({ where: { status: "WAITLIST" } }),
+      prisma.registration.count({
+        where: {
+          classroomId: null,
+          status: { in: ["PENDING", "CONFIRMED", "WAITLIST"] },
+        },
+      }),
+      prisma.registration.count({
+        where: {
+          expectsPayment: true,
+          paymentReceivedAt: null,
+        },
+      }),
+    ]);
 
-  const seasons = await prisma.vbsSeason.findMany({
-    orderBy: [{ year: "desc" }, { startDate: "desc" }],
-    select: {
-      id: true,
-      name: true,
-      year: true,
-      classrooms: {
-        select: { id: true, name: true },
-        orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+    seasons = await prisma.vbsSeason.findMany({
+      orderBy: [{ year: "desc" }, { startDate: "desc" }],
+      select: {
+        id: true,
+        name: true,
+        year: true,
+        classrooms: {
+          select: { id: true, name: true },
+          orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+        },
+        registrationForm: { select: { publishedDefinitionJson: true, draftDefinitionJson: true } },
       },
-      registrationForm: { select: { publishedDefinitionJson: true, draftDefinitionJson: true } },
-    },
-  });
+    });
+  } catch (error) {
+    console.error("[registrations/page] load failed", error);
+    return (
+      <div className="space-y-4">
+        <h1 className="text-2xl font-semibold tracking-tight">All Registrations</h1>
+        <div className="rounded-xl border border-amber-300/50 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          Could not reach the database right now. Please refresh in a moment. If this keeps happening, verify DB
+          connectivity and connection limits.
+        </div>
+      </div>
+    );
+  }
   const selectedSeasonId = sp.season?.trim() || "";
   const selectedSeason =
     seasons.find((s) => s.id === selectedSeasonId) ??

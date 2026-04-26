@@ -4,12 +4,16 @@ import {
   ensureRegistrationFormForSeason,
   getEffectiveDefinition,
 } from "@/lib/ensure-registration-form";
-import { createDefaultFormDefinition, fieldsForAudience } from "@/lib/registration-form-definition";
+import {
+  createDefaultFormDefinition,
+  fieldsForAudience,
+} from "@/lib/registration-form-definition";
 import { getPublicBaseUrl } from "@/lib/public-base-url";
 import { prisma } from "@/lib/prisma";
 import { parsePublicRegistrationLayout } from "@/lib/public-registration-layout";
 import { clampRegistrationBackgroundDimmingPercent } from "@/lib/registration-background-scrim";
 import { rulesFromDb } from "@/lib/public-registration";
+import { parseWaiverMergeFieldKeysFromDb, parseWaiverSupplementalDefsFromDb } from "@/lib/waiver-merge-fields";
 import { canManageDirectory, canViewOperations } from "@/lib/roles";
 import { notFound, redirect } from "next/navigation";
 import { FormWorkspacePageClient } from "./form-workspace-client";
@@ -54,6 +58,29 @@ export default async function RegistrationFormWorkspacePage({
       label: f.label,
       type: f.type,
       audience: "guardian" as const,
+    })),
+    ...fieldsForAudience(initialDefinition, "eachChild").map((f) => ({
+      key: f.key,
+      label: f.label,
+      type: f.type,
+      audience: "eachChild" as const,
+    })),
+  ])
+    .filter((f) => f.type !== "sectionHeader" && f.type !== "staticText")
+    .map(({ key, label, audience }) => ({ key, label, audience }));
+
+  const waiverMergeFieldOptions = ([
+    ...fieldsForAudience(initialDefinition, "guardian").map((f) => ({
+      key: f.key,
+      label: f.label,
+      type: f.type,
+      audience: "guardian" as const,
+    })),
+    ...fieldsForAudience(initialDefinition, "consent").map((f) => ({
+      key: f.key,
+      label: f.label,
+      type: f.type,
+      audience: "consent" as const,
     })),
     ...fieldsForAudience(initialDefinition, "eachChild").map((f) => ({
       key: f.key,
@@ -117,8 +144,16 @@ export default async function RegistrationFormWorkspacePage({
           stripeProductLabel: form.stripeProductLabel,
           stripeSkipWhenFieldKey: form.stripeSkipWhenFieldKey,
           stripeSkipWhenFieldValue: form.stripeSkipWhenFieldValue,
+          waiverEnabled: form.waiverEnabled,
+          waiverTitle: form.waiverTitle,
+          waiverDescription: form.waiverDescription,
+          waiverBody: form.waiverBody,
+          waiverMergeFieldKeys: parseWaiverMergeFieldKeysFromDb(form.waiverMergeFieldKeys),
+          waiverSupplementalFields: parseWaiverSupplementalDefsFromDb(form.waiverSupplementalFields),
+          settingsStamp: form.updatedAt.toISOString(),
         }}
         paymentConditionFieldOptions={paymentConditionFieldOptions}
+        waiverMergeFieldOptions={waiverMergeFieldOptions}
       />
     </Suspense>
   );

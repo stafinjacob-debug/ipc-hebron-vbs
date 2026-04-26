@@ -202,6 +202,7 @@ model VbsSeason {
   publicRegistrationSettings PublicRegistrationSettings?
   registrationForm         RegistrationForm?
   formSubmissions            FormSubmission[]
+  waiverAgreements           WaiverAgreement[]
   userSeasonScopes           UserSeasonScope[]
   announcements              VbsAnnouncement[]
 }
@@ -293,6 +294,15 @@ model RegistrationForm {
   stripeProcessingFeeMode     StripeProcessingFeeMode @default(OPTIONAL)
   /// Shown on Stripe Checkout line item (e.g. "Summer VBS 2026 registration").
   stripeProductLabel          String?
+  waiverEnabled               Boolean @default(false)
+  waiverTitle                String?
+  /// Short intro shown under the waiver title on the public form and PDF (optional).
+  waiverDescription          String? @db.Text
+  waiverBody                 String? @db.Text
+  /// JSON string[] of form field keys (guardian / eachChild) to copy onto each signed waiver PDF.
+  waiverMergeFieldKeys      Json?
+  /// JSON array of { key, label, required } for extra per-child waiver prompts (stored on PDF).
+  waiverSupplementalFields  Json?
 
   draftDefinitionJson     String? @db.Text
   publishedDefinitionJson String? @db.Text
@@ -353,6 +363,27 @@ model FormSubmission {
   @@index([seasonId])
   @@index([registrationCode])
   @@index([formId])
+}
+
+model WaiverAgreement {
+  id String @id @default(cuid())
+
+  registrationId String @unique
+  registration Registration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+
+  seasonId String
+  season VbsSeason @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+
+  signerName String
+  signedAt DateTime
+  signatureDataUrl String @db.Text
+  pdfUrl String
+  /// Snapshot of merge rows + supplemental answers for this child (audit / display).
+  capturedFieldsJson Json?
+
+  createdAt DateTime @default(now())
+
+  @@index([seasonId, createdAt])
 }
 
 model Classroom {
@@ -465,6 +496,7 @@ model Registration {
   classMatchedAtAge     Int?
 
   classAssignmentAudits ClassAssignmentAuditLog[]
+  waiverAgreement WaiverAgreement?
 
   @@unique([childId, seasonId])
   @@index([seasonId])

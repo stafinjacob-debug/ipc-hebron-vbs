@@ -3,11 +3,30 @@ import { registrationTicketUrl } from "@/lib/registration-identity";
 import { getPublicAppBaseUrl } from "@/lib/public-app-url";
 import type { Metadata } from "next";
 import QRCode from "qrcode";
+import { promises as fs } from "fs";
+import path from "path";
 
 export const metadata: Metadata = {
   title: "VBS registration ticket",
   robots: { index: false, follow: false },
 };
+
+async function loadThemeLogoDataUrl(): Promise<string | null> {
+  const candidates = [
+    { filePath: path.join(process.cwd(), "vbsthemelogo.png"), mime: "image/png" },
+    { filePath: path.join(process.cwd(), "vbsthemelogo.webp"), mime: "image/webp" },
+  ] as const;
+  for (const c of candidates) {
+    try {
+      const bytes = await fs.readFile(c.filePath);
+      if (!bytes.length) continue;
+      return `data:${c.mime};base64,${bytes.toString("base64")}`;
+    } catch {
+      // try next format
+    }
+  }
+  return null;
+}
 
 export default async function PublicRegistrationTicketPage({
   searchParams,
@@ -56,12 +75,21 @@ export default async function PublicRegistrationTicketPage({
   });
 
   const range = `${reg.season.startDate.toLocaleDateString()} – ${reg.season.endDate.toLocaleDateString()}`;
+  const themeLogoDataUrl = await loadThemeLogoDataUrl();
 
   return (
     <div className="min-h-full bg-gradient-to-b from-sky-50 to-slate-100 px-4 py-10">
       <div className="mx-auto max-w-md">
         <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-xl shadow-slate-200/60">
           <div className="bg-gradient-to-r from-blue-600 to-sky-500 px-6 py-5 text-center text-white">
+            {themeLogoDataUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={themeLogoDataUrl}
+                alt="Illumination Station theme"
+                className="mx-auto mb-3 h-auto w-full max-w-[22rem]"
+              />
+            ) : null}
             <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/80">VBS ticket</p>
             <h1 className="mt-1 text-xl font-bold">{reg.season.name}</h1>
             <p className="mt-1 text-sm text-white/90">{range}</p>

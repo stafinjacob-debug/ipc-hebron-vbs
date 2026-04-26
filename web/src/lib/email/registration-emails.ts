@@ -2,6 +2,8 @@ import { prisma } from "@/lib/prisma";
 import { getPublicAppBaseUrl } from "@/lib/public-app-url";
 import { qrPngBase64ForTicketUrl, registrationTicketUrl } from "@/lib/registration-identity";
 import { isMicrosoftGraphEmailConfigured, sendMailViaMicrosoftGraph } from "@/lib/email/microsoft-graph";
+import { promises as fs } from "fs";
+import path from "path";
 
 function brandName(): string {
   return (
@@ -38,13 +40,21 @@ function emailShell(inner: string): string {
             <td style="padding:0;height:6px;background:#1e90ff;"></td>
           </tr>
           <tr>
-            <td style="background:linear-gradient(120deg,#ffd447 0%,#17bebb 55%,#6a4c93 100%);padding:28px 24px;text-align:center;">
-              <p style="margin:0;font-size:11px;letter-spacing:0.2em;text-transform:uppercase;color:rgba(255,255,255,0.85);">Vacation Bible School</p>
-              <h1 style="margin:8px 0 0;font-size:24px;font-weight:700;color:#ffffff;">${brand}</h1>
+            <td
+              bgcolor="#0f766e"
+              align="center"
+              style="background-color:#0f766e;background-image:linear-gradient(120deg,#047857 0%,#0d9488 45%,#0e7490 100%);padding:22px 24px;text-align:center;"
+            >
+              <p style="margin:0;font-size:11px;letter-spacing:0.18em;text-transform:uppercase;color:#ecfdf5;">
+                Vacation Bible School
+              </p>
+              <h1 style="margin:8px 0 0;font-size:22px;line-height:1.25;font-weight:800;color:#ffffff;">
+                ${brand}
+              </h1>
             </td>
           </tr>
           <tr>
-            <td style="padding:28px 24px 32px;color:#334155;font-size:16px;line-height:1.6;">
+            <td style="padding:16px 24px 28px;color:#334155;font-size:16px;line-height:1.6;">
               ${inner}
             </td>
           </tr>
@@ -89,6 +99,48 @@ async function sendHtml(
   return { result: "failed", error: r.error };
 }
 
+async function loadThemeLogoInlineAttachment(): Promise<{
+  cid: string;
+  attachment: NonNullable<Parameters<typeof sendMailViaMicrosoftGraph>[0]["attachments"]>[number];
+} | null> {
+  try {
+    const cid = "vbsthemelogo";
+    const candidates = [
+      {
+        filePath: path.join(process.cwd(), "vbsthemelogo.png"),
+        fileName: "vbsthemelogo.png",
+        contentType: "image/png",
+      },
+      {
+        filePath: path.join(process.cwd(), "vbsthemelogo.webp"),
+        fileName: "vbsthemelogo.webp",
+        contentType: "image/webp",
+      },
+    ] as const;
+    for (const c of candidates) {
+      try {
+        const bytes = await fs.readFile(c.filePath);
+        if (!bytes.length) continue;
+        return {
+          cid,
+          attachment: {
+            name: c.fileName,
+            contentType: c.contentType,
+            contentBytesBase64: bytes.toString("base64"),
+            isInline: true,
+            contentId: cid,
+          },
+        };
+      } catch {
+        // try next file format
+      }
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 function compactTicketBlock(args: {
   childName: string;
   registrationNumber: string;
@@ -99,24 +151,32 @@ function compactTicketBlock(args: {
   return `
     <tr>
       <td style="padding:0 0 12px;">
-        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border:1px solid #cfe6ff;border-radius:14px;background:linear-gradient(180deg,#ffffff 0%,#f8fbff 100%);box-shadow:0 6px 18px rgba(15,23,42,0.06);">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border:1px solid #cfe6ff;border-radius:14px;background-color:#ffffff;background-image:linear-gradient(180deg,#ffffff 0%,#f8fbff 100%);box-shadow:0 6px 18px rgba(15,23,42,0.06);">
           <tr>
-            <td style="height:5px;background:linear-gradient(90deg,#22c55e,#06b6d4,#6366f1,#f59e0b);border-radius:14px 14px 0 0;"></td>
+            <td bgcolor="#0d9488" style="height:5px;background-color:#0d9488;background-image:linear-gradient(90deg,#059669,#06b6d4,#6366f1,#f59e0b);border-radius:14px 14px 0 0;font-size:0;line-height:0;">&nbsp;</td>
           </tr>
           <tr>
-            <td style="padding:12px 12px 8px;">
-              <p style="margin:0;font-size:15px;font-weight:700;color:#0f172a;">${args.childName}</p>
-              <p style="margin:6px 0 0;font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:#0b7ab8;">Registration #</p>
-              <p style="margin:4px 0 0;font-size:20px;font-weight:800;letter-spacing:0.04em;color:#075985;font-family:ui-monospace,Consolas,monospace;">${args.registrationNumber}</p>
-              <p style="margin:6px 0 0;font-size:12px;color:#475569;">${args.detailLine}</p>
-            </td>
-          </tr>
-          <tr>
-            <td align="center" style="padding:8px 12px 12px;">
-              <img src="cid:${args.cid}" width="150" height="150" alt="QR code for ${args.childName}" style="display:block;border-radius:10px;background:#fff;border:1px solid #dbeafe;" />
-              <p style="margin:10px 0 0;">
-                <a href="${args.ticketUrl}" style="display:inline-block;background:linear-gradient(90deg,#0f766e,#0891b2);color:#ffffff;padding:9px 14px;border-radius:999px;text-decoration:none;font-size:12px;font-weight:700;box-shadow:0 6px 14px rgba(8,145,178,0.28);">Open Digital Card</a>
-              </p>
+            <td style="padding:0;">
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+                <tr>
+                  <td width="148" align="center" valign="top" style="padding:12px 10px 14px 14px;">
+                    <img src="cid:${args.cid}" width="128" height="128" alt="QR code for ${args.childName}" style="display:block;width:128px;height:128px;border-radius:10px;background-color:#ffffff;border:1px solid #dbeafe;margin:0 auto;" />
+                  </td>
+                  <td valign="middle" style="padding:12px 14px 14px 6px;font-size:14px;line-height:1.45;color:#334155;">
+                    <p style="margin:0;font-size:15px;font-weight:700;color:#0f172a;">${args.childName}</p>
+                    <p style="margin:6px 0 0;font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:#0b7ab8;">Registration #</p>
+                    <p style="margin:4px 0 0;font-size:20px;font-weight:800;letter-spacing:0.04em;color:#075985;font-family:ui-monospace,Consolas,monospace;">${args.registrationNumber}</p>
+                    <p style="margin:8px 0 0;font-size:12px;color:#475569;">${args.detailLine}</p>
+                    <p style="margin:12px 0 0;">
+                      <a href="${args.ticketUrl}" style="display:inline-block;background:#0f766e;color:#ffffff;padding:10px 14px;border-radius:999px;text-decoration:none;font-size:13px;line-height:1.1;font-weight:700;border:1px solid #0b5f58;">Open Digital Card</a>
+                    </p>
+                    <p style="margin:10px 0 0;font-size:11px;line-height:1.45;color:#64748b;">
+                      If the button does not open, use this link:<br/>
+                      <a href="${args.ticketUrl}" style="color:#0369a1;text-decoration:underline;word-break:break-all;">${args.ticketUrl}</a>
+                    </p>
+                  </td>
+                </tr>
+              </table>
             </td>
           </tr>
         </table>
@@ -223,6 +283,7 @@ export async function sendRegistrationApprovedEmail(
   const ticketUrl = registrationTicketUrl(reg.checkInToken, base);
   const qrB64 = await qrPngBase64ForTicketUrl(ticketUrl);
   const cid = "vbsregqr";
+  const logo = await loadThemeLogoInlineAttachment();
 
   const childName = `${reg.child.firstName} ${reg.child.lastName}`;
   const gname = `${guardian.firstName} ${guardian.lastName}`.trim();
@@ -232,26 +293,45 @@ export async function sendRegistrationApprovedEmail(
   const dates = `${reg.season.startDate.toLocaleDateString()} – ${reg.season.endDate.toLocaleDateString()}`;
 
   const inner = `
+    ${
+      logo
+        ? `<p style="margin:-18px 0 8px;text-align:center;line-height:0;font-size:0;"><img src="cid:${logo.cid}" width="300" alt="Illumination Station" style="max-width:100%;height:auto;border:0;display:block;margin:0 auto;" /></p>`
+        : ""
+    }
     <p style="margin:0 0 6px;font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:#0ea5e9;">VBS Confirmation</p>
     <h2 style="margin:0 0 8px;font-size:28px;line-height:1.2;font-weight:800;color:#0f172a;">You&apos;re In! Welcome to Illumination Station!</h2>
     <p style="margin:0 0 8px;font-size:17px;line-height:1.4;color:#1e293b;"><strong>${escapeHtml(childName)}</strong> is all set for <strong>${season}</strong>!</p>
     <p style="margin:0 0 16px;font-size:14px;line-height:1.5;color:#0f766e;"><strong>Shining a light on who Jesus really is - John 8:12</strong></p>
     <p style="margin:0 0 12px;">Hi ${escapeHtml(gname)},</p>
     <p style="margin:0 0 14px;">Great news! Your child&apos;s spot is confirmed. Keep this card handy for a smooth and joyful check-in.</p>
-    <div style="border:1px dashed #7dd3fc;border-radius:12px;padding:16px 18px;background:linear-gradient(180deg,#f0f9ff 0%,#eefcff 100%);margin:0 0 18px;">
-      <p style="margin:0 0 8px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;color:#0369a1;">&#127915; Your Check-in Code</p>
-      <p style="margin:0 0 14px;font-size:24px;font-weight:800;letter-spacing:0.06em;color:#075985;font-family:ui-monospace,Consolas,monospace;">${num}</p>
-      <p style="margin:0;font-size:14px;line-height:1.6;color:#334155;"><strong>Dates:</strong> ${escapeHtml(dates)}<br/>
-      <strong>Class:</strong> ${cls}</p>
-    </div>
-    <p style="margin:0 0 8px;font-size:17px;line-height:1.35;font-weight:700;color:#0f172a;">Scan this at check-in to shine right in!</p>
-    <p style="margin:0 0 10px;font-size:14px;color:#475569;">Show this at the welcome desk or open it on your phone.</p>
-    <div style="text-align:center;margin:16px 0;padding:20px;background:#f8fafc;border-radius:16px;border:1px solid #e2e8f0;">
-      <img src="cid:${cid}" width="200" height="200" alt="Registration QR code" style="display:inline-block;border-radius:8px;" />
-    </div>
-    <p style="margin:18px 0 0;text-align:center;">
-      <a href="${escapeHtml(ticketUrl)}" style="display:inline-block;background:linear-gradient(90deg,#0f766e,#0891b2);color:#ffffff;padding:12px 18px;border-radius:999px;text-decoration:none;font-weight:700;">Open Digital Card</a>
-    </p>
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:0 0 18px;">
+      <tr>
+        <td style="border:1px dashed #7dd3fc;border-radius:12px;background-color:#f0f9ff;background-image:linear-gradient(180deg,#f0f9ff 0%,#eefcff 100%);padding:0;">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+            <tr>
+              <td width="168" align="center" valign="top" style="padding:16px 12px 16px 16px;">
+                <img src="cid:${cid}" width="144" height="144" alt="Registration QR code" style="display:block;width:144px;height:144px;border-radius:10px;background-color:#ffffff;border:1px solid #dbeafe;margin:0 auto;" />
+              </td>
+              <td valign="top" style="padding:16px 18px 16px 6px;font-size:14px;line-height:1.45;color:#334155;">
+                <p style="margin:0 0 8px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;color:#0369a1;">&#127915; Your Check-in Code</p>
+                <p style="margin:0 0 12px;font-size:24px;font-weight:800;letter-spacing:0.06em;color:#075985;font-family:ui-monospace,Consolas,monospace;">${num}</p>
+                <p style="margin:0 0 16px;font-size:14px;line-height:1.6;color:#334155;"><strong>Dates:</strong> ${escapeHtml(dates)}<br/>
+                <strong>Class:</strong> ${cls}</p>
+                <p style="margin:0 0 6px;font-size:16px;font-weight:700;color:#0f172a;">Scan this at check-in to shine right in!</p>
+                <p style="margin:0 0 12px;color:#475569;">Show this at the welcome desk or open it on your phone.</p>
+                <p style="margin:0;">
+                  <a href="${escapeHtml(ticketUrl)}" style="display:inline-block;background:#0f766e;color:#ffffff;padding:12px 18px;border-radius:999px;text-decoration:none;font-size:14px;line-height:1.1;font-weight:700;border:1px solid #0b5f58;">Open Digital Card</a>
+                </p>
+                <p style="margin:10px 0 0;font-size:12px;line-height:1.45;color:#64748b;">
+                  If the button does not open, use this link:<br/>
+                  <a href="${escapeHtml(ticketUrl)}" style="color:#0369a1;text-decoration:underline;word-break:break-all;">${escapeHtml(ticketUrl)}</a>
+                </p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
     <p style="margin:18px 0 0;font-size:14px;color:#334155;">Kid-friendly reminder: bring your biggest smile, comfy shoes, and a heart ready for fun.</p>
   `;
 
@@ -261,6 +341,7 @@ export async function sendRegistrationApprovedEmail(
     `${brandName()} — Confirmed: VBS registration for ${childName.split(" ")[0]}`,
     emailShell(inner),
     [
+      ...(logo ? [logo.attachment] : []),
       {
         name: "check-in-qr.png",
         contentType: "image/png",
@@ -303,6 +384,8 @@ export async function sendAllApprovedRegistrationsEmailForSubmission(submissionI
 
   const base = getPublicAppBaseUrl();
   const attachments: NonNullable<Parameters<typeof sendMailViaMicrosoftGraph>[0]["attachments"]> = [];
+  const logo = await loadThemeLogoInlineAttachment();
+  if (logo) attachments.push(logo.attachment);
   let blocks = "";
   let i = 0;
   for (const reg of confirmedWithIdentity) {
@@ -331,9 +414,15 @@ export async function sendAllApprovedRegistrationsEmailForSubmission(submissionI
   }
 
   const gname = `${submission.guardian.firstName} ${submission.guardian.lastName}`.trim();
+  const seasonTitle = confirmedWithIdentity[0]?.season?.name?.trim() || "VBS";
   const inner = `
+    ${
+      logo
+        ? `<p style="margin:-18px 0 8px;text-align:center;line-height:0;font-size:0;"><img src="cid:${logo.cid}" width="300" alt="Illumination Station" style="max-width:100%;height:auto;border:0;display:block;margin:0 auto;" /></p>`
+        : ""
+    }
     <p style="margin:0 0 6px;font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:#0ea5e9;">VBS Confirmation</p>
-    <h2 style="margin:0 0 8px;font-size:26px;line-height:1.2;font-weight:800;color:#0f172a;">Your family is all set for camp!</h2>
+    <h2 style="margin:0 0 8px;font-size:26px;line-height:1.2;font-weight:800;color:#0f172a;">You&apos;re all set for ${escapeHtml(seasonTitle)}!</h2>
     <p style="margin:0 0 8px;font-size:15px;line-height:1.45;color:#0f766e;"><strong>Shining a light on who Jesus really is - John 8:12</strong></p>
     <p style="margin:0 0 12px;">Hi ${escapeHtml(gname)},</p>
     <p style="margin:0 0 14px;">Your confirmed registrations are ready. Each child&apos;s digital card is below:</p>

@@ -17,6 +17,14 @@ import { parsePublicRegistrationLayout } from "@/lib/public-registration-layout"
 import { rulesFromDb } from "@/lib/public-registration";
 import { sendAllApprovedRegistrationsEmailForSubmission } from "@/lib/email/registration-emails";
 import { canManageDirectory } from "@/lib/roles";
+import {
+  filterWaiverMergeKeysToDef,
+  parseWaiverMergeFieldKeysFromDb,
+  parseWaiverSupplementalDefsFromDb,
+  sanitizeWaiverSupplementalFieldsForSave,
+  type WaiverSupplementalFieldDef,
+} from "@/lib/waiver-merge-fields";
+import { Prisma } from "@/generated/prisma";
 import type {
   PublicRegistrationLayout,
   RegistrationFormStatus,
@@ -178,6 +186,12 @@ export async function updateRegistrationFormSettings(
     stripeProductLabel: string | null;
     stripeSkipWhenFieldKey: string | null;
     stripeSkipWhenFieldValue: string | null;
+    waiverEnabled: boolean;
+    waiverTitle: string | null;
+    waiverDescription: string | null;
+    waiverBody: string | null;
+    waiverMergeFieldKeys: string[];
+    waiverSupplementalFields: WaiverSupplementalFieldDef[];
   },
 ): Promise<ActionState> {
   const session = await auth();
@@ -227,8 +241,12 @@ export async function updateRegistrationFormSettings(
 
   let stripeAmountCents: number | null = null;
   const stripeSkipWhenFieldKey = data.stripeSkipWhenFieldKey?.trim() || null;
-  const stripeSkipWhenFieldValue = data.stripeSkipWhenFieldValue?.trim() || null;
-  if ((stripeSkipWhenFieldKey && !stripeSkipWhenFieldValue) || (!stripeSkipWhenFieldKey && stripeSkipWhenFieldValue)) {
+  let stripeSkipWhenFieldValue = data.stripeSkipWhenFieldValue?.trim() || null;
+  // No field selected → ignore leftover text in the match box ("no rule" UX).
+  if (!stripeSkipWhenFieldKey) {
+    stripeSkipWhenFieldValue = null;
+  }
+  if (stripeSkipWhenFieldKey && !stripeSkipWhenFieldValue) {
     return {
       ok: false,
       message: "To use conditional payment skip, choose both a field key and a matching value.",
@@ -245,8 +263,17 @@ export async function updateRegistrationFormSettings(
     stripeAmountCents = Math.min(99_999_99, Math.floor(raw));
   }
 
+  const activeDefForSettings = parseFormDefinitionJson(form.publishedDefinitionJson ?? form.draftDefinitionJson);
+  const mergeKeysForSave =
+    data.waiverEnabled && activeDefForSettings
+      ? filterWaiverMergeKeysToDef(activeDefForSettings, data.waiverMergeFieldKeys)
+      : [];
+  const supplementalForSave = data.waiverEnabled
+    ? sanitizeWaiverSupplementalFieldsForSave(data.waiverSupplementalFields)
+    : [];
+
   if (stripeSkipWhenFieldKey) {
-    const activeDef = parseFormDefinitionJson(form.publishedDefinitionJson ?? form.draftDefinitionJson);
+    const activeDef = activeDefForSettings;
     if (!activeDef) {
       return { ok: false, message: "Conditional payment skip needs a valid form definition." };
     }
@@ -287,6 +314,16 @@ export async function updateRegistrationFormSettings(
         stripeProductLabel: data.stripeProductLabel?.trim() ? data.stripeProductLabel.trim() : null,
         stripeSkipWhenFieldKey: data.stripeCheckoutEnabled ? stripeSkipWhenFieldKey : null,
         stripeSkipWhenFieldValue: data.stripeCheckoutEnabled ? stripeSkipWhenFieldValue : null,
+        waiverEnabled: data.waiverEnabled,
+        waiverTitle: data.waiverEnabled ? data.waiverTitle?.trim() || "Medical Liability Release Form" : null,
+        waiverDescription: data.waiverEnabled ? data.waiverDescription?.trim() || null : null,
+        waiverBody: data.waiverEnabled ? data.waiverBody?.trim() || null : null,
+        waiverMergeFieldKeys: data.waiverEnabled
+          ? (mergeKeysForSave as Prisma.InputJsonValue)
+          : Prisma.DbNull,
+        waiverSupplementalFields: data.waiverEnabled
+          ? (supplementalForSave as Prisma.InputJsonValue)
+          : Prisma.DbNull,
         updatedByUserId: session.user.id ?? undefined,
       },
     }),
@@ -351,6 +388,18 @@ export async function cloneRegistrationFormFromSeason(
       stripeProductLabel: srcForm.stripeProductLabel,
       stripeSkipWhenFieldKey: srcForm.stripeSkipWhenFieldKey,
       stripeSkipWhenFieldValue: srcForm.stripeSkipWhenFieldValue,
+      waiverEnabled: srcForm.waiverEnabled,
+      waiverTitle: srcForm.waiverTitle,
+      waiverDescription: srcForm.waiverDescription,
+      waiverBody: srcForm.waiverBody,
+      waiverMergeFieldKeys:
+        srcForm.waiverMergeFieldKeys === null || srcForm.waiverMergeFieldKeys === undefined
+          ? Prisma.DbNull
+          : (srcForm.waiverMergeFieldKeys as Prisma.InputJsonValue),
+      waiverSupplementalFields:
+        srcForm.waiverSupplementalFields === null || srcForm.waiverSupplementalFields === undefined
+          ? Prisma.DbNull
+          : (srcForm.waiverSupplementalFields as Prisma.InputJsonValue),
       updatedByUserId: session.user.id ?? undefined,
     },
   });
@@ -628,11 +677,24 @@ export type FormWorkspacePayload = {
     stripeProductLabel: string | null;
     stripeSkipWhenFieldKey: string | null;
     stripeSkipWhenFieldValue: string | null;
+    waiverEnabled: boolean;
+    waiverTitle: string | null;
+    waiverDescription: string | null;
+    waiverBody: string | null;
+    waiverMergeFieldKeys: string[];
+    waiverSupplementalFields: WaiverSupplementalFieldDef[];
+    /** Bumps when the registration form row changes so client settings UI can remount / refetch. */
+    settingsStamp: string;
   };
   paymentConditionFieldOptions: Array<{
     key: string;
     label: string;
     audience: "guardian" | "eachChild";
+  }>;
+  waiverMergeFieldOptions: Array<{
+    key: string;
+    label: string;
+    audience: "guardian" | "eachChild" | "consent";
   }>;
 };
 
@@ -669,6 +731,29 @@ export async function loadFormWorkspacePayload(
       label: f.label,
       type: f.type,
       audience: "guardian" as const,
+    })),
+    ...fieldsForAudience(initialDefinition, "eachChild").map((f) => ({
+      key: f.key,
+      label: f.label,
+      type: f.type,
+      audience: "eachChild" as const,
+    })),
+  ])
+    .filter((f) => f.type !== "sectionHeader" && f.type !== "staticText")
+    .map(({ key, label, audience }) => ({ key, label, audience }));
+
+  const waiverMergeFieldOptions = ([
+    ...fieldsForAudience(initialDefinition, "guardian").map((f) => ({
+      key: f.key,
+      label: f.label,
+      type: f.type,
+      audience: "guardian" as const,
+    })),
+    ...fieldsForAudience(initialDefinition, "consent").map((f) => ({
+      key: f.key,
+      label: f.label,
+      type: f.type,
+      audience: "consent" as const,
     })),
     ...fieldsForAudience(initialDefinition, "eachChild").map((f) => ({
       key: f.key,
@@ -732,8 +817,16 @@ export async function loadFormWorkspacePayload(
         stripeProductLabel: form.stripeProductLabel,
         stripeSkipWhenFieldKey: form.stripeSkipWhenFieldKey,
         stripeSkipWhenFieldValue: form.stripeSkipWhenFieldValue,
+        waiverEnabled: form.waiverEnabled,
+        waiverTitle: form.waiverTitle,
+        waiverDescription: form.waiverDescription,
+        waiverBody: form.waiverBody,
+        waiverMergeFieldKeys: parseWaiverMergeFieldKeysFromDb(form.waiverMergeFieldKeys),
+        waiverSupplementalFields: parseWaiverSupplementalDefsFromDb(form.waiverSupplementalFields),
+        settingsStamp: form.updatedAt.toISOString(),
       },
       paymentConditionFieldOptions,
+      waiverMergeFieldOptions,
     },
   };
 }

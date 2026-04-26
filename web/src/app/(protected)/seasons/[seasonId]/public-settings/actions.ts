@@ -96,8 +96,12 @@ export async function savePublicRegistrationSettings(
   const registrationBackgroundDimmingPercent = clampRegistrationBackgroundDimmingPercent(
     str(formData, "registrationBackgroundDimmingPercent"),
   );
-  const seasonStartDate = parseDateInput(str(formData, "seasonStartDate"));
-  const seasonEndDate = parseDateInput(str(formData, "seasonEndDate"));
+  const startStr = str(formData, "seasonStartDate").trim();
+  const endStr = str(formData, "seasonEndDate").trim();
+  /** Form workspace “Design” tab saves public settings without season date fields — keep existing VBS dates. */
+  const omitSeasonDates = !startStr && !endStr;
+  const seasonStartDate = omitSeasonDates ? season.startDate : parseDateInput(startStr);
+  const seasonEndDate = omitSeasonDates ? season.endDate : parseDateInput(endStr);
   if (!seasonStartDate || !seasonEndDate) {
     return { ok: false, message: "Provide valid season start and end dates." };
   }

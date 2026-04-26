@@ -10,7 +10,8 @@ import { prisma } from "@/lib/prisma";
 import { clampRegistrationBackgroundDimmingPercent } from "@/lib/registration-background-scrim";
 import { parsePublicRegistrationLayout } from "@/lib/public-registration-layout";
 import { rulesFromDb } from "@/lib/public-registration";
-import { DynamicRegistrationWizard } from "./dynamic-registration-wizard";
+import { parseWaiverMergeFieldKeysFromDb, parseWaiverSupplementalDefsFromDb } from "@/lib/waiver-merge-fields";
+import { DynamicRegistrationWizard, type PublicSeasonWaiverSnapshot } from "./dynamic-registration-wizard";
 
 export const dynamic = "force-dynamic";
 
@@ -47,10 +48,20 @@ export default async function PublicRegisterPage({
   }
 
   const options = [];
+  const waiverBySeasonId: Record<string, PublicSeasonWaiverSnapshot> = {};
   for (const s of seasons) {
     const formRow = s.registrationForm ?? (await ensureRegistrationFormForSeason(s.id, s.name));
     if (formRow.status !== "PUBLISHED") continue;
     if (!isFormRegistrationOpen(formRow)) continue;
+
+    waiverBySeasonId[s.id] = {
+      enabled: formRow.waiverEnabled === true,
+      title: formRow.waiverTitle,
+      description: formRow.waiverDescription,
+      body: formRow.waiverBody,
+      mergeFieldKeys: parseWaiverMergeFieldKeysFromDb(formRow.waiverMergeFieldKeys),
+      supplementalFields: parseWaiverSupplementalDefsFromDb(formRow.waiverSupplementalFields),
+    };
 
     options.push({
       id: s.id,
@@ -79,6 +90,12 @@ export default async function PublicRegisterPage({
       stripePricingUnit: formRow.stripePricingUnit,
       stripeProcessingFeeMode: formRow.stripeProcessingFeeMode,
       stripeProductLabel: formRow.stripeProductLabel,
+      waiverEnabled: formRow.waiverEnabled,
+      waiverTitle: formRow.waiverTitle,
+      waiverDescription: formRow.waiverDescription,
+      waiverBody: formRow.waiverBody,
+      waiverMergeFieldKeys: parseWaiverMergeFieldKeysFromDb(formRow.waiverMergeFieldKeys),
+      waiverSupplementalFields: parseWaiverSupplementalDefsFromDb(formRow.waiverSupplementalFields),
     });
   }
 
@@ -109,6 +126,7 @@ export default async function PublicRegisterPage({
         ) : null}
         <DynamicRegistrationWizard
           seasons={options}
+          waiverBySeasonId={waiverBySeasonId}
           clientSubmitKey={clientSubmitKey}
           contactEmail={contactEmail}
           contactPhone={contactPhone}

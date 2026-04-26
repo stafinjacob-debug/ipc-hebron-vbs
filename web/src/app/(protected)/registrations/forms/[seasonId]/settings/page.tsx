@@ -2,6 +2,7 @@ import { auth } from "@/auth";
 import { ensureRegistrationFormForSeason } from "@/lib/ensure-registration-form";
 import { createDefaultFormDefinition, fieldsForAudience, parseFormDefinitionJson } from "@/lib/registration-form-definition";
 import { prisma } from "@/lib/prisma";
+import { parseWaiverMergeFieldKeysFromDb, parseWaiverSupplementalDefsFromDb } from "@/lib/waiver-merge-fields";
 import { canManageDirectory, canViewOperations } from "@/lib/roles";
 import { notFound, redirect } from "next/navigation";
 import { FormSettingsForm } from "./form-settings-form";
@@ -50,6 +51,29 @@ export default async function RegistrationFormSettingsPage({
     .filter((f) => f.type !== "sectionHeader" && f.type !== "staticText")
     .map(({ key, label, audience }) => ({ key, label, audience }));
 
+  const waiverMergeFieldOptions = ([
+    ...fieldsForAudience(activeDef, "guardian").map((f) => ({
+      key: f.key,
+      label: f.label,
+      type: f.type,
+      audience: "guardian" as const,
+    })),
+    ...fieldsForAudience(activeDef, "consent").map((f) => ({
+      key: f.key,
+      label: f.label,
+      type: f.type,
+      audience: "consent" as const,
+    })),
+    ...fieldsForAudience(activeDef, "eachChild").map((f) => ({
+      key: f.key,
+      label: f.label,
+      type: f.type,
+      audience: "eachChild" as const,
+    })),
+  ])
+    .filter((f) => f.type !== "sectionHeader" && f.type !== "staticText")
+    .map(({ key, label, audience }) => ({ key, label, audience }));
+
   return (
     <div className="space-y-4">
       <p className="text-sm text-foreground/70">
@@ -60,6 +84,7 @@ export default async function RegistrationFormSettingsPage({
         .
       </p>
       <FormSettingsForm
+        key={form.updatedAt.toISOString()}
         seasonId={seasonId}
         initial={{
           title: form.title,
@@ -83,8 +108,16 @@ export default async function RegistrationFormSettingsPage({
           stripeProductLabel: form.stripeProductLabel,
           stripeSkipWhenFieldKey: form.stripeSkipWhenFieldKey,
           stripeSkipWhenFieldValue: form.stripeSkipWhenFieldValue,
+          waiverEnabled: form.waiverEnabled,
+          waiverTitle: form.waiverTitle,
+          waiverDescription: form.waiverDescription,
+          waiverBody: form.waiverBody,
+          waiverMergeFieldKeys: parseWaiverMergeFieldKeysFromDb(form.waiverMergeFieldKeys),
+          waiverSupplementalFields: parseWaiverSupplementalDefsFromDb(form.waiverSupplementalFields),
+          settingsStamp: form.updatedAt.toISOString(),
         }}
         paymentConditionFieldOptions={paymentConditionFieldOptions}
+        waiverMergeFieldOptions={waiverMergeFieldOptions}
       />
     </div>
   );

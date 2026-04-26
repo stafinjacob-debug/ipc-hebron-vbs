@@ -1,8 +1,23 @@
 "use client";
 
+import { Plus, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
+import {
+  formatVbsParticipantAgeAsOfLabel,
+  VBS_PARTICIPANT_MAX_YEARS,
+  VBS_PARTICIPANT_MIN_YEARS,
+} from "@/lib/vbs-participant-age-gate";
 import { updateRegistrationFormSettings } from "../../actions";
+import type { WaiverSupplementalFieldDef } from "@/lib/waiver-merge-fields";
+
+function newSupplementalWaiverField(): WaiverSupplementalFieldDef {
+  const suffix =
+    typeof crypto !== "undefined" && crypto.randomUUID
+      ? crypto.randomUUID().replace(/-/g, "").slice(0, 10)
+      : `${Date.now()}`;
+  return { key: `w_supp_${suffix}`, label: "", required: false };
+}
 
 function toDatetimeLocalValue(d: Date | null | undefined): string {
   if (!d) return "";
@@ -22,8 +37,12 @@ export function FormSettingsForm({
   initial,
   hidePublicRegistrationOpen = false,
   paymentConditionFieldOptions = [],
+  waiverMergeFieldOptions,
+  onSaveSuccess,
 }: {
   seasonId: string;
+  /** Called after settings persist (e.g. refetch embed workspace payload). */
+  onSaveSuccess?: () => void;
   /** When true, `publicRegistrationOpen` is omitted from this form (managed elsewhere, e.g. embed workspace). */
   hidePublicRegistrationOpen?: boolean;
   initial: {
@@ -48,16 +67,61 @@ export function FormSettingsForm({
     stripeProductLabel: string | null;
     stripeSkipWhenFieldKey: string | null;
     stripeSkipWhenFieldValue: string | null;
+    waiverEnabled: boolean;
+    waiverTitle: string | null;
+    waiverDescription: string | null;
+    waiverBody: string | null;
+    waiverMergeFieldKeys?: string[] | null;
+    waiverSupplementalFields?: WaiverSupplementalFieldDef[] | null;
+    /** When set, parent can use as React `key` so defaults refresh after save (see form workspace embed). */
+    settingsStamp?: string;
   };
   paymentConditionFieldOptions?: Array<{
     key: string;
     label: string;
     audience: "guardian" | "eachChild";
   }>;
+  /** Guardian + consent + per-child fields offered for “include on waiver PDF”. Defaults to payment options + consent. */
+  waiverMergeFieldOptions?: Array<{
+    key: string;
+    label: string;
+    audience: "guardian" | "eachChild" | "consent";
+  }>;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [msg, setMsg] = useState<string | null>(null);
+  const msgRef = useRef<HTMLParagraphElement>(null);
+  const [waiverEnabled, setWaiverEnabled] = useState(initial.waiverEnabled);
+  const [waiverTitle, setWaiverTitle] = useState(() => initial.waiverTitle?.trim() || "Medical Liability Release Form");
+  const [waiverDescription, setWaiverDescription] = useState(initial.waiverDescription ?? "");
+  const [waiverBody, setWaiverBody] = useState(initial.waiverBody ?? "");
+  const [waiverMergeFieldKeys, setWaiverMergeFieldKeys] = useState<string[]>(() => [
+    ...(initial.waiverMergeFieldKeys ?? []),
+  ]);
+  const [waiverSupplementalRows, setWaiverSupplementalRows] = useState<WaiverSupplementalFieldDef[]>(() => [
+    ...(initial.waiverSupplementalFields ?? []),
+  ]);
+
+  const settingsStamp = initial.settingsStamp ?? "";
+  // Only reset waiver UI when the server sends a new snapshot (stamp), not on every `initial` reference change.
+  useEffect(() => {
+    setWaiverEnabled(initial.waiverEnabled);
+    setWaiverTitle(initial.waiverTitle?.trim() || "Medical Liability Release Form");
+    setWaiverDescription(initial.waiverDescription ?? "");
+    setWaiverBody(initial.waiverBody ?? "");
+    setWaiverMergeFieldKeys([...(initial.waiverMergeFieldKeys ?? [])]);
+    setWaiverSupplementalRows([...(initial.waiverSupplementalFields ?? [])]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- stamp is the explicit snapshot boundary
+  }, [settingsStamp]);
+
+  const mergeFieldOptions =
+    waiverMergeFieldOptions ??
+    (paymentConditionFieldOptions as Array<{
+      key: string;
+      label: string;
+      audience: "guardian" | "eachChild" | "consent";
+    }>);
 
   return (
     <form
@@ -109,15 +173,36 @@ export function FormSettingsForm({
         const stripeProcessingFeeMode =
           String(fd.get("stripeProcessingFeeMode") ?? "") === "REQUIRED" ? "REQUIRED" : "OPTIONAL";
         const stripeProductLabel = String(fd.get("stripeProductLabel") ?? "").trim() || null;
-        const stripeSkipWhenFieldKey = String(fd.get("stripeSkipWhenFieldKey") ?? "").trim() || null;
-        const stripeSkipWhenFieldValue = String(fd.get("stripeSkipWhenFieldValue") ?? "").trim() || null;
+        let stripeSkipWhenFieldKey = String(fd.get("stripeSkipWhenFieldKey") ?? "").trim() || null;
+        let stripeSkipWhenFieldValue = String(fd.get("stripeSkipWhenFieldValue") ?? "").trim() || null;
+        if (!stripeSkipWhenFieldKey) {
+          stripeSkipWhenFieldValue = null;
+        }
+
+        const bumpMsg = (t: string) => {
+          setMsg(t);
+          queueMicrotask(() => msgRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }));
+        };
+
+        if (stripeCheckoutEnabled && (stripeAmountCents == null || stripeAmountCents < 50)) {
+          bumpMsg(
+            "Stripe payment is on but the fee is missing or below US$0.50. Enter a valid amount in “Fee (USD)”, or turn off “Require Stripe payment for this form”. Nothing is saved until this is fixed — including waiver settings.",
+          );
+          return;
+        }
+        if (stripeSkipWhenFieldKey && !stripeSkipWhenFieldValue) {
+          bumpMsg(
+            "To use conditional payment skip, choose a matching value for the selected field, or set the field back to “No conditional skip”.",
+          );
+          return;
+        }
 
         if (
           minimumParticipantAgeYears != null &&
           maximumParticipantAgeYears != null &&
           minimumParticipantAgeYears > maximumParticipantAgeYears
         ) {
-          setMsg("Minimum age cannot be greater than maximum age.");
+          bumpMsg("Minimum age cannot be greater than maximum age.");
           return;
         }
 
@@ -144,9 +229,20 @@ export function FormSettingsForm({
             stripeProductLabel,
             stripeSkipWhenFieldKey,
             stripeSkipWhenFieldValue,
+            waiverEnabled,
+            waiverTitle: waiverTitle.trim() || null,
+            waiverDescription: waiverDescription.trim() || null,
+            waiverBody: waiverBody.trim() || null,
+            waiverMergeFieldKeys: waiverEnabled ? waiverMergeFieldKeys : [],
+            waiverSupplementalFields: waiverEnabled ? waiverSupplementalRows : [],
           });
           setMsg(r.message);
-          if (r.ok) router.refresh();
+          if (r.ok) {
+            onSaveSuccess?.();
+            router.refresh();
+          } else {
+            queueMicrotask(() => msgRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }));
+          }
         });
       }}
     >
@@ -403,6 +499,160 @@ export function FormSettingsForm({
       </div>
 
       <div className="space-y-4 rounded-xl border border-foreground/10 p-4">
+        <h2 className="text-sm font-semibold">Waiver form</h2>
+        <p className="text-sm text-foreground/70">
+          Enable a dedicated digital waiver step in public registration. Parents sign once per child; a PDF is stored
+          for each child. Choose which registration answers appear on the PDF, and optionally add extra short-answer
+          prompts.
+        </p>
+        <label className="flex items-center gap-2 text-sm font-medium">
+          <input
+            type="checkbox"
+            checked={waiverEnabled}
+            onChange={(e) => setWaiverEnabled(e.target.checked)}
+            className="size-4 rounded border-foreground/30"
+          />
+          Require digital waiver signature
+        </label>
+        <div>
+          <label htmlFor="waiverTitle" className="block text-xs font-medium text-foreground/70">
+            Waiver title
+          </label>
+          <input
+            id="waiverTitle"
+            value={waiverTitle}
+            onChange={(e) => setWaiverTitle(e.target.value)}
+            className="mt-1 w-full rounded-md border border-foreground/15 bg-background px-3 py-2 text-sm"
+          />
+        </div>
+        <div>
+          <label htmlFor="waiverDescription" className="block text-xs font-medium text-foreground/70">
+            Waiver description (optional)
+          </label>
+          <textarea
+            id="waiverDescription"
+            rows={3}
+            value={waiverDescription}
+            onChange={(e) => setWaiverDescription(e.target.value)}
+            className="mt-1 w-full rounded-md border border-foreground/15 bg-background px-3 py-2 text-sm"
+            placeholder="Short note shown under the title on the public waiver step and on the signed PDF."
+          />
+        </div>
+        <div>
+          <label htmlFor="waiverBody" className="block text-xs font-medium text-foreground/70">
+            Waiver statement text
+          </label>
+          <textarea
+            id="waiverBody"
+            rows={7}
+            value={waiverBody}
+            onChange={(e) => setWaiverBody(e.target.value)}
+            className="mt-1 w-full rounded-md border border-foreground/15 bg-background px-3 py-2 text-sm"
+            placeholder="Enter waiver language that guardians must accept and sign."
+          />
+        </div>
+        {mergeFieldOptions.length > 0 ? (
+          <div>
+            <p className="text-xs font-medium text-foreground/70">Include on signed waiver PDF (from this form)</p>
+            <p className="mt-1 text-xs text-foreground/55">
+              Guardian and per-child fields below are copied from what the family already entered. Child name and date
+              of birth are always shown on each child&apos;s PDF.
+            </p>
+            <ul className="mt-2 max-h-48 space-y-1.5 overflow-y-auto rounded-md border border-foreground/10 p-2 text-sm">
+              {mergeFieldOptions.map((opt) => (
+                <li key={opt.key}>
+                  <label className="flex cursor-pointer items-center gap-2">
+                    <input
+                      type="checkbox"
+                      className="size-4 rounded border-foreground/30"
+                      checked={waiverMergeFieldKeys.includes(opt.key)}
+                      onChange={() =>
+                        setWaiverMergeFieldKeys((prev) =>
+                          prev.includes(opt.key) ? prev.filter((k) => k !== opt.key) : [...prev, opt.key],
+                        )
+                      }
+                    />
+                    <span>
+                      <span className="font-medium">{opt.label}</span>
+                      <span className="text-foreground/50">
+                        {" "}
+                        (
+                        {opt.audience === "guardian"
+                          ? "Guardian"
+                          : opt.audience === "consent"
+                            ? "Consent"
+                            : "Child"}
+                        )
+                      </span>
+                    </span>
+                  </label>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+        <div>
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xs font-medium text-foreground/70">Optional extra waiver questions (per child)</p>
+            <button
+              type="button"
+              onClick={() => setWaiverSupplementalRows((r) => [...r, newSupplementalWaiverField()])}
+              className="inline-flex items-center gap-1 rounded-md border border-foreground/15 bg-foreground/[0.04] px-2 py-1 text-xs font-medium text-foreground/80 hover:bg-foreground/[0.08]"
+            >
+              <Plus className="size-3.5" aria-hidden />
+              Add field
+            </button>
+          </div>
+          <p className="mt-1 text-xs text-foreground/55">
+            Shown only on the waiver step. Answers are saved on each child&apos;s PDF (e.g. emergency contact).
+          </p>
+          <ul className="mt-2 space-y-2">
+            {waiverSupplementalRows.map((row, idx) => (
+              <li
+                key={row.key}
+                className="flex flex-wrap items-end gap-2 rounded-md border border-foreground/10 bg-foreground/[0.02] p-2"
+              >
+                <div className="min-w-[160px] flex-1">
+                  <label className="text-[11px] font-medium text-foreground/60">Label</label>
+                  <input
+                    value={row.label}
+                    onChange={(e) =>
+                      setWaiverSupplementalRows((rows) =>
+                        rows.map((x, i) => (i === idx ? { ...x, label: e.target.value } : x)),
+                      )
+                    }
+                    className="mt-0.5 w-full rounded-md border border-foreground/15 bg-background px-2 py-1.5 text-sm"
+                    placeholder="e.g. Emergency contact phone"
+                  />
+                </div>
+                <label className="flex items-center gap-1.5 pb-1.5 text-xs">
+                  <input
+                    type="checkbox"
+                    checked={row.required}
+                    onChange={(e) =>
+                      setWaiverSupplementalRows((rows) =>
+                        rows.map((x, i) => (i === idx ? { ...x, required: e.target.checked } : x)),
+                      )
+                    }
+                    className="size-4 rounded border-foreground/30"
+                  />
+                  Required
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setWaiverSupplementalRows((rows) => rows.filter((_, i) => i !== idx))}
+                  className="inline-flex items-center gap-1 rounded-md p-1.5 text-red-600 hover:bg-red-500/10"
+                  aria-label="Remove field"
+                >
+                  <Trash2 className="size-4" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+
+      <div className="space-y-4 rounded-xl border border-foreground/10 p-4">
         <h2 className="text-sm font-semibold">Registration window & capacity</h2>
         <p className="text-sm text-foreground/70">
           Date/time uses your browser&apos;s local timezone. Leave open/close empty for no extra date limits
@@ -487,7 +737,9 @@ export function FormSettingsForm({
           </div>
         </div>
         <p className="text-xs text-foreground/60">
-          Whole years old on the first day of VBS (season start). Leave either field empty for no limit on that side.
+          Public registration enforces ages {VBS_PARTICIPANT_MIN_YEARS}–{VBS_PARTICIPANT_MAX_YEARS} as of{" "}
+          {formatVbsParticipantAgeAsOfLabel()} (whole years). The numbers above are saved with the form for reference;
+          leave either empty if you do not use them elsewhere.
         </p>
         <label className="flex items-center gap-2 text-sm">
           <input
@@ -518,7 +770,20 @@ export function FormSettingsForm({
       >
         {pending ? "Saving…" : "Save settings"}
       </button>
-      {msg ? <p className="text-sm text-foreground/80">{msg}</p> : null}
+      {msg ? (
+        <p
+          ref={msgRef}
+          className={
+            msg.startsWith("Stripe payment is on") ||
+            msg.startsWith("To use conditional payment skip") ||
+            msg.includes("Nothing is saved until")
+              ? "rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-950 dark:text-amber-100"
+              : "text-sm text-foreground/80"
+          }
+        >
+          {msg}
+        </p>
+      ) : null}
     </form>
   );
 }
