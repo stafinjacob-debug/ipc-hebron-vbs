@@ -18,6 +18,15 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "Register for VBS | IPC Hebron",
   description: "Sign up your children for Vacation Bible School",
+  openGraph: {
+    title: "Register for VBS | IPC Hebron",
+    description: "Sign up your children for Vacation Bible School",
+    images: [{ url: "/vbsthemelogo.webp", alt: "IPC Hebron VBS" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    images: ["/vbsthemelogo.webp"],
+  },
 };
 
 const CHURCH_DISPLAY_NAME = "IPC Hebron";

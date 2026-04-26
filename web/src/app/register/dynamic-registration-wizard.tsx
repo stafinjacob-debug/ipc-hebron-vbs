@@ -12,7 +12,6 @@ import {
   Lock,
   Plus,
   Shield,
-  Sparkles,
   Trash2,
   UserRound,
   X,
@@ -646,6 +645,14 @@ export function DynamicRegistrationWizard({
   /** Single native submit control so Enter / mobile browsers cannot activate a hidden duplicate submit. */
   const nativeSubmitRef = useRef<HTMLButtonElement>(null);
 
+  /** Skip the old “Ready for payment” interstitial — go straight to Stripe Checkout. */
+  useEffect(() => {
+    const url = state?.stripeCheckoutUrl?.trim();
+    if (state?.ok === true && url) {
+      window.location.assign(url);
+    }
+  }, [state?.ok, state?.stripeCheckoutUrl]);
+
   const current = useMemo(() => seasons.find((s) => s.id === seasonId), [seasons, seasonId]);
   const def = current?.definition;
   const rules = current?.rules ?? defaultPublicFieldRules;
@@ -1020,30 +1027,7 @@ export function DynamicRegistrationWizard({
     );
   }
 
-  const redirectingToStripe = state?.ok === true && !!state.stripeCheckoutUrl?.trim();
   const success = state?.ok === true && !state.stripeCheckoutUrl?.trim();
-
-  if (redirectingToStripe) {
-    return (
-      <div className="relative z-0 mx-auto max-w-lg sm:max-w-xl">
-        <div className="rounded-2xl border border-brand/30 bg-white px-6 py-10 text-center shadow-lg dark:border-brand/40 dark:bg-neutral-950">
-          <Sparkles className="mx-auto size-14 text-brand" aria-hidden />
-          <p className="mt-4 text-lg font-semibold text-neutral-900 dark:text-neutral-50">Ready for payment</p>
-          <p className="mt-2 text-sm text-neutral-600 dark:text-neutral-300">
-            {state?.message || "Continue to Stripe to complete secure card payment."}
-          </p>
-          <div className="mt-6">
-            <a
-              href={state?.stripeCheckoutUrl ?? "#"}
-              className="inline-flex min-h-11 items-center justify-center rounded-xl bg-brand px-5 py-2.5 text-sm font-semibold text-white hover:opacity-90"
-            >
-              Continue to payment
-            </a>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   if (success) {
     return (
@@ -1520,17 +1504,20 @@ export function DynamicRegistrationWizard({
               />
               <div className="mt-5 space-y-4">
                 <div className="rounded-xl border border-white/15 bg-white/10 p-4">
-                  <h3 className="text-base font-bold text-neutral-100">
+                  <h3 className="text-xl font-extrabold tracking-tight text-neutral-50 sm:text-2xl">
                     {waiverSnap?.title?.trim() || "Medical Liability Release Form"}
                   </h3>
                   {waiverSnap?.description?.trim() ? (
-                    <p className="mt-2 whitespace-pre-wrap text-sm text-neutral-300/95">
+                    <p className="mt-3 whitespace-pre-wrap text-base font-semibold leading-relaxed text-neutral-200">
                       {waiverSnap.description.trim()}
                     </p>
                   ) : null}
-                  <p
-                    className={`whitespace-pre-wrap text-sm leading-relaxed text-neutral-200/90 ${waiverSnap?.description?.trim() ? "mt-3" : "mt-2"}`}
-                  >
+                  <div
+                    role="separator"
+                    aria-hidden
+                    className={`h-px w-full bg-gradient-to-r from-transparent via-white/30 to-transparent ${waiverSnap?.description?.trim() ? "my-5" : "my-4"}`}
+                  />
+                  <p className="whitespace-pre-wrap text-sm leading-relaxed text-neutral-200/90">
                     {waiverSnap?.body?.trim() ||
                       "I understand and accept the program waiver and consent to participation for the children listed in this submission."}
                   </p>

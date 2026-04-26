@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { AppProviders } from "@/components/providers/app-providers";
+import { getPublicAppBaseUrl } from "@/lib/public-app-url";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -14,8 +15,18 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(getPublicAppBaseUrl()),
   title: "IPC Hebron VBS",
   description: "Vacation Bible School registration and volunteer coordination",
+  openGraph: {
+    type: "website",
+    siteName: "IPC Hebron VBS",
+    images: [{ url: "/vbsthemelogo.webp", alt: "IPC Hebron VBS" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    images: ["/vbsthemelogo.webp"],
+  },
 };
 
 export default function RootLayout({
