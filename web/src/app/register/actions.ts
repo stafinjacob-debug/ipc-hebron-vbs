@@ -517,7 +517,6 @@ async function submitPublicRegistrationCore(
         const checkout = await createRegistrationStripeCheckoutSession({
           formSubmissionId: outcome.submissionId,
           seasonId,
-          registrationCode: outcome.registrationCode,
           productLabel,
           guardianEmail: data.guardian.guardianEmail?.trim() || null,
           baseCents,
@@ -535,7 +534,7 @@ async function submitPublicRegistrationCore(
 
         return {
           ok: true,
-          message: "Redirecting to secure card payment…",
+          message: "Click continue to open secure card payment.",
           registrationCode: outcome.registrationCode,
           stripeCheckoutUrl: checkout.url,
         };

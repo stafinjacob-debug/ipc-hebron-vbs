@@ -22,6 +22,13 @@ function str(formData: FormData, k: string) {
   return typeof v === "string" ? v : "";
 }
 
+function parseDateInput(value: string): Date | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const d = new Date(`${trimmed}T00:00:00`);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
 export async function savePublicRegistrationSettings(
   seasonId: string,
   _prev: SavePublicSettingsState | null,
@@ -89,10 +96,22 @@ export async function savePublicRegistrationSettings(
   const registrationBackgroundDimmingPercent = clampRegistrationBackgroundDimmingPercent(
     str(formData, "registrationBackgroundDimmingPercent"),
   );
+  const seasonStartDate = parseDateInput(str(formData, "seasonStartDate"));
+  const seasonEndDate = parseDateInput(str(formData, "seasonEndDate"));
+  if (!seasonStartDate || !seasonEndDate) {
+    return { ok: false, message: "Provide valid season start and end dates." };
+  }
+  if (seasonEndDate.getTime() < seasonStartDate.getTime()) {
+    return { ok: false, message: "Season end date must be on or after the start date." };
+  }
 
   await prisma.vbsSeason.update({
     where: { id: seasonId },
-    data: { publicRegistrationOpen: publicOpen },
+    data: {
+      publicRegistrationOpen: publicOpen,
+      startDate: seasonStartDate,
+      endDate: seasonEndDate,
+    },
   });
 
   await prisma.publicRegistrationSettings.upsert({

@@ -12,6 +12,8 @@ import { PublicRegistrationGateFields, RegistrationBackgroundFields } from "./pu
 type Props = {
   seasonId: string;
   publicRegistrationOpen: boolean;
+  seasonStartDate: Date;
+  seasonEndDate: Date;
   registrationBackgroundImageUrl: string | null;
   registrationBackgroundVideoUrl: string | null;
   registrationBackgroundDimmingPercent: number;
@@ -41,6 +43,39 @@ export function PublicRegistrationSettingsForm(p: Props) {
       )}
 
       <PublicRegistrationGateFields publicRegistrationOpen={p.publicRegistrationOpen} />
+
+      <div className="rounded-xl border border-foreground/10 p-4">
+        <h2 className="text-sm font-semibold text-foreground/90">Season dates</h2>
+        <p className="mt-1 text-sm text-foreground/60">
+          These dates appear on registration pages and are used for age-gate checks.
+        </p>
+        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+          <div>
+            <label htmlFor="seasonStartDate" className="block text-xs font-medium text-foreground/70">
+              Start date
+            </label>
+            <input
+              id="seasonStartDate"
+              name="seasonStartDate"
+              type="date"
+              defaultValue={p.seasonStartDate.toISOString().slice(0, 10)}
+              className="mt-1 w-full rounded-md border border-foreground/15 bg-background px-3 py-2 text-sm"
+            />
+          </div>
+          <div>
+            <label htmlFor="seasonEndDate" className="block text-xs font-medium text-foreground/70">
+              End date
+            </label>
+            <input
+              id="seasonEndDate"
+              name="seasonEndDate"
+              type="date"
+              defaultValue={p.seasonEndDate.toISOString().slice(0, 10)}
+              className="mt-1 w-full rounded-md border border-foreground/15 bg-background px-3 py-2 text-sm"
+            />
+          </div>
+        </div>
+      </div>
 
       <RegistrationBackgroundFields
         registrationBackgroundImageUrl={p.registrationBackgroundImageUrl}

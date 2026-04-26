@@ -202,12 +202,14 @@ function AllergiesFieldInput({
   onChange,
   required,
   helperText,
+  fieldInstanceKey,
 }: {
   field: FormFieldDef;
   value: string;
   onChange: (v: string) => void;
   required: boolean;
   helperText?: string;
+  fieldInstanceKey?: string;
 }) {
   const [state, setState] = useState<AllergyChoiceState>(() => parseAllergyChoiceState(value));
 
@@ -225,6 +227,8 @@ function AllergiesFieldInput({
     [onChange],
   );
 
+  const scope = fieldInstanceKey ? `${field.id}-${fieldInstanceKey}` : field.id;
+
   return (
     <div>
       <p className={labelClass}>
@@ -236,7 +240,7 @@ function AllergiesFieldInput({
         <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-white/15 bg-white/8 px-3 py-3">
           <input
             type="radio"
-            name={`allergy-answer-${field.id}`}
+            name={`allergy-answer-${scope}`}
             checked={state.answer === "no"}
             onChange={() => sync({ answer: "no", selected: [], other: "" })}
             className="size-4 accent-brand"
@@ -246,7 +250,7 @@ function AllergiesFieldInput({
         <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-white/15 bg-white/8 px-3 py-3">
           <input
             type="radio"
-            name={`allergy-answer-${field.id}`}
+            name={`allergy-answer-${scope}`}
             checked={state.answer === "yes"}
             onChange={() => sync({ ...state, answer: "yes" })}
             className="size-4 accent-brand"
@@ -278,11 +282,11 @@ function AllergiesFieldInput({
             );
           })}
           <div className="pt-1">
-            <label htmlFor={`allergy-other-${field.id}`} className="text-sm font-medium text-neutral-100">
+            <label htmlFor={`allergy-other-${scope}`} className="text-sm font-medium text-neutral-100">
               Other
             </label>
             <textarea
-              id={`allergy-other-${field.id}`}
+              id={`allergy-other-${scope}`}
               value={state.other}
               onChange={(e) => sync({ ...state, other: e.target.value })}
               rows={2}
@@ -323,7 +327,7 @@ function renderFieldInput(
   value: string,
   onChange: (v: string) => void,
   rules: PublicRegistrationFieldRules,
-  opts?: { onBlur?: () => void; onBlurWithValue?: (value: string) => void },
+  opts?: { onBlur?: () => void; onBlurWithValue?: (value: string) => void; fieldInstanceKey?: string },
 ) {
   if (field.type === "sectionHeader") {
     return <h3 className="mt-4 text-base font-bold text-neutral-900 dark:text-neutral-50">{field.label}</h3>;
@@ -342,7 +346,7 @@ function renderFieldInput(
     (field.key === "guardianPhone" && rules.requireGuardianPhone) ||
     (field.key === "allergiesNotes" && rules.requireAllergiesNotes);
 
-  const inputId = `fld-${field.id}`;
+  const inputId = opts?.fieldInstanceKey ? `fld-${field.id}-${opts.fieldInstanceKey}` : `fld-${field.id}`;
 
   const commonLabel = (
     <label htmlFor={inputId} className={labelClass}>
@@ -364,6 +368,7 @@ function renderFieldInput(
           onChange={onChange}
           required={req}
           helperText={allergiesHelper ?? "Optional — helps teachers keep everyone safe."}
+          fieldInstanceKey={opts?.fieldInstanceKey}
         />
       );
     }
@@ -639,12 +644,6 @@ export function DynamicRegistrationWizard({
   );
 
   useEffect(() => {
-    const url = state?.stripeCheckoutUrl;
-    if (!url?.trim()) return;
-    window.location.href = url;
-  }, [state?.stripeCheckoutUrl]);
-
-  useEffect(() => {
     const idx =
       ageGateError?.childIndex ??
       (() => {
@@ -828,10 +827,18 @@ export function DynamicRegistrationWizard({
       <div className="relative z-0 mx-auto max-w-lg sm:max-w-xl">
         <div className="rounded-2xl border border-brand/30 bg-white px-6 py-10 text-center shadow-lg dark:border-brand/40 dark:bg-neutral-950">
           <Sparkles className="mx-auto size-14 text-brand" aria-hidden />
-          <p className="mt-4 text-lg font-semibold text-neutral-900 dark:text-neutral-50">Opening secure checkout</p>
+          <p className="mt-4 text-lg font-semibold text-neutral-900 dark:text-neutral-50">Ready for payment</p>
           <p className="mt-2 text-sm text-neutral-600 dark:text-neutral-300">
-            {state?.message || "You’ll complete card payment on Stripe’s site. If nothing happens, check your popup blocker or refresh this page."}
+            {state?.message || "Continue to Stripe to complete secure card payment."}
           </p>
+          <div className="mt-6">
+            <a
+              href={state?.stripeCheckoutUrl ?? "#"}
+              className="inline-flex min-h-11 items-center justify-center rounded-xl bg-brand px-5 py-2.5 text-sm font-semibold text-white hover:opacity-90"
+            >
+              Continue to payment
+            </a>
+          </div>
         </div>
       </div>
     );
@@ -1162,11 +1169,14 @@ export function DynamicRegistrationWizard({
                                       }
                                     },
                                     rules,
-                                    field.key === "childDateOfBirth"
-                                      ? {
-                                          onBlurWithValue: (dobVal) => applyLiveDobAgeCheck(idx, dobVal),
-                                        }
-                                      : undefined,
+                                    {
+                                      fieldInstanceKey: ch.id,
+                                      ...(field.key === "childDateOfBirth"
+                                        ? {
+                                            onBlurWithValue: (dobVal: string) => applyLiveDobAgeCheck(idx, dobVal),
+                                          }
+                                        : {}),
+                                    },
                                   )}
                                 </div>
                                 {showAgeAlertHere ? (
@@ -1385,7 +1395,7 @@ export function DynamicRegistrationWizard({
                       </div>
                     </dl>
                     <p className="mt-2 text-xs text-neutral-500 dark:text-neutral-400">
-                      After you submit, you’ll be sent to a secure Stripe checkout page to pay by card. Estimated
+                      After you submit, you can continue to a secure Stripe checkout page to pay by card. Estimated
                       processing fee uses typical US card pricing (2.9% + $0.30); actual Stripe fees may vary slightly.
                     </p>
                     {stripePayment.mode === "OPTIONAL" ? (

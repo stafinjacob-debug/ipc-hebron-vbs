@@ -14,7 +14,6 @@ export function getStripeClient(): Stripe | null {
 export async function createRegistrationStripeCheckoutSession(params: {
   formSubmissionId: string;
   seasonId: string;
-  registrationCode: string;
   productLabel: string;
   guardianEmail: string | null;
   baseCents: number;
@@ -45,7 +44,6 @@ export async function createRegistrationStripeCheckoutSession(params: {
           unit_amount: params.totalCents,
           product_data: {
             name: params.productLabel.slice(0, 120),
-            description: `Registration ${params.registrationCode}`.slice(0, 500),
           },
         },
       },
@@ -54,7 +52,6 @@ export async function createRegistrationStripeCheckoutSession(params: {
     cancel_url: cancelUrl,
     metadata: {
       vbsFormSubmissionId: params.formSubmissionId,
-      vbsRegistrationCode: params.registrationCode,
       vbsSeasonId: params.seasonId,
       vbsBaseCents: String(params.baseCents),
       vbsProcessingCents: String(params.processingCents),
@@ -64,7 +61,6 @@ export async function createRegistrationStripeCheckoutSession(params: {
     payment_intent_data: {
       metadata: {
         vbsFormSubmissionId: params.formSubmissionId,
-        vbsRegistrationCode: params.registrationCode,
       },
     },
   });
