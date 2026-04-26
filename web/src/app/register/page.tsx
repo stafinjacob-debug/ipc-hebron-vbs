@@ -99,6 +99,8 @@ export default async function PublicRegisterPage({
       stripePricingUnit: formRow.stripePricingUnit,
       stripeProcessingFeeMode: formRow.stripeProcessingFeeMode,
       stripeProductLabel: formRow.stripeProductLabel,
+      stripeSkipWhenFieldKey: formRow.stripeSkipWhenFieldKey,
+      stripeSkipWhenFieldValue: formRow.stripeSkipWhenFieldValue,
       waiverEnabled: formRow.waiverEnabled,
       waiverTitle: formRow.waiverTitle,
       waiverDescription: formRow.waiverDescription,

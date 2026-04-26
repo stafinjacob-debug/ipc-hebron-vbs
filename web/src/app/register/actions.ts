@@ -9,7 +9,10 @@ import {
 import { parseFormDefinitionJson } from "@/lib/registration-form-definition";
 import { parseDynamicRegistrationForm } from "@/lib/registration-form-validate";
 import { rulesFromDb } from "@/lib/public-registration";
-import { sendSubmissionReceivedEmail } from "@/lib/email/registration-emails";
+import {
+  sendSubmissionPendingReviewEmail,
+  sendSubmissionReceivedEmail,
+} from "@/lib/email/registration-emails";
 import {
   applyAutoAssignmentToRegistration,
   fetchClassroomsForAutoAssign,
@@ -27,6 +30,7 @@ import {
   computeRegistrationBaseCents,
   includeProcessingFeeForMode,
 } from "@/lib/stripe-fee-math";
+import { shouldSkipStripeForSubmission } from "@/lib/stripe-skip-rule";
 import { createRegistrationStripeCheckoutSession } from "@/lib/stripe-registration-payment";
 import { makeCheckInToken, makeUniqueRegistrationNumber } from "@/lib/registration-identity";
 import {
@@ -47,6 +51,11 @@ export type PublicRegisterState = {
   registrationCode?: string;
   /** When set, the browser should redirect to Stripe Checkout (HTTPS). */
   stripeCheckoutUrl?: string;
+  /**
+   * Stripe was configured but checkout was skipped by the form’s conditional rule;
+   * the client may show team-review follow-up copy on the thank-you screen.
+   */
+  paymentSkippedAwaitingTeamReview?: boolean;
 };
 
 function fdGet(k: string, formData: FormData): string {
@@ -120,56 +129,6 @@ async function createRegistrationWithIdentity(
     }
   }
   throw new Error("Could not allocate registration identity.");
-}
-
-function normalizeConditionalValue(v: unknown): string {
-  if (v == null) return "";
-  return String(v).trim().toLowerCase();
-}
-
-function shouldSkipStripeForSubmission(args: {
-  skipFieldKey: string | null;
-  skipFieldValue: string | null;
-  guardian: {
-    guardianFirstName: string;
-    guardianLastName: string;
-    guardianEmail?: string;
-    guardianPhone?: string;
-  };
-  guardianCustom: Record<string, string | boolean | number | null>;
-  children: Array<{
-    childFirstName: string;
-    childLastName: string;
-    childDateOfBirth: string;
-    allergiesNotes?: string | null;
-    custom: Record<string, string | boolean | number | null>;
-  }>;
-}): boolean {
-  const fieldKey = args.skipFieldKey?.trim() ?? "";
-  const wanted = normalizeConditionalValue(args.skipFieldValue);
-  if (!fieldKey || !wanted) return false;
-
-  const guardianKnown: Record<string, string | undefined> = {
-    guardianFirstName: args.guardian.guardianFirstName,
-    guardianLastName: args.guardian.guardianLastName,
-    guardianEmail: args.guardian.guardianEmail,
-    guardianPhone: args.guardian.guardianPhone,
-  };
-
-  if (normalizeConditionalValue(guardianKnown[fieldKey]) === wanted) return true;
-  if (normalizeConditionalValue(args.guardianCustom[fieldKey]) === wanted) return true;
-
-  for (const child of args.children) {
-    const childKnown: Record<string, string | null | undefined> = {
-      childFirstName: child.childFirstName,
-      childLastName: child.childLastName,
-      childDateOfBirth: child.childDateOfBirth,
-      allergiesNotes: child.allergiesNotes ?? null,
-    };
-    if (normalizeConditionalValue(childKnown[fieldKey]) === wanted) return true;
-    if (normalizeConditionalValue(child.custom[fieldKey]) === wanted) return true;
-  }
-  return false;
 }
 
 async function submitPublicRegistrationImpl(
@@ -609,7 +568,11 @@ async function submitPublicRegistrationCore(
         };
       }
 
-      if (!outcome.stripePaymentSkippedByRule) {
+      if (outcome.stripePaymentSkippedByRule) {
+        void sendSubmissionPendingReviewEmail(outcome.submissionId).catch((err) => {
+          console.error("[sendSubmissionPendingReviewEmail]", err);
+        });
+      } else {
         void sendSubmissionReceivedEmail(outcome.submissionId).catch((err) => {
           console.error("[sendSubmissionReceivedEmail]", err);
         });
@@ -631,6 +594,8 @@ async function submitPublicRegistrationCore(
       ok: true,
       message: `${base}${wl}${dupNote}`,
       registrationCode: outcome.registrationCode,
+      paymentSkippedAwaitingTeamReview:
+        stripeConfigActive && stripePaymentSkippedByRule ? true : undefined,
     };
   } catch (e: unknown) {
     if (e && typeof e === "object" && "code" in e && (e as { code: string }).code === "CAPACITY_FULL") {

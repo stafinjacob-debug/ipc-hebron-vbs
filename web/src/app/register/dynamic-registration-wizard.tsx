@@ -37,10 +37,16 @@ import {
   formatUsdFromCents,
   includeProcessingFeeForMode,
 } from "@/lib/stripe-fee-math";
+import { extractStripeSkipEvaluationData } from "@/lib/registration-form-validate";
+import { shouldSkipStripeForSubmission } from "@/lib/stripe-skip-rule";
 import type { PublicRegistrationLayout } from "@/generated/prisma";
 import { RegistrationBackgroundMedia } from "./registration-background-media";
 import { RegistrationHeroBrand } from "./registration-hero-brand";
 import { submitPublicRegistration, type PublicRegisterState } from "./actions";
+
+/** Shown on the thank-you screen when card checkout was skipped by the form’s payment-skip rule. */
+const PAYMENT_SKIP_TEAM_REVIEW_NOTE =
+  "Thank you — we have received your registration. Someone from our VBS team will review your details and confirm your enrollment. If anything else is needed, we will reach out using the contact information you provided.";
 
 /** Compact waiver flags/text per season — passed separately from `seasons` so RSC→client payload cannot drop them behind a large `definition`. */
 export type PublicSeasonWaiverSnapshot = {
@@ -76,6 +82,9 @@ export type PublicSeasonOption = {
   stripePricingUnit: "PER_SUBMISSION" | "PER_CHILD";
   stripeProcessingFeeMode: "OPTIONAL" | "REQUIRED";
   stripeProductLabel: string | null;
+  /** When set with {@link stripeSkipWhenFieldValue}, card checkout is skipped if any matching field equals (case-insensitive). */
+  stripeSkipWhenFieldKey: string | null;
+  stripeSkipWhenFieldValue: string | null;
   waiverEnabled: boolean;
   waiverTitle: string | null;
   waiverDescription: string | null;
@@ -677,10 +686,30 @@ export function DynamicRegistrationWizard({
     [waiverSnap?.supplementalFields],
   );
 
+  const stripeFeeConfigured = useMemo(() => {
+    if (!current) return false;
+    return current.stripeCheckoutEnabled && (current.stripeAmountCents ?? 0) >= 50;
+  }, [current]);
+
+  const stripeSkippedByRule = useMemo(() => {
+    if (!current || !def || !stripeFeeConfigured) return false;
+    const snap = extractStripeSkipEvaluationData(
+      def,
+      guardian,
+      children.map((c) => c.values),
+    );
+    return shouldSkipStripeForSubmission({
+      skipFieldKey: current.stripeSkipWhenFieldKey,
+      skipFieldValue: current.stripeSkipWhenFieldValue,
+      ...snap,
+    });
+  }, [current, def, stripeFeeConfigured, guardian, children]);
+
   const stripePayment = useMemo(() => {
     if (!current) return { active: false as const };
     const active = current.stripeCheckoutEnabled && (current.stripeAmountCents ?? 0) >= 50;
     if (!active) return { active: false as const };
+    if (stripeSkippedByRule) return { active: false as const };
     const baseCents = computeRegistrationBaseCents(
       current.stripePricingUnit,
       current.stripeAmountCents,
@@ -698,7 +727,7 @@ export function DynamicRegistrationWizard({
       unit: current.stripePricingUnit,
       label: current.stripeProductLabel?.trim() || "VBS registration",
     };
-  }, [current, children.length, coverProcessingFee]);
+  }, [current, children.length, coverProcessingFee, stripeSkippedByRule]);
 
   /** When true, waiver signatures live on their own step so Privacy → Review cannot skip them. */
   const waiverStepActive = waiverSnap?.enabled === true;
@@ -1036,6 +1065,11 @@ export function DynamicRegistrationWizard({
           <CheckCircle2 className="mx-auto size-14 text-emerald-600 dark:text-emerald-400" aria-hidden />
           <p className="mt-4 text-lg font-semibold text-neutral-900 dark:text-neutral-50">You’re all set!</p>
           <p className="mt-2 text-sm text-neutral-600 dark:text-neutral-300">{state?.message}</p>
+          {state?.paymentSkippedAwaitingTeamReview ? (
+            <p className="mt-4 rounded-xl border border-emerald-500/30 bg-emerald-50 px-4 py-3 text-left text-sm leading-relaxed text-emerald-950 dark:border-emerald-500/25 dark:bg-emerald-950/40 dark:text-emerald-50/95">
+              {PAYMENT_SKIP_TEAM_REVIEW_NOTE}
+            </p>
+          ) : null}
           <p className="mt-6 text-xs text-neutral-500">
             Questions?{" "}
             {contactEmail ? (
@@ -1850,7 +1884,9 @@ export function DynamicRegistrationWizard({
                     ? "Submitting…"
                     : stripePayment.active
                       ? "Submit & pay with card"
-                      : "Submit registration"}
+                      : stripeFeeConfigured && stripeSkippedByRule
+                        ? "Submit"
+                        : "Submit registration"}
                 </button>
               )}
             </div>
@@ -1892,11 +1928,7 @@ export function DynamicRegistrationWizard({
                   }}
                   className="inline-flex min-h-12 flex-[2] items-center justify-center rounded-xl bg-brand text-sm font-semibold text-brand-foreground disabled:opacity-50"
                 >
-                  {pending
-                    ? "Submitting…"
-                    : stripePayment.active
-                      ? "Pay with card"
-                      : "Submit"}
+                  {pending ? "Submitting…" : stripePayment.active ? "Pay with card" : "Submit"}
                 </button>
               )}
             </div>

@@ -35,6 +35,81 @@ function isVisible(field: FormFieldDef, ctx: Record<string, string>): boolean {
   return cur === field.showWhen.equals;
 }
 
+/**
+ * Builds guardian / custom / child shapes for conditional Stripe skip, using the same
+ * visibility and key routing as {@link parseDynamicRegistrationForm} (without validating).
+ */
+export function extractStripeSkipEvaluationData(
+  def: FormDefinitionV1,
+  guardianCtx: Record<string, string>,
+  childRows: Array<Record<string, string>>,
+): {
+  guardian: GuardianExtract;
+  guardianCustom: Record<string, string | boolean | number | null>;
+  children: ChildExtract[];
+} {
+  const guardianFields = def.fields.filter((f) => {
+    const sec = def.sections.find((s) => s.id === f.sectionId);
+    return sec?.audience === "guardian" || sec?.audience === "consent";
+  });
+  const childFields = def.fields.filter((f) => {
+    const sec = def.sections.find((s) => s.id === f.sectionId);
+    return sec?.audience === "eachChild";
+  });
+
+  const guardian: GuardianExtract = {
+    guardianFirstName: guardianCtx.guardianFirstName?.trim() ?? "",
+    guardianLastName: guardianCtx.guardianLastName?.trim() ?? "",
+    guardianEmail: guardianCtx.guardianEmail?.trim() || undefined,
+    guardianPhone: guardianCtx.guardianPhone?.trim() || undefined,
+  };
+
+  const guardianCustom: Record<string, string | boolean | number | null> = {};
+  for (const f of guardianFields) {
+    if (f.type === "sectionHeader" || f.type === "staticText") continue;
+    if (
+      f.key === "guardianFirstName" ||
+      f.key === "guardianLastName" ||
+      f.key === "guardianEmail" ||
+      f.key === "guardianPhone"
+    ) {
+      continue;
+    }
+    if (!isVisible(f, guardianCtx)) continue;
+    const raw = guardianCtx[f.key] ?? "";
+    guardianCustom[f.key] = raw || null;
+  }
+
+  const children: ChildExtract[] = [];
+  for (let i = 0; i < childRows.length; i++) {
+    const ctx = childRows[i] ?? {};
+    const allergiesNotesRaw = ctx.allergiesNotes?.trim() ?? "";
+    const custom: Record<string, string | boolean | number | null> = {};
+    for (const f of childFields) {
+      if (f.type === "sectionHeader" || f.type === "staticText") continue;
+      if (
+        f.key === "childFirstName" ||
+        f.key === "childLastName" ||
+        f.key === "childDateOfBirth" ||
+        f.key === "allergiesNotes"
+      ) {
+        continue;
+      }
+      if (!isVisible(f, ctx)) continue;
+      custom[f.key] = ctx[f.key] || null;
+    }
+    children.push({
+      childFirstName: ctx.childFirstName?.trim() ?? "",
+      childLastName: ctx.childLastName?.trim() ?? "",
+      childDateOfBirth: ctx.childDateOfBirth ?? "",
+      allergiesNotes: allergiesNotesRaw ? allergiesNotesRaw : null,
+      custom,
+    });
+  }
+
+  return { guardian, guardianCustom, children };
+}
+
 function validateFieldValue(field: FormFieldDef, raw: string): string | null {
   const v = raw.trim();
   if (field.type === "checkbox" || field.type === "boolean") {

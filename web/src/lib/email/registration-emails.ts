@@ -184,6 +184,78 @@ function compactTicketBlock(args: {
     </tr>`;
 }
 
+/**
+ * After public submit when card checkout was skipped by the form’s rule — guardian gets a short
+ * acknowledgment without registration numbers or QR codes (team review first).
+ */
+export async function sendSubmissionPendingReviewEmail(submissionId: string): Promise<EmailSendResult> {
+  const submission = await prisma.formSubmission.findUnique({
+    where: { id: submissionId },
+    include: {
+      guardian: true,
+      season: true,
+      registrations: { include: { child: true } },
+    },
+  });
+  if (!submission?.guardian.email?.trim()) return "skipped_no_email";
+
+  const to = submission.guardian.email.trim();
+  const gname = `${submission.guardian.firstName} ${submission.guardian.lastName}`.trim();
+  const season = escapeHtml(submission.season.name);
+  const contact =
+    process.env.NEXT_PUBLIC_VBS_CONTACT_EMAIL?.trim() ||
+    process.env.VBS_OFFICE_EMAIL?.trim() ||
+    "";
+
+  const waitlisted = submission.registrations.some((r) => r.status === "WAITLIST");
+  const waitlistNote = waitlisted
+    ? `<p style="margin:0 0 16px;padding:12px 14px;border-radius:12px;background:#fffbeb;border:1px solid #fde68a;color:#92400e;font-size:14px;">Based on current capacity, one or more children are on the <strong>waitlist</strong> for now. The team will let you know if a spot opens.</p>`
+    : "";
+
+  const childLines = submission.registrations
+    .map((r) => {
+      const n = `${r.child.firstName} ${r.child.lastName}`.trim();
+      return n
+        ? `<li style="margin:0 0 6px;"><strong>${escapeHtml(n)}</strong></li>`
+        : `<li style="margin:0 0 6px;">Child registration</li>`;
+    })
+    .join("");
+
+  const inner = `
+    <p style="margin:0 0 12px;">Hi ${escapeHtml(gname)},</p>
+    <p style="margin:0 0 16px;padding:12px 14px;border-radius:12px;background:#ecfdf5;border:1px solid #a7f3d0;color:#065f46;font-size:14px;">
+      Thank you — we have received your registration for <strong>${season}</strong>. Someone from our VBS team will review your details and confirm your enrollment. You do not have a check-in card yet; we will follow up by email when everything is confirmed.
+    </p>
+    ${waitlistNote}
+    <p style="margin:0 0 8px;font-size:14px;font-weight:600;color:#0f172a;">Children on this submission</p>
+    <ul style="margin:0 0 16px;padding-left:20px;color:#334155;font-size:15px;line-height:1.5;">
+      ${childLines || `<li style="margin:0;">Your registered children</li>`}
+    </ul>
+    <p style="margin:0 0 12px;font-size:14px;color:#475569;">If anything else is needed, we will reach out using the contact information you provided.</p>
+    ${
+      contact
+        ? `<p style="margin:0;font-size:14px;color:#475569;">Questions in the meantime? Write to <a href="mailto:${escapeHtml(contact)}" style="color:#2563eb;">${escapeHtml(contact)}</a>.</p>`
+        : `<p style="margin:0;font-size:14px;color:#475569;">Questions? Contact the church office.</p>`
+    }
+  `;
+
+  const { result, error } = await sendHtml(
+    to,
+    gname,
+    `${brandName()} — Registration received (under review)`,
+    emailShell(inner),
+  );
+
+  if (result === "sent") {
+    await prisma.registration.updateMany({
+      where: { formSubmissionId: submissionId },
+      data: { submissionReceivedEmailSentAt: new Date() },
+    });
+  }
+  if (result === "failed") console.error("[registration email pending review]", error);
+  return result === "failed" ? "failed" : result === "sent" ? "sent" : "skipped_no_graph";
+}
+
 /** After public form submit — guardian receives summary (pending review). */
 export async function sendSubmissionReceivedEmail(submissionId: string): Promise<EmailSendResult> {
   const submission = await prisma.formSubmission.findUnique({
