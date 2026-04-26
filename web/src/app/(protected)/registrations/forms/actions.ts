@@ -37,6 +37,7 @@ function revalidateSeason(seasonId: string) {
   revalidatePath(`/registrations/form-workspace/${seasonId}`);
   revalidatePath("/register");
   revalidatePath("/seasons");
+  revalidatePath("/login");
 }
 
 async function auditForm(
