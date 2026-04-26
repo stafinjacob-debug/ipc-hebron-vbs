@@ -2,6 +2,7 @@
 
 import { auth } from "@/auth";
 import {
+  sendAllApprovedRegistrationsEmailForSubmission,
   sendPaymentReminderEmail,
   sendRegistrationApprovedEmail,
 } from "@/lib/email/registration-emails";
@@ -29,7 +30,7 @@ export async function approveRegistration(registrationId: string): Promise<RegAc
 
   const reg = await prisma.registration.findUnique({
     where: { id: registrationId },
-    select: { id: true, status: true, seasonId: true },
+    select: { id: true, status: true, seasonId: true, formSubmissionId: true },
   });
   if (!reg) return { ok: false, message: "Registration not found." };
   if (reg.status === "CANCELLED" || reg.status === "CHECKED_OUT") {
@@ -80,7 +81,9 @@ export async function approveRegistration(registrationId: string): Promise<RegAc
 
   await tryAutoAssignRegistration(registrationId);
 
-  const emailResult = await sendRegistrationApprovedEmail(registrationId, { recordSentTimestamp: true });
+  const emailResult = reg.formSubmissionId
+    ? await sendAllApprovedRegistrationsEmailForSubmission(reg.formSubmissionId)
+    : await sendRegistrationApprovedEmail(registrationId, { recordSentTimestamp: true });
   const emailHint =
     emailResult === "sent"
       ? " Confirmation email sent."

@@ -4,7 +4,7 @@ import {
   ensureRegistrationFormForSeason,
   getEffectiveDefinition,
 } from "@/lib/ensure-registration-form";
-import { createDefaultFormDefinition } from "@/lib/registration-form-definition";
+import { createDefaultFormDefinition, fieldsForAudience } from "@/lib/registration-form-definition";
 import { getPublicBaseUrl } from "@/lib/public-base-url";
 import { prisma } from "@/lib/prisma";
 import { parsePublicRegistrationLayout } from "@/lib/public-registration-layout";
@@ -48,6 +48,22 @@ export default async function RegistrationFormWorkspacePage({
   const publicSignupUrl = `${publicBase}/register`;
   const publicRules = rulesFromDb(season.publicRegistrationSettings);
   const publicWelcome = season.publicRegistrationSettings?.welcomeMessage ?? "";
+  const paymentConditionFieldOptions = ([
+    ...fieldsForAudience(initialDefinition, "guardian").map((f) => ({
+      key: f.key,
+      label: f.label,
+      type: f.type,
+      audience: "guardian" as const,
+    })),
+    ...fieldsForAudience(initialDefinition, "eachChild").map((f) => ({
+      key: f.key,
+      label: f.label,
+      type: f.type,
+      audience: "eachChild" as const,
+    })),
+  ])
+    .filter((f) => f.type !== "sectionHeader" && f.type !== "staticText")
+    .map(({ key, label, audience }) => ({ key, label, audience }));
 
   return (
     <Suspense fallback={<p className="text-sm text-foreground/70">Loading workspace…</p>}>
@@ -99,7 +115,10 @@ export default async function RegistrationFormWorkspacePage({
           stripePricingUnit: form.stripePricingUnit,
           stripeProcessingFeeMode: form.stripeProcessingFeeMode,
           stripeProductLabel: form.stripeProductLabel,
+          stripeSkipWhenFieldKey: form.stripeSkipWhenFieldKey,
+          stripeSkipWhenFieldValue: form.stripeSkipWhenFieldValue,
         }}
+        paymentConditionFieldOptions={paymentConditionFieldOptions}
       />
     </Suspense>
   );

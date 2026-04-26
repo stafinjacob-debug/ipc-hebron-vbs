@@ -1,6 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
+import type { Prisma } from "@/generated/prisma";
 import {
   ensureRegistrationFormForSeason,
   isFormRegistrationOpen,
@@ -22,6 +23,7 @@ import {
   includeProcessingFeeForMode,
 } from "@/lib/stripe-fee-math";
 import { createRegistrationStripeCheckoutSession } from "@/lib/stripe-registration-payment";
+import { makeCheckInToken, makeUniqueRegistrationNumber } from "@/lib/registration-identity";
 
 export type PublicRegisterState = {
   ok: boolean;
@@ -58,6 +60,101 @@ const ADV_LOCK_SPACE = 5_829_413;
  */
 function resolveClientSubmitKey(formData: FormData): string {
   return fdGet("__vbsSubmitNonce", formData).trim() || fdGet("clientSubmitKey", formData).trim();
+}
+
+async function createRegistrationWithIdentity(
+  tx: Prisma.TransactionClient,
+  args: {
+    childId: string;
+    seasonId: string;
+    seasonYear: number;
+    status: "PENDING" | "WAITLIST";
+    formSubmissionId: string;
+    customResponses?: object;
+    notes: string;
+    expectsPayment: boolean;
+  },
+) {
+  for (let i = 0; i < 8; i++) {
+    const registrationNumber = await makeUniqueRegistrationNumber(
+      { seasonId: args.seasonId, seasonYear: args.seasonYear },
+      tx,
+    );
+    const checkInToken = makeCheckInToken();
+    try {
+      return await tx.registration.create({
+        data: {
+          childId: args.childId,
+          seasonId: args.seasonId,
+          status: args.status,
+          formSubmissionId: args.formSubmissionId,
+          customResponses: args.customResponses,
+          notes: args.notes,
+          expectsPayment: args.expectsPayment,
+          registrationNumber,
+          checkInToken,
+        },
+      });
+    } catch (e: unknown) {
+      const code =
+        e && typeof e === "object" && "code" in e
+          ? String((e as { code: unknown }).code)
+          : "";
+      if (code === "P2002" && i < 7) continue;
+      throw e;
+    }
+  }
+  throw new Error("Could not allocate registration identity.");
+}
+
+function normalizeConditionalValue(v: unknown): string {
+  if (v == null) return "";
+  return String(v).trim().toLowerCase();
+}
+
+function shouldSkipStripeForSubmission(args: {
+  skipFieldKey: string | null;
+  skipFieldValue: string | null;
+  guardian: {
+    guardianFirstName: string;
+    guardianLastName: string;
+    guardianEmail?: string;
+    guardianPhone?: string;
+  };
+  guardianCustom: Record<string, string | boolean | number | null>;
+  children: Array<{
+    childFirstName: string;
+    childLastName: string;
+    childDateOfBirth: string;
+    allergiesNotes?: string | null;
+    custom: Record<string, string | boolean | number | null>;
+  }>;
+}): boolean {
+  const fieldKey = args.skipFieldKey?.trim() ?? "";
+  const wanted = normalizeConditionalValue(args.skipFieldValue);
+  if (!fieldKey || !wanted) return false;
+
+  const guardianKnown: Record<string, string | undefined> = {
+    guardianFirstName: args.guardian.guardianFirstName,
+    guardianLastName: args.guardian.guardianLastName,
+    guardianEmail: args.guardian.guardianEmail,
+    guardianPhone: args.guardian.guardianPhone,
+  };
+
+  if (normalizeConditionalValue(guardianKnown[fieldKey]) === wanted) return true;
+  if (normalizeConditionalValue(args.guardianCustom[fieldKey]) === wanted) return true;
+
+  for (const child of args.children) {
+    const childKnown: Record<string, string | null | undefined> = {
+      childFirstName: child.childFirstName,
+      childLastName: child.childLastName,
+      childDateOfBirth: child.childDateOfBirth,
+      allergiesNotes: child.allergiesNotes ?? null,
+    };
+    if (normalizeConditionalValue(childKnown[fieldKey]) === wanted) return true;
+    if (normalizeConditionalValue(child.custom[fieldKey]) === wanted) return true;
+  }
+  return false;
 }
 
 async function submitPublicRegistrationImpl(
@@ -216,7 +313,15 @@ async function submitPublicRegistrationCore(
 
   const stripeConfigActive =
     formRow.stripeCheckoutEnabled && (formRow.stripeAmountCents ?? 0) >= 50;
-  if (stripeConfigActive && !process.env.STRIPE_SECRET_KEY?.trim()) {
+  const stripePaymentSkippedByRule = shouldSkipStripeForSubmission({
+    skipFieldKey: formRow.stripeSkipWhenFieldKey,
+    skipFieldValue: formRow.stripeSkipWhenFieldValue,
+    guardian: data.guardian,
+    guardianCustom: data.guardianCustom,
+    children: data.children,
+  });
+  const stripeCheckoutRequired = stripeConfigActive && !stripePaymentSkippedByRule;
+  if (stripeCheckoutRequired && !process.env.STRIPE_SECRET_KEY?.trim()) {
     return {
       ok: false,
       message:
@@ -234,7 +339,7 @@ async function submitPublicRegistrationCore(
     data.children.length,
   );
   const totalEarly = computeProcessingGrossUp(baseEarly, includeFeeEarly).totalCents;
-  if (stripeConfigActive && totalEarly < 50) {
+  if (stripeCheckoutRequired && totalEarly < 50) {
     return {
       ok: false,
       message:
@@ -244,7 +349,14 @@ async function submitPublicRegistrationCore(
 
   type TxOutcome =
     | { kind: "replay"; registrationCode: string; waitlist: boolean; childCount: number }
-    | { kind: "new"; submissionId: string; registrationCode: string; waitlist: boolean; childCount: number };
+    | {
+        kind: "new";
+        submissionId: string;
+        registrationCode: string;
+        waitlist: boolean;
+        childCount: number;
+        stripePaymentSkippedByRule: boolean;
+      };
 
   let outcome: TxOutcome;
   try {
@@ -336,16 +448,15 @@ async function submitPublicRegistrationCore(
             ? `Public registration (${i + 1} of ${data.children.length}) · Code ${registrationCode}`
             : `Public registration · Code ${registrationCode}`;
 
-        const reg = await tx.registration.create({
-          data: {
-            childId: child.id,
-            seasonId,
-            status,
-            formSubmissionId: submission.id,
-            customResponses: Object.keys(c.custom).length ? (c.custom as object) : undefined,
-            notes: baseNotes,
-            expectsPayment: stripeConfigActive,
-          },
+        const reg = await createRegistrationWithIdentity(tx, {
+          childId: child.id,
+          seasonId,
+          seasonYear: season.year,
+          status,
+          formSubmissionId: submission.id,
+          customResponses: Object.keys(c.custom).length ? (c.custom as object) : undefined,
+          notes: baseNotes,
+          expectsPayment: stripeCheckoutRequired,
         });
 
         const childFieldContext: Record<string, string | boolean | number | null> = {
@@ -376,6 +487,7 @@ async function submitPublicRegistrationCore(
         registrationCode,
         waitlist,
         childCount: data.children.length,
+        stripePaymentSkippedByRule,
       };
     },
       { maxWait: 20_000, timeout: 60_000 },
@@ -383,7 +495,7 @@ async function submitPublicRegistrationCore(
 
     if (outcome.kind === "new") {
       if (
-        stripeConfigActive &&
+        stripeCheckoutRequired &&
         outcome.submissionId &&
         outcome.registrationCode &&
         outcome.childCount > 0
@@ -429,9 +541,11 @@ async function submitPublicRegistrationCore(
         };
       }
 
-      void sendSubmissionReceivedEmail(outcome.submissionId).catch((err) => {
-        console.error("[sendSubmissionReceivedEmail]", err);
-      });
+      if (!outcome.stripePaymentSkippedByRule) {
+        void sendSubmissionReceivedEmail(outcome.submissionId).catch((err) => {
+          console.error("[sendSubmissionReceivedEmail]", err);
+        });
+      }
     }
 
     const count = outcome.childCount;

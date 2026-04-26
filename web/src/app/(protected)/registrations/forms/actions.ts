@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import {
   createDefaultFormDefinition,
   definitionToJson,
+  fieldsForAudience,
   formDefinitionSchema,
   parseFormDefinitionJson,
   type FormDefinitionV1,
@@ -175,6 +176,8 @@ export async function updateRegistrationFormSettings(
     stripePricingUnit: "PER_SUBMISSION" | "PER_CHILD";
     stripeProcessingFeeMode: "OPTIONAL" | "REQUIRED";
     stripeProductLabel: string | null;
+    stripeSkipWhenFieldKey: string | null;
+    stripeSkipWhenFieldValue: string | null;
   },
 ): Promise<ActionState> {
   const session = await auth();
@@ -223,6 +226,14 @@ export async function updateRegistrationFormSettings(
   const seqDigits = Math.min(8, Math.max(2, Math.floor(data.registrationNumberSeqDigits) || 3));
 
   let stripeAmountCents: number | null = null;
+  const stripeSkipWhenFieldKey = data.stripeSkipWhenFieldKey?.trim() || null;
+  const stripeSkipWhenFieldValue = data.stripeSkipWhenFieldValue?.trim() || null;
+  if ((stripeSkipWhenFieldKey && !stripeSkipWhenFieldValue) || (!stripeSkipWhenFieldKey && stripeSkipWhenFieldValue)) {
+    return {
+      ok: false,
+      message: "To use conditional payment skip, choose both a field key and a matching value.",
+    };
+  }
   if (data.stripeCheckoutEnabled) {
     const raw = data.stripeAmountCents;
     if (raw == null || raw < 50) {
@@ -232,6 +243,21 @@ export async function updateRegistrationFormSettings(
       };
     }
     stripeAmountCents = Math.min(99_999_99, Math.floor(raw));
+  }
+
+  if (stripeSkipWhenFieldKey) {
+    const activeDef = parseFormDefinitionJson(form.publishedDefinitionJson ?? form.draftDefinitionJson);
+    if (!activeDef) {
+      return { ok: false, message: "Conditional payment skip needs a valid form definition." };
+    }
+    const keys = new Set(
+      [...fieldsForAudience(activeDef, "guardian"), ...fieldsForAudience(activeDef, "eachChild")]
+        .filter((f) => f.type !== "sectionHeader" && f.type !== "staticText")
+        .map((f) => f.key),
+    );
+    if (!keys.has(stripeSkipWhenFieldKey)) {
+      return { ok: false, message: "Conditional payment field is not present in this form definition." };
+    }
   }
 
   await prisma.$transaction([
@@ -259,6 +285,8 @@ export async function updateRegistrationFormSettings(
         stripePricingUnit: data.stripePricingUnit,
         stripeProcessingFeeMode: data.stripeProcessingFeeMode,
         stripeProductLabel: data.stripeProductLabel?.trim() ? data.stripeProductLabel.trim() : null,
+        stripeSkipWhenFieldKey: data.stripeCheckoutEnabled ? stripeSkipWhenFieldKey : null,
+        stripeSkipWhenFieldValue: data.stripeCheckoutEnabled ? stripeSkipWhenFieldValue : null,
         updatedByUserId: session.user.id ?? undefined,
       },
     }),
@@ -321,6 +349,8 @@ export async function cloneRegistrationFormFromSeason(
       stripePricingUnit: srcForm.stripePricingUnit,
       stripeProcessingFeeMode: srcForm.stripeProcessingFeeMode,
       stripeProductLabel: srcForm.stripeProductLabel,
+      stripeSkipWhenFieldKey: srcForm.stripeSkipWhenFieldKey,
+      stripeSkipWhenFieldValue: srcForm.stripeSkipWhenFieldValue,
       updatedByUserId: session.user.id ?? undefined,
     },
   });
@@ -596,7 +626,14 @@ export type FormWorkspacePayload = {
     stripePricingUnit: "PER_SUBMISSION" | "PER_CHILD";
     stripeProcessingFeeMode: "OPTIONAL" | "REQUIRED";
     stripeProductLabel: string | null;
+    stripeSkipWhenFieldKey: string | null;
+    stripeSkipWhenFieldValue: string | null;
   };
+  paymentConditionFieldOptions: Array<{
+    key: string;
+    label: string;
+    audience: "guardian" | "eachChild";
+  }>;
 };
 
 export async function loadFormWorkspacePayload(
@@ -626,6 +663,22 @@ export async function loadFormWorkspacePayload(
   const publicSignupUrl = `${publicBase}/register`;
   const publicRules = rulesFromDb(season.publicRegistrationSettings);
   const publicWelcome = season.publicRegistrationSettings?.welcomeMessage ?? "";
+  const paymentConditionFieldOptions = ([
+    ...fieldsForAudience(initialDefinition, "guardian").map((f) => ({
+      key: f.key,
+      label: f.label,
+      type: f.type,
+      audience: "guardian" as const,
+    })),
+    ...fieldsForAudience(initialDefinition, "eachChild").map((f) => ({
+      key: f.key,
+      label: f.label,
+      type: f.type,
+      audience: "eachChild" as const,
+    })),
+  ])
+    .filter((f) => f.type !== "sectionHeader" && f.type !== "staticText")
+    .map(({ key, label, audience }) => ({ key, label, audience }));
 
   return {
     ok: true,
@@ -677,7 +730,10 @@ export async function loadFormWorkspacePayload(
         stripePricingUnit: form.stripePricingUnit,
         stripeProcessingFeeMode: form.stripeProcessingFeeMode,
         stripeProductLabel: form.stripeProductLabel,
+        stripeSkipWhenFieldKey: form.stripeSkipWhenFieldKey,
+        stripeSkipWhenFieldValue: form.stripeSkipWhenFieldValue,
       },
+      paymentConditionFieldOptions,
     },
   };
 }

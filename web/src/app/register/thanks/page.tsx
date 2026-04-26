@@ -45,7 +45,6 @@ export default async function RegisterThanksPage({
     redirect("/register");
   }
 
-  const code = session.metadata?.vbsRegistrationCode?.trim() ?? "—";
   const paid = session.payment_status === "paid";
   const seasonId = session.metadata?.vbsSeasonId?.trim() ?? "";
   const submissionId = session.metadata?.vbsFormSubmissionId?.trim() ?? "";
@@ -98,6 +97,6 @@ export default async function RegisterThanksPage({
   const contactEmail = process.env.NEXT_PUBLIC_VBS_CONTACT_EMAIL?.trim() ?? "";
 
   return (
-    <RegisterThanksView paid={paid} code={code} seasonName={seasonName} contactEmail={contactEmail} />
+    <RegisterThanksView paid={paid} seasonName={seasonName} contactEmail={contactEmail} />
   );
 }

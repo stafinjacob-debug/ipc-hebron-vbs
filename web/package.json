@@ -14,6 +14,7 @@
     "db:migrate:deploy:local": "dotenv -e .env.local -- prisma migrate deploy",
     "db:migrate:deploy:azure": "dotenv -e .env.azure.local -- prisma migrate deploy",
     "db:migrate:deploy:production": "node scripts/run-migrate-for-db.mjs vbs_production",
+    "db:backfill:registration-identities": "dotenv -e .env.local -- tsx scripts/backfill-registration-identities.ts",
     "db:seed": "tsx prisma/seed.ts",
     "db:studio": "dotenv -e .env.local -- prisma studio",
     "db:check-url": "node scripts/check-db-url.mjs",

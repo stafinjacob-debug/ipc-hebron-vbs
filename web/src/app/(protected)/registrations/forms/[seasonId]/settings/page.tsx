@@ -1,5 +1,6 @@
 import { auth } from "@/auth";
 import { ensureRegistrationFormForSeason } from "@/lib/ensure-registration-form";
+import { createDefaultFormDefinition, fieldsForAudience, parseFormDefinitionJson } from "@/lib/registration-form-definition";
 import { prisma } from "@/lib/prisma";
 import { canManageDirectory, canViewOperations } from "@/lib/roles";
 import { notFound, redirect } from "next/navigation";
@@ -29,6 +30,25 @@ export default async function RegistrationFormSettingsPage({
 
   const form =
     season.registrationForm ?? (await ensureRegistrationFormForSeason(season.id, season.name));
+  const activeDef =
+    parseFormDefinitionJson(form.publishedDefinitionJson ?? form.draftDefinitionJson) ??
+    createDefaultFormDefinition();
+  const paymentConditionFieldOptions = ([
+    ...fieldsForAudience(activeDef, "guardian").map((f) => ({
+      key: f.key,
+      label: f.label,
+      type: f.type,
+      audience: "guardian" as const,
+    })),
+    ...fieldsForAudience(activeDef, "eachChild").map((f) => ({
+      key: f.key,
+      label: f.label,
+      type: f.type,
+      audience: "eachChild" as const,
+    })),
+  ])
+    .filter((f) => f.type !== "sectionHeader" && f.type !== "staticText")
+    .map(({ key, label, audience }) => ({ key, label, audience }));
 
   return (
     <div className="space-y-4">
@@ -61,7 +81,10 @@ export default async function RegistrationFormSettingsPage({
           stripePricingUnit: form.stripePricingUnit,
           stripeProcessingFeeMode: form.stripeProcessingFeeMode,
           stripeProductLabel: form.stripeProductLabel,
+          stripeSkipWhenFieldKey: form.stripeSkipWhenFieldKey,
+          stripeSkipWhenFieldValue: form.stripeSkipWhenFieldValue,
         }}
+        paymentConditionFieldOptions={paymentConditionFieldOptions}
       />
     </div>
   );

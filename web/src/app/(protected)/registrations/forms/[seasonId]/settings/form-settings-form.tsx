@@ -21,6 +21,7 @@ export function FormSettingsForm({
   seasonId,
   initial,
   hidePublicRegistrationOpen = false,
+  paymentConditionFieldOptions = [],
 }: {
   seasonId: string;
   /** When true, `publicRegistrationOpen` is omitted from this form (managed elsewhere, e.g. embed workspace). */
@@ -45,7 +46,14 @@ export function FormSettingsForm({
     stripePricingUnit: "PER_SUBMISSION" | "PER_CHILD";
     stripeProcessingFeeMode: "OPTIONAL" | "REQUIRED";
     stripeProductLabel: string | null;
+    stripeSkipWhenFieldKey: string | null;
+    stripeSkipWhenFieldValue: string | null;
   };
+  paymentConditionFieldOptions?: Array<{
+    key: string;
+    label: string;
+    audience: "guardian" | "eachChild";
+  }>;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -101,6 +109,8 @@ export function FormSettingsForm({
         const stripeProcessingFeeMode =
           String(fd.get("stripeProcessingFeeMode") ?? "") === "REQUIRED" ? "REQUIRED" : "OPTIONAL";
         const stripeProductLabel = String(fd.get("stripeProductLabel") ?? "").trim() || null;
+        const stripeSkipWhenFieldKey = String(fd.get("stripeSkipWhenFieldKey") ?? "").trim() || null;
+        const stripeSkipWhenFieldValue = String(fd.get("stripeSkipWhenFieldValue") ?? "").trim() || null;
 
         if (
           minimumParticipantAgeYears != null &&
@@ -132,6 +142,8 @@ export function FormSettingsForm({
             stripePricingUnit,
             stripeProcessingFeeMode,
             stripeProductLabel,
+            stripeSkipWhenFieldKey,
+            stripeSkipWhenFieldValue,
           });
           setMsg(r.message);
           if (r.ok) router.refresh();
@@ -338,6 +350,41 @@ export function FormSettingsForm({
               </span>
             </label>
           </div>
+        </div>
+        <div>
+          <label htmlFor="stripeSkipWhenFieldKey" className="block text-xs font-medium text-foreground/70">
+            Optional no-payment rule (field)
+          </label>
+          <select
+            id="stripeSkipWhenFieldKey"
+            name="stripeSkipWhenFieldKey"
+            defaultValue={initial.stripeSkipWhenFieldKey ?? ""}
+            className="mt-1 w-full rounded-md border border-foreground/15 bg-background px-3 py-2 text-sm"
+          >
+            <option value="">No conditional skip</option>
+            {paymentConditionFieldOptions.map((f) => (
+              <option key={f.key} value={f.key}>
+                {f.audience === "guardian" ? "Guardian" : "Child"}: {f.label} ({f.key})
+              </option>
+            ))}
+          </select>
+          <p className="mt-1 text-xs text-foreground/60">
+            If the selected field equals the value below, Stripe checkout will be skipped for that submission.
+          </p>
+        </div>
+        <div>
+          <label htmlFor="stripeSkipWhenFieldValue" className="block text-xs font-medium text-foreground/70">
+            Optional no-payment rule (match value)
+          </label>
+          <input
+            id="stripeSkipWhenFieldValue"
+            name="stripeSkipWhenFieldValue"
+            type="text"
+            maxLength={120}
+            placeholder="e.g. scholarship or yes"
+            defaultValue={initial.stripeSkipWhenFieldValue ?? ""}
+            className="mt-1 w-full rounded-md border border-foreground/15 bg-background px-3 py-2 text-sm"
+          />
         </div>
         <div>
           <label htmlFor="stripeProductLabel" className="block text-xs font-medium text-foreground/70">

@@ -284,6 +284,9 @@ model RegistrationForm {
 
   /// When true, families are sent to Stripe Checkout after submit until paid (requires STRIPE_* env).
   stripeCheckoutEnabled       Boolean               @default(false)
+  /// Optional conditional waiver: if this field equals the configured value, Stripe checkout is skipped.
+  stripeSkipWhenFieldKey      String?
+  stripeSkipWhenFieldValue    String?
   /// Base registration fee in cents (before optional processing gross-up).
   stripeAmountCents           Int?
   stripePricingUnit           StripePricingUnit    @default(PER_SUBMISSION)

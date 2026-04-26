@@ -89,6 +89,38 @@ async function sendHtml(
   return { result: "failed", error: r.error };
 }
 
+function compactTicketBlock(args: {
+  childName: string;
+  registrationNumber: string;
+  detailLine: string;
+  ticketUrl: string;
+  cid: string;
+}): string {
+  return `
+    <tr>
+      <td style="padding:0 0 12px;">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border:1px solid #dbeafe;border-radius:12px;background:#f8fbff;">
+          <tr>
+            <td style="padding:12px 12px 8px;">
+              <p style="margin:0;font-size:15px;font-weight:700;color:#0f172a;">${args.childName}</p>
+              <p style="margin:6px 0 0;font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:#0369a1;">Registration #</p>
+              <p style="margin:4px 0 0;font-size:20px;font-weight:800;letter-spacing:0.04em;color:#0c4a6e;font-family:ui-monospace,Consolas,monospace;">${args.registrationNumber}</p>
+              <p style="margin:6px 0 0;font-size:12px;color:#475569;">${args.detailLine}</p>
+            </td>
+          </tr>
+          <tr>
+            <td align="center" style="padding:8px 12px 12px;">
+              <img src="cid:${args.cid}" width="150" height="150" alt="QR code for ${args.childName}" style="display:block;border-radius:8px;background:#fff;" />
+              <p style="margin:10px 0 0;">
+                <a href="${args.ticketUrl}" style="display:inline-block;background:#0f766e;color:#ffffff;padding:9px 14px;border-radius:999px;text-decoration:none;font-size:12px;font-weight:700;">Open Digital Card</a>
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>`;
+}
+
 /** After public form submit — guardian receives summary (pending review). */
 export async function sendSubmissionReceivedEmail(submissionId: string): Promise<EmailSendResult> {
   const submission = await prisma.formSubmission.findUnique({
@@ -96,7 +128,7 @@ export async function sendSubmissionReceivedEmail(submissionId: string): Promise
     include: {
       guardian: true,
       season: true,
-      registrations: { include: { child: true } },
+      registrations: { include: { child: true, classroom: true } },
     },
   });
   if (!submission?.guardian.email?.trim()) return "skipped_no_email";
@@ -104,40 +136,50 @@ export async function sendSubmissionReceivedEmail(submissionId: string): Promise
   const to = submission.guardian.email.trim();
   const gname = `${submission.guardian.firstName} ${submission.guardian.lastName}`.trim();
   const season = escapeHtml(submission.season.name);
-  const code = escapeHtml(submission.registrationCode);
-  const rows = submission.registrations
-    .map((r) => {
-      const nm = escapeHtml(`${r.child.firstName} ${r.child.lastName}`);
-      const st = escapeHtml(r.status);
-      return `<tr><td style="padding:10px 12px;border-bottom:1px solid #e2e8f0;">${nm}</td><td style="padding:10px 12px;border-bottom:1px solid #e2e8f0;">${st}</td></tr>`;
-    })
-    .join("");
+  const base = getPublicAppBaseUrl();
+  const attachments: NonNullable<Parameters<typeof sendMailViaMicrosoftGraph>[0]["attachments"]> = [];
+  let blocks = "";
+  for (let i = 0; i < submission.registrations.length; i++) {
+    const r = submission.registrations[i];
+    if (!r.registrationNumber || !r.checkInToken) continue;
+    const cid = `submitqr${i}`;
+    const ticketUrl = registrationTicketUrl(r.checkInToken, base);
+    const qrB64 = await qrPngBase64ForTicketUrl(ticketUrl);
+    attachments.push({
+      name: `qr-${r.registrationNumber}.png`,
+      contentType: "image/png",
+      contentBytesBase64: qrB64,
+      isInline: true,
+      contentId: cid,
+    });
+    blocks += compactTicketBlock({
+      childName: escapeHtml(`${r.child.firstName} ${r.child.lastName}`),
+      registrationNumber: escapeHtml(r.registrationNumber),
+      detailLine: `${escapeHtml(r.status)} · ${escapeHtml(r.classroom?.name ?? "Class pending")}`,
+      ticketUrl: escapeHtml(ticketUrl),
+      cid,
+    });
+  }
+  if (!blocks) return "skipped_ineligible";
 
   const paidNote = submission.stripePaidAt
     ? `<p style="margin:0 0 16px;padding:12px 14px;border-radius:12px;background:#ecfdf5;border:1px solid #a7f3d0;color:#065f46;font-size:14px;">Your online payment was received — thank you.</p>`
     : "";
 
   const inner = `
-    <p style="margin:0 0 16px;">Hi ${escapeHtml(gname)},</p>
+    <p style="margin:0 0 12px;">Hi ${escapeHtml(gname)},</p>
     ${paidNote}
-    <p style="margin:0 0 16px;">Thank you for registering for <strong>${season}</strong>. We received your submission and our team will review it shortly.</p>
-    <p style="margin:0 0 8px;font-size:14px;color:#64748b;">Your reference code</p>
-    <p style="margin:0 0 20px;font-size:20px;font-weight:700;letter-spacing:0.04em;color:#0f172a;font-family:ui-monospace,monospace;">${code}</p>
-    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-radius:12px;overflow:hidden;border:1px solid #e2e8f0;">
-      <thead><tr style="background:#f8fafc;font-size:12px;text-transform:uppercase;letter-spacing:0.06em;color:#64748b;">
-        <th align="left" style="padding:10px 12px;">Child</th>
-        <th align="left" style="padding:10px 12px;">Status</th>
-      </tr></thead>
-      <tbody>${rows}</tbody>
-    </table>
-    <p style="margin:20px 0 0;font-size:14px;color:#64748b;">After a staff member approves each child’s registration, you will receive a separate email with that child’s <strong>registration number</strong> and a <strong>QR code</strong> for check-in.</p>
+    <p style="margin:0 0 14px;">Thanks for registering for <strong>${season}</strong>. Each child now has a registration number and digital check-in card:</p>
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0">${blocks}</table>
+    <p style="margin:10px 0 0;font-size:13px;color:#64748b;">Save this email for check-in day. Staff may still follow up if details need review.</p>
   `;
 
   const { result, error } = await sendHtml(
     to,
     gname,
-    `${brandName()} — We received your registration`,
+    `${brandName()} — Your family registration details`,
     emailShell(inner),
+    attachments,
   );
 
   if (result === "sent") {
@@ -157,7 +199,6 @@ async function loadRegistrationForEmail(id: string) {
       child: { include: { guardian: true } },
       season: true,
       classroom: true,
-      formSubmission: { select: { registrationCode: true } },
     },
   });
 }
@@ -184,9 +225,6 @@ export async function sendRegistrationApprovedEmail(
   const gname = `${guardian.firstName} ${guardian.lastName}`.trim();
   const season = escapeHtml(reg.season.name);
   const cls = reg.classroom ? escapeHtml(reg.classroom.name) : "To be assigned";
-  const ref = reg.formSubmission?.registrationCode
-    ? escapeHtml(reg.formSubmission.registrationCode)
-    : "—";
   const num = escapeHtml(reg.registrationNumber ?? "Pending approval");
   const dates = `${reg.season.startDate.toLocaleDateString()} – ${reg.season.endDate.toLocaleDateString()}`;
 
@@ -200,8 +238,7 @@ export async function sendRegistrationApprovedEmail(
       <p style="margin:0 0 8px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;color:#0369a1;">&#127915; Your Check-in Code</p>
       <p style="margin:0 0 16px;font-size:24px;font-weight:800;letter-spacing:0.06em;color:#0c4a6e;font-family:ui-monospace,Consolas,monospace;">${num}</p>
       <p style="margin:0;font-size:14px;line-height:1.6;color:#334155;"><strong>Dates:</strong> ${escapeHtml(dates)}<br/>
-      <strong>Class:</strong> ${cls}<br/>
-      <strong>Family ref:</strong> ${ref}</p>
+      <strong>Class:</strong> ${cls}</p>
     </div>
     <p style="margin:0 0 8px;font-size:18px;line-height:1.35;font-weight:700;color:#0f172a;">&#10024; Scan this at check-in to shine right in!</p>
     <p style="margin:0 0 10px;font-size:14px;color:#475569;">Show this at the welcome desk or open it on your phone.</p>
@@ -282,38 +319,23 @@ export async function sendAllApprovedRegistrationsEmailForSubmission(submissionI
     const childName = escapeHtml(`${reg.child.firstName} ${reg.child.lastName}`);
     const num = escapeHtml(reg.registrationNumber!);
     const season = escapeHtml(reg.season.name);
-    const cls = reg.classroom ? escapeHtml(reg.classroom.name) : "To be assigned";
-    blocks += `
-      <div style="border:1px dashed #8bd3ff;border-radius:12px;padding:16px;margin:0 0 16px;background:#f0f8ff;">
-        <p style="margin:0 0 8px;font-weight:700;color:#0f172a;">${childName}</p>
-        <p style="margin:0 0 8px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;color:#0369a1;">&#127915; Your Check-in Code</p>
-        <p style="margin:0 0 10px;font-size:22px;font-weight:800;letter-spacing:0.06em;color:#0c4a6e;font-family:ui-monospace,Consolas,monospace;">${num}</p>
-        <p style="margin:0 0 12px;font-size:14px;color:#475569;">${season} · ${cls}</p>
-        <p style="margin:0 0 8px;font-size:16px;line-height:1.35;font-weight:700;color:#0f172a;">&#10024; Scan this at check-in to shine right in!</p>
-        <p style="margin:0 0 10px;font-size:13px;color:#64748b;">Show this at the welcome desk or open it on your phone.</p>
-        <div style="text-align:center;padding:16px;background:#f7f7f7;border-radius:14px;">
-          <img src="cid:${cid}" width="180" height="180" alt="QR" style="border-radius:8px;" />
-        </div>
-        <p style="margin:14px 0 0;text-align:center;">
-          <a href="${escapeHtml(ticketUrl)}" style="display:inline-block;background:#00c2a8;color:#ffffff;padding:10px 16px;border-radius:999px;text-decoration:none;font-size:13px;font-weight:700;">&#128241; Open Digital Ticket</a>
-        </p>
-      </div>`;
+    const cls = reg.classroom ? escapeHtml(reg.classroom.name) : "Class pending";
+    blocks += compactTicketBlock({
+      childName,
+      registrationNumber: num,
+      detailLine: `${season} · ${cls}`,
+      ticketUrl: escapeHtml(ticketUrl),
+      cid,
+    });
     i++;
   }
 
   const gname = `${submission.guardian.firstName} ${submission.guardian.lastName}`.trim();
   const inner = `
-    <h2 style="margin:0 0 8px;font-size:30px;line-height:1.2;font-weight:800;color:#0f172a;">&#127775; You&apos;re In! Welcome to Illumination Station!</h2>
-    <p style="margin:0 0 8px;font-size:18px;line-height:1.4;color:#1e293b;">Your family&apos;s confirmed VBS check-in passes are ready.</p>
-    <p style="margin:0 0 18px;font-size:14px;line-height:1.5;color:#0f766e;"><strong>&#128161; Shining a light on who Jesus really is &mdash; John 8:12</strong></p>
-    <p style="margin:0 0 16px;">Hi ${escapeHtml(gname)},</p>
-    <p style="margin:0 0 16px;">Here are the confirmed VBS registrations and QR check-in codes for your family.</p>
-    ${blocks}
-    <hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0;" />
-    <p style="margin:0 0 8px;font-size:16px;font-weight:700;color:#0f172a;">What&apos;s next?</p>
-    <p style="margin:0 0 4px;font-size:14px;color:#334155;">&#128231; You&apos;ll receive updates via email</p>
-    <p style="margin:0 0 4px;font-size:14px;color:#334155;">&#128105;&#8205;&#127979; Class assignments will be shared soon</p>
-    <p style="margin:0;font-size:14px;color:#334155;">&#127881; Get ready for fun, games, and learning!</p>
+    <p style="margin:0 0 12px;">Hi ${escapeHtml(gname)},</p>
+    <p style="margin:0 0 14px;">Your confirmed registrations are ready. Each child&apos;s digital card is below:</p>
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0">${blocks}</table>
+    <p style="margin:10px 0 0;font-size:13px;color:#64748b;">Save this email and show each QR code at check-in.</p>
   `;
 
   const { result, error } = await sendHtml(

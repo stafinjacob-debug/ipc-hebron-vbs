@@ -59,6 +59,7 @@ export function FormWorkspacePanel({
   previewPublishedDefinition,
   hasPublishedDefinition,
   settingsInitial,
+  paymentConditionFieldOptions,
   publicSignupUrl,
   publicDisplayInitial,
 }: FormWorkspacePanelProps) {
@@ -270,6 +271,7 @@ export function FormWorkspacePanel({
               seasonId={seasonId}
               initial={settingsParsed}
               hidePublicRegistrationOpen={variant === "embed"}
+              paymentConditionFieldOptions={paymentConditionFieldOptions}
             />
           </div>
         ) : null}

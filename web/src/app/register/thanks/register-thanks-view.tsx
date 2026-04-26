@@ -10,8 +10,6 @@ import {
 
 type RegisterThanksViewProps = {
   paid: boolean;
-  /** Registration reference shown on the “ticket”. */
-  code: string;
   /** VBS season display name when available (personalizes headline). */
   seasonName: string | null;
   contactEmail: string;
@@ -38,7 +36,7 @@ function FloatingSparkles() {
   );
 }
 
-export function RegisterThanksView({ paid, code, seasonName, contactEmail }: RegisterThanksViewProps) {
+export function RegisterThanksView({ paid, seasonName, contactEmail }: RegisterThanksViewProps) {
   const themeLabel = seasonName?.trim() || "VBS";
   const paidHeadline = seasonName?.trim()
     ? `You're In! Welcome to ${seasonName.trim()}!`
@@ -81,21 +79,6 @@ export function RegisterThanksView({ paid, code, seasonName, contactEmail }: Reg
                   💛
                 </span>
               </p>
-
-              <div className="mt-8">
-                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-cyan-200/90">
-                  Your check-in code
-                </p>
-                <div
-                  className="mx-auto mt-2 inline-flex max-w-full items-center justify-center rounded-xl border border-dashed border-emerald-400/45 bg-emerald-400/10 px-5 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
-                  title="Bring this code to check-in or include it in emails to the church office."
-                >
-                  <Ticket className="mr-2 size-4 shrink-0 text-emerald-300/90" aria-hidden />
-                  <span className="font-mono text-lg font-bold tracking-[0.2em] text-emerald-50 sm:text-xl">
-                    {code}
-                  </span>
-                </div>
-              </div>
 
               <div className="mt-10 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-5 text-left sm:px-5">
                 <p className="text-center text-xs font-bold uppercase tracking-wide text-neutral-400">
@@ -156,8 +139,7 @@ export function RegisterThanksView({ paid, code, seasonName, contactEmail }: Reg
               <h1 className="mt-6 text-2xl font-extrabold tracking-tight text-white sm:text-3xl">Almost there!</h1>
               <p className="mt-4 text-pretty text-sm leading-relaxed text-neutral-300">
                 We&apos;re still confirming your payment with Stripe. This page can take a moment to catch up — you
-                can also watch your inbox. Your reference:{" "}
-                <span className="font-mono font-semibold text-cyan-200">{code}</span>
+                can also watch your inbox.
               </p>
               <div className="mt-10 flex flex-col gap-3 sm:flex-row sm:justify-center">
                 <Link

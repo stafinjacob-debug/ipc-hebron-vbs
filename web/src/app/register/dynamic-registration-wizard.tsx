@@ -832,9 +832,6 @@ export function DynamicRegistrationWizard({
           <p className="mt-2 text-sm text-neutral-600 dark:text-neutral-300">
             {state?.message || "You’ll complete card payment on Stripe’s site. If nothing happens, check your popup blocker or refresh this page."}
           </p>
-          {state?.registrationCode ? (
-            <p className="mt-4 font-mono text-sm font-semibold text-brand">Reference: {state.registrationCode}</p>
-          ) : null}
         </div>
       </div>
     );
@@ -847,9 +844,6 @@ export function DynamicRegistrationWizard({
           <CheckCircle2 className="mx-auto size-14 text-emerald-600 dark:text-emerald-400" aria-hidden />
           <p className="mt-4 text-lg font-semibold text-neutral-900 dark:text-neutral-50">You’re all set!</p>
           <p className="mt-2 text-sm text-neutral-600 dark:text-neutral-300">{state?.message}</p>
-          {state?.registrationCode && (
-            <p className="mt-4 font-mono text-sm font-semibold text-brand">Code: {state.registrationCode}</p>
-          )}
           <p className="mt-6 text-xs text-neutral-500">
             Questions?{" "}
             {contactEmail ? (
