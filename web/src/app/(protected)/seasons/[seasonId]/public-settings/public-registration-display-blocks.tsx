@@ -222,6 +222,41 @@ export function PublicRegistrationRequiredFields({
   );
 }
 
+/** Optional daily hours — login landing card + `/register` wizard header (PublicRegistrationSettings). */
+export function PublicRegistrationSessionTimeField({
+  sessionTimeDescription,
+  embedded = false,
+}: {
+  sessionTimeDescription: string | null;
+  /** When true, omit the outer card (e.g. nested inside “Season dates”). */
+  embedded?: boolean;
+}) {
+  const body = (
+    <>
+      <label htmlFor="sessionTimeDescription" className="text-sm font-semibold text-foreground/90">
+        Session / daily times (optional)
+      </label>
+      <p className="mt-1 text-sm text-foreground/60">
+        Shown on the <strong className="font-medium text-foreground/75">public login card</strong> (when programs are
+        open) and <strong className="font-medium text-foreground/75">under the dates</strong> on{" "}
+        <code className="rounded bg-foreground/10 px-1 text-xs">/register</code> for this season.
+      </p>
+      <textarea
+        id="sessionTimeDescription"
+        name="sessionTimeDescription"
+        rows={2}
+        defaultValue={sessionTimeDescription ?? ""}
+        placeholder="e.g. 9:00 AM – 12:15 PM daily (doors open 8:45 AM)"
+        className="mt-2 w-full rounded-md border border-foreground/15 bg-background px-3 py-2 text-sm text-foreground"
+      />
+    </>
+  );
+  if (embedded) {
+    return <div className="mt-4">{body}</div>;
+  }
+  return <div className="rounded-xl border border-foreground/10 p-4">{body}</div>;
+}
+
 /** Public `/register` welcome banner (not the staff registration form welcome). */
 export function PublicRegistrationWelcomeField({ welcomeMessage }: { welcomeMessage: string }) {
   return (

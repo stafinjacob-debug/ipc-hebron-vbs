@@ -1,5 +1,6 @@
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { parseFormDefinitionJson } from "@/lib/registration-form-definition";
 import { canManageDirectory, canViewOperations } from "@/lib/roles";
 import { registrationTicketUrl } from "@/lib/registration-identity";
 import { getPublicAppBaseUrl } from "@/lib/public-app-url";
@@ -8,6 +9,33 @@ import { notFound, redirect } from "next/navigation";
 import QRCode from "qrcode";
 import { RegistrationAdminPanel } from "./registration-admin-panel";
 import { RegistrationClassAssignment } from "./registration-class-assignment";
+
+function asRecord(v: unknown): Record<string, unknown> {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return {};
+  return v as Record<string, unknown>;
+}
+
+function humanizeKey(key: string): string {
+  return key
+    .replace(/[_-]+/g, " ")
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/^./, (c) => c.toUpperCase());
+}
+
+function formatCapturedValue(v: unknown): string {
+  if (v == null) return "—";
+  if (typeof v === "boolean") return v ? "Yes" : "No";
+  if (typeof v === "number") return String(v);
+  if (typeof v === "string") return v.trim() || "—";
+  if (Array.isArray(v)) return v.map((x) => String(x)).join(", ");
+  try {
+    return JSON.stringify(v);
+  } catch {
+    return String(v);
+  }
+}
 
 export default async function RegistrationDetailPage({
   params,
@@ -25,7 +53,14 @@ export default async function RegistrationDetailPage({
       child: { include: { guardian: true } },
       season: true,
       classroom: true,
-      formSubmission: { select: { id: true, registrationCode: true } },
+      formSubmission: {
+        select: {
+          id: true,
+          registrationCode: true,
+          guardianResponses: true,
+          form: { select: { publishedDefinitionJson: true, draftDefinitionJson: true } },
+        },
+      },
       waiverAgreement: { select: { pdfUrl: true, signedAt: true, signerName: true } },
     },
   });
@@ -60,6 +95,49 @@ export default async function RegistrationDetailPage({
     : null;
 
   const g = reg.child.guardian;
+  const guardianResponseMap = asRecord(reg.formSubmission?.guardianResponses);
+  const childResponseMap = asRecord(reg.customResponses);
+  const formDef = parseFormDefinitionJson(
+    reg.formSubmission?.form?.publishedDefinitionJson ??
+      reg.formSubmission?.form?.draftDefinitionJson ??
+      null,
+  );
+  const labelByKey = new Map(
+    (formDef?.fields ?? [])
+      .filter((f) => f.type !== "sectionHeader" && f.type !== "staticText")
+      .map((f) => [f.key, f.label?.trim() || humanizeKey(f.key)]),
+  );
+  const guardianCapturedRows = [
+    { key: "guardianFirstName", label: labelByKey.get("guardianFirstName") ?? "Guardian first name", value: g.firstName },
+    { key: "guardianLastName", label: labelByKey.get("guardianLastName") ?? "Guardian last name", value: g.lastName },
+    { key: "guardianEmail", label: labelByKey.get("guardianEmail") ?? "Guardian email", value: g.email ?? "" },
+    { key: "guardianPhone", label: labelByKey.get("guardianPhone") ?? "Guardian phone", value: g.phone ?? "" },
+    ...Object.entries(guardianResponseMap).map(([key, value]) => ({
+      key,
+      label: labelByKey.get(key) ?? humanizeKey(key),
+      value,
+    })),
+  ].filter((row) => formatCapturedValue(row.value) !== "—");
+
+  const childCapturedRows = [
+    { key: "childFirstName", label: labelByKey.get("childFirstName") ?? "Child first name", value: reg.child.firstName },
+    { key: "childLastName", label: labelByKey.get("childLastName") ?? "Child last name", value: reg.child.lastName },
+    {
+      key: "childDateOfBirth",
+      label: labelByKey.get("childDateOfBirth") ?? "Child date of birth",
+      value: reg.child.dateOfBirth.toISOString().slice(0, 10),
+    },
+    {
+      key: "allergiesNotes",
+      label: labelByKey.get("allergiesNotes") ?? "Allergies or medical notes",
+      value: reg.child.allergiesNotes ?? "",
+    },
+    ...Object.entries(childResponseMap).map(([key, value]) => ({
+      key,
+      label: labelByKey.get(key) ?? humanizeKey(key),
+      value,
+    })),
+  ].filter((row) => formatCapturedValue(row.value) !== "—");
 
   return (
     <div className="space-y-8">
@@ -146,6 +224,37 @@ export default async function RegistrationDetailPage({
             </p>
             <p className="text-sm text-foreground/70">{g.email ?? "—"}</p>
             <p className="text-sm text-foreground/70">{g.phone ?? "—"}</p>
+          </section>
+
+          <section className="rounded-xl border border-foreground/10 bg-surface-elevated p-5">
+            <h2 className="text-sm font-semibold text-foreground">Captured form responses</h2>
+            <p className="mt-1 text-xs text-foreground/60">
+              Values saved from the public registration form for this family and this child.
+            </p>
+            <div className="mt-4 grid gap-4 lg:grid-cols-2">
+              <div className="rounded-lg border border-foreground/10 p-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-foreground/60">Guardian fields</p>
+                <dl className="mt-2 space-y-2 text-sm">
+                  {guardianCapturedRows.map((row) => (
+                    <div key={`g-${row.key}`} className="grid grid-cols-[minmax(9rem,13rem)_1fr] gap-3">
+                      <dt className="text-foreground/60">{row.label}</dt>
+                      <dd className="break-words text-foreground">{formatCapturedValue(row.value)}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </div>
+              <div className="rounded-lg border border-foreground/10 p-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-foreground/60">Child fields</p>
+                <dl className="mt-2 space-y-2 text-sm">
+                  {childCapturedRows.map((row) => (
+                    <div key={`c-${row.key}`} className="grid grid-cols-[minmax(9rem,13rem)_1fr] gap-3">
+                      <dt className="text-foreground/60">{row.label}</dt>
+                      <dd className="break-words text-foreground">{formatCapturedValue(row.value)}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </div>
+            </div>
           </section>
 
           <RegistrationClassAssignment

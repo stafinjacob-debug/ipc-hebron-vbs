@@ -114,6 +114,7 @@ export default async function RegistrationFormSettingsPage({
           waiverBody: form.waiverBody,
           waiverMergeFieldKeys: parseWaiverMergeFieldKeysFromDb(form.waiverMergeFieldKeys),
           waiverSupplementalFields: parseWaiverSupplementalDefsFromDb(form.waiverSupplementalFields),
+          unassignedClassPickerFieldKeys: parseWaiverMergeFieldKeysFromDb(form.unassignedClassPickerFieldKeys),
           settingsStamp: form.updatedAt.toISOString(),
         }}
         paymentConditionFieldOptions={paymentConditionFieldOptions}

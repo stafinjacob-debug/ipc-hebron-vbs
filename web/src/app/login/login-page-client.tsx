@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { Fredoka, Nunito } from "next/font/google";
 import { useCallback, useEffect, useState } from "react";
-import { CalendarDays, ChevronDown, ChevronUp, Sparkles, UserRound, Users } from "lucide-react";
+import { CalendarDays, ChevronDown, ChevronUp, Clock, Sparkles, UserRound, Users } from "lucide-react";
 import {
   formatAgeRangeForCard,
   type OpenPublicRegistrationSummary,
@@ -313,14 +313,19 @@ export function LoginPageClient({ seasons }: { seasons: OpenPublicRegistrationSu
                                         {s.formTitle}
                                       </p>
                                     ) : null}
-                                    <div className="flex flex-col gap-2.5 text-sm font-medium text-neutral-800">
+                                    <div className="flex flex-col gap-2.5 text-sm font-medium text-neutral-800 dark:text-neutral-800">
                                       <p className="inline-flex items-center gap-2">
-                                        <CalendarDays
-                                          className="size-4 shrink-0 text-teal-600"
-                                          aria-hidden
-                                        />
+                                        <CalendarDays className="size-4 shrink-0 text-teal-600" aria-hidden />
                                         <span>{formatCampDates(s.startDateIso, s.endDateIso)}</span>
                                       </p>
+                                      {s.sessionTimeDescription?.trim() ? (
+                                        <p className="flex items-start gap-2">
+                                          <Clock className="mt-0.5 size-4 shrink-0 text-teal-600" aria-hidden />
+                                          <span className="min-w-0 whitespace-pre-line">
+                                            {s.sessionTimeDescription.trim()}
+                                          </span>
+                                        </p>
+                                      ) : null}
                                       {ageLine ? (
                                         <p className="inline-flex items-center gap-2">
                                           <Users className="size-4 shrink-0 text-fuchsia-600" aria-hidden />

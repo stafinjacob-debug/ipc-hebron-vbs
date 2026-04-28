@@ -192,6 +192,8 @@ export async function updateRegistrationFormSettings(
     waiverBody: string | null;
     waiverMergeFieldKeys: string[];
     waiverSupplementalFields: WaiverSupplementalFieldDef[];
+    /** Keys (guardian / consent / eachChild) to show in staff “Add unassigned” class picker. */
+    unassignedClassPickerFieldKeys: string[];
   },
 ): Promise<ActionState> {
   const session = await auth();
@@ -268,6 +270,9 @@ export async function updateRegistrationFormSettings(
     data.waiverEnabled && activeDefForSettings
       ? filterWaiverMergeKeysToDef(activeDefForSettings, data.waiverMergeFieldKeys)
       : [];
+  const classPickerKeysForSave = activeDefForSettings
+    ? filterWaiverMergeKeysToDef(activeDefForSettings, data.unassignedClassPickerFieldKeys)
+    : [];
   const supplementalForSave = data.waiverEnabled
     ? sanitizeWaiverSupplementalFieldsForSave(data.waiverSupplementalFields)
     : [];
@@ -324,6 +329,10 @@ export async function updateRegistrationFormSettings(
         waiverSupplementalFields: data.waiverEnabled
           ? (supplementalForSave as Prisma.InputJsonValue)
           : Prisma.DbNull,
+        unassignedClassPickerFieldKeys:
+          classPickerKeysForSave.length > 0
+            ? (classPickerKeysForSave as Prisma.InputJsonValue)
+            : Prisma.DbNull,
         updatedByUserId: session.user.id ?? undefined,
       },
     }),
@@ -400,6 +409,10 @@ export async function cloneRegistrationFormFromSeason(
         srcForm.waiverSupplementalFields === null || srcForm.waiverSupplementalFields === undefined
           ? Prisma.DbNull
           : (srcForm.waiverSupplementalFields as Prisma.InputJsonValue),
+      unassignedClassPickerFieldKeys:
+        srcForm.unassignedClassPickerFieldKeys === null || srcForm.unassignedClassPickerFieldKeys === undefined
+          ? Prisma.DbNull
+          : (srcForm.unassignedClassPickerFieldKeys as Prisma.InputJsonValue),
       updatedByUserId: session.user.id ?? undefined,
     },
   });
@@ -654,6 +667,7 @@ export type FormWorkspacePayload = {
     requireGuardianPhone: boolean;
     requireAllergiesNotes: boolean;
     welcomeMessage: string;
+    sessionTimeDescription: string;
   };
   settingsInitial: {
     title: string;
@@ -683,6 +697,7 @@ export type FormWorkspacePayload = {
     waiverBody: string | null;
     waiverMergeFieldKeys: string[];
     waiverSupplementalFields: WaiverSupplementalFieldDef[];
+    unassignedClassPickerFieldKeys: string[];
     /** Bumps when the registration form row changes so client settings UI can remount / refetch. */
     settingsStamp: string;
   };
@@ -794,6 +809,7 @@ export async function loadFormWorkspacePayload(
         requireGuardianPhone: publicRules.requireGuardianPhone,
         requireAllergiesNotes: publicRules.requireAllergiesNotes,
         welcomeMessage: publicWelcome,
+        sessionTimeDescription: season.publicRegistrationSettings?.sessionTimeDescription ?? "",
       },
       settingsInitial: {
         title: form.title,
@@ -823,6 +839,7 @@ export async function loadFormWorkspacePayload(
         waiverBody: form.waiverBody,
         waiverMergeFieldKeys: parseWaiverMergeFieldKeysFromDb(form.waiverMergeFieldKeys),
         waiverSupplementalFields: parseWaiverSupplementalDefsFromDb(form.waiverSupplementalFields),
+        unassignedClassPickerFieldKeys: parseWaiverMergeFieldKeysFromDb(form.unassignedClassPickerFieldKeys),
         settingsStamp: form.updatedAt.toISOString(),
       },
       paymentConditionFieldOptions,

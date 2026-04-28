@@ -121,6 +121,7 @@ export default async function RegistrationFormWorkspacePage({
           requireGuardianPhone: publicRules.requireGuardianPhone,
           requireAllergiesNotes: publicRules.requireAllergiesNotes,
           welcomeMessage: publicWelcome,
+          sessionTimeDescription: season.publicRegistrationSettings?.sessionTimeDescription ?? "",
         }}
         settingsInitial={{
           title: form.title,
@@ -150,6 +151,7 @@ export default async function RegistrationFormWorkspacePage({
           waiverBody: form.waiverBody,
           waiverMergeFieldKeys: parseWaiverMergeFieldKeysFromDb(form.waiverMergeFieldKeys),
           waiverSupplementalFields: parseWaiverSupplementalDefsFromDb(form.waiverSupplementalFields),
+          unassignedClassPickerFieldKeys: parseWaiverMergeFieldKeysFromDb(form.unassignedClassPickerFieldKeys),
           settingsStamp: form.updatedAt.toISOString(),
         }}
         paymentConditionFieldOptions={paymentConditionFieldOptions}

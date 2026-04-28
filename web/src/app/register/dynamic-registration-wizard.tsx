@@ -4,9 +4,11 @@ import type React from "react";
 import { Fragment, useActionState, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Baby,
+  CalendarDays,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
+  Clock,
   FileText,
   Heart,
   Lock,
@@ -85,6 +87,8 @@ export type PublicSeasonOption = {
   /** When set with {@link stripeSkipWhenFieldValue}, card checkout is skipped if any matching field equals (case-insensitive). */
   stripeSkipWhenFieldKey: string | null;
   stripeSkipWhenFieldValue: string | null;
+  /** Optional line under VBS dates on the wizard header (from public settings). */
+  sessionTimeDescription: string | null;
   waiverEnabled: boolean;
   waiverTitle: string | null;
   waiverDescription: string | null;
@@ -1099,9 +1103,20 @@ export function DynamicRegistrationWizard({
           <h1 className="mt-1 text-2xl font-bold tracking-tight text-white sm:text-3xl lg:text-[1.9rem]">
             {season.formTitle || season.name}
           </h1>
-          <p className="mt-2 text-sm font-medium text-neutral-200/90 lg:mt-2 lg:text-sm">
-            {formatEventRange(season.startDate, season.endDate)}
-          </p>
+          <div className="mx-auto mt-4 max-w-md space-y-1.5 text-center" role="group" aria-label="VBS dates and times">
+            <p className="flex flex-wrap items-center justify-center gap-2 text-lg font-bold leading-snug text-white sm:text-xl">
+              <CalendarDays className="size-4 shrink-0 text-amber-200/90" aria-hidden />
+              <span>{formatEventRange(season.startDate, season.endDate)}</span>
+            </p>
+            {season.sessionTimeDescription?.trim() ? (
+              <p className="flex items-start justify-center gap-2 text-sm font-semibold leading-snug text-white/95">
+                <Clock className="mt-0.5 size-3.5 shrink-0 text-cyan-200/95" aria-hidden />
+                <span className="max-w-[min(100%,22rem)] whitespace-pre-line text-left">
+                  {season.sessionTimeDescription.trim()}
+                </span>
+              </p>
+            ) : null}
+          </div>
           <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-neutral-200/85 lg:mt-3 lg:text-sm">
             {season.welcomeMessage?.trim() ||
               `Please complete this form to register your ${children.length > 1 ? "children" : "child"} for VBS.`}
@@ -1788,7 +1803,9 @@ export function DynamicRegistrationWizard({
                         <dt className="text-neutral-600 dark:text-neutral-400">
                           {stripePayment.unit === "PER_CHILD"
                             ? `Program fee (${children.length} ${children.length === 1 ? "child" : "children"})`
-                            : "Program fee"}
+                            : children.length > 1
+                              ? `Program fee (one payment — all ${children.length} children)`
+                              : "Program fee"}
                         </dt>
                         <dd className="font-medium text-neutral-900 dark:text-neutral-50">
                           {formatUsdFromCents(stripePayment.baseCents)}

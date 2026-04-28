@@ -60,6 +60,7 @@ export async function listOpenPublicRegistrationSummaries(): Promise<OpenPublicR
       year: s.year,
       startDateIso: s.startDate.toISOString(),
       endDateIso: s.endDate.toISOString(),
+      sessionTimeDescription: s.publicRegistrationSettings?.sessionTimeDescription?.trim() || null,
       formTitle: form.title,
       teaser,
       theme: s.theme ?? null,

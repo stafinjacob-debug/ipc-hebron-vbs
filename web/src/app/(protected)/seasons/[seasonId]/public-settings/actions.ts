@@ -93,6 +93,8 @@ export async function savePublicRegistrationSettings(
   const requireAllergiesNotes = formData.get("requireAllergiesNotes") === "on";
   const welcomeRaw = str(formData, "welcomeMessage").trim();
   const welcomeMessage = welcomeRaw.length > 0 ? welcomeRaw : null;
+  const sessionTimeRaw = str(formData, "sessionTimeDescription").trim();
+  const sessionTimeDescription = sessionTimeRaw.length > 0 ? sessionTimeRaw : null;
   const registrationBackgroundDimmingPercent = clampRegistrationBackgroundDimmingPercent(
     str(formData, "registrationBackgroundDimmingPercent"),
   );
@@ -126,6 +128,7 @@ export async function savePublicRegistrationSettings(
       requireGuardianPhone,
       requireAllergiesNotes,
       welcomeMessage,
+      sessionTimeDescription,
       registrationBackgroundImageUrl,
       registrationBackgroundVideoUrl,
       registrationBackgroundDimmingPercent,
@@ -136,6 +139,7 @@ export async function savePublicRegistrationSettings(
       requireGuardianPhone,
       requireAllergiesNotes,
       welcomeMessage,
+      sessionTimeDescription,
       registrationBackgroundImageUrl,
       registrationBackgroundVideoUrl,
       registrationBackgroundDimmingPercent,

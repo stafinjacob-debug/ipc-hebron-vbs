@@ -1,8 +1,11 @@
+import { ClassroomAddUnassigned } from "@/app/(protected)/classes/classroom-add-unassigned";
 import { ClassroomRosterQuickMove } from "@/app/(protected)/classes/classroom-roster-quick-move";
 import { auth } from "@/auth";
 import { jsonToStringArray } from "@/lib/class-form-field-match";
 import { prisma } from "@/lib/prisma";
 import { ageForClassroomRule, ageRuleLabel } from "@/lib/class-assignment";
+import { parseFormDefinitionJson } from "@/lib/registration-form-definition";
+import { buildUnassignedClassPickerPreview } from "@/lib/unassigned-class-picker-preview";
 import { canUserViewClassroom } from "@/lib/classroom-access";
 import { getEnrollmentCountsByClassroom } from "@/lib/classroom-enrollment";
 import { canManageDirectory, canViewOperations } from "@/lib/roles";
@@ -37,11 +40,58 @@ export default async function ClassroomDetailPage({
   const countsMap = await getEnrollmentCountsByClassroom(c.seasonId);
   const ec = countsMap.get(c.id) ?? { seated: 0, waitlisted: 0 };
 
+  const registrationForm = await prisma.registrationForm.findUnique({
+    where: { seasonId: c.seasonId },
+    select: {
+      publishedDefinitionJson: true,
+      draftDefinitionJson: true,
+      unassignedClassPickerFieldKeys: true,
+    },
+  });
+  const formDefPublished = parseFormDefinitionJson(registrationForm?.publishedDefinitionJson ?? null);
+  const formDefDraft = parseFormDefinitionJson(registrationForm?.draftDefinitionJson ?? null);
+
   const seasonClassrooms = await prisma.classroom.findMany({
     where: { seasonId: c.seasonId },
     orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
     select: { id: true, name: true },
   });
+
+  const unassignedForSeason = canEdit
+    ? await prisma.registration.findMany({
+        where: {
+          seasonId: c.seasonId,
+          classroomId: null,
+          status: { notIn: ["CANCELLED"] },
+        },
+        select: {
+          id: true,
+          status: true,
+          registrationNumber: true,
+          registeredAt: true,
+          customResponses: true,
+          child: {
+            select: {
+              firstName: true,
+              lastName: true,
+              dateOfBirth: true,
+              allergiesNotes: true,
+              guardian: { select: { firstName: true, lastName: true, email: true, phone: true } },
+            },
+          },
+          formSubmission: {
+            select: {
+              guardianResponses: true,
+              guardian: {
+                select: { firstName: true, lastName: true, email: true, phone: true },
+              },
+            },
+          },
+        },
+        orderBy: [{ child: { lastName: "asc" } }, { child: { firstName: "asc" } }],
+        take: 400,
+      })
+    : [];
 
   const roster = await prisma.registration.findMany({
     where: {
@@ -181,6 +231,45 @@ export default async function ClassroomDetailPage({
           </ul>
         )}
       </section>
+
+      {canEdit ? (
+        <section className="rounded-xl border border-foreground/10 bg-surface-elevated p-5">
+          <h2 className="text-sm font-semibold text-foreground">Add unassigned students</h2>
+          <p className="mt-1 text-xs text-muted">
+            Quickly pull students who are not in any class yet into <span className="font-medium">{c.name}</span>.
+          </p>
+          <ClassroomAddUnassigned
+            targetClassroomId={c.id}
+            candidates={unassignedForSeason.map((r) => {
+              const ageWholeYears = ageForClassroomRule(
+                r.child.dateOfBirth,
+                c.ageRule,
+                r.registeredAt,
+                c.season.startDate,
+              );
+              const guardian = r.formSubmission?.guardian ?? r.child.guardian;
+              const details = buildUnassignedClassPickerPreview({
+                defPublished: formDefPublished,
+                defDraft: formDefDraft,
+                fieldKeysFromDb: registrationForm?.unassignedClassPickerFieldKeys ?? null,
+                guardian,
+                guardianResponses: r.formSubmission?.guardianResponses ?? {},
+                child: r.child,
+                customResponses: r.customResponses,
+                ageWholeYears,
+              });
+              return {
+                registrationId: r.id,
+                childFirstName: r.child.firstName,
+                childLastName: r.child.lastName,
+                status: r.status,
+                registrationNumber: r.registrationNumber,
+                details: details.trim() || undefined,
+              };
+            })}
+          />
+        </section>
+      ) : null}
 
       <section id="roster" className="scroll-mt-24 rounded-xl border border-foreground/10 bg-surface-elevated p-5">
         <h2 className="text-sm font-semibold text-foreground">Roster ({roster.length})</h2>

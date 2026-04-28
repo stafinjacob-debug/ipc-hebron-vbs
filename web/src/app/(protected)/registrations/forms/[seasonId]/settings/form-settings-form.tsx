@@ -73,6 +73,8 @@ export function FormSettingsForm({
     waiverBody: string | null;
     waiverMergeFieldKeys?: string[] | null;
     waiverSupplementalFields?: WaiverSupplementalFieldDef[] | null;
+    /** Form field keys shown in staff “Add unassigned student” class dropdown (same key set as waiver PDF merge). */
+    unassignedClassPickerFieldKeys?: string[] | null;
     /** When set, parent can use as React `key` so defaults refresh after save (see form workspace embed). */
     settingsStamp?: string;
   };
@@ -102,6 +104,9 @@ export function FormSettingsForm({
   const [waiverSupplementalRows, setWaiverSupplementalRows] = useState<WaiverSupplementalFieldDef[]>(() => [
     ...(initial.waiverSupplementalFields ?? []),
   ]);
+  const [unassignedClassPickerFieldKeys, setUnassignedClassPickerFieldKeys] = useState<string[]>(() => [
+    ...(initial.unassignedClassPickerFieldKeys ?? []),
+  ]);
 
   const settingsStamp = initial.settingsStamp ?? "";
   // Only reset waiver UI when the server sends a new snapshot (stamp), not on every `initial` reference change.
@@ -112,6 +117,7 @@ export function FormSettingsForm({
     setWaiverBody(initial.waiverBody ?? "");
     setWaiverMergeFieldKeys([...(initial.waiverMergeFieldKeys ?? [])]);
     setWaiverSupplementalRows([...(initial.waiverSupplementalFields ?? [])]);
+    setUnassignedClassPickerFieldKeys([...(initial.unassignedClassPickerFieldKeys ?? [])]);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- stamp is the explicit snapshot boundary
   }, [settingsStamp]);
 
@@ -235,6 +241,7 @@ export function FormSettingsForm({
             waiverBody: waiverBody.trim() || null,
             waiverMergeFieldKeys: waiverEnabled ? waiverMergeFieldKeys : [],
             waiverSupplementalFields: waiverEnabled ? waiverSupplementalRows : [],
+            unassignedClassPickerFieldKeys,
           });
           setMsg(r.message);
           if (r.ok) {
@@ -362,6 +369,55 @@ export function FormSettingsForm({
       </div>
 
       <div className="space-y-4 rounded-xl border border-foreground/10 p-4">
+        <h2 className="text-sm font-semibold">Class roster — unassigned picker</h2>
+        <p className="text-sm text-foreground/70">
+          When staff use <strong>Add unassigned students</strong> on a class page, the dropdown can show extra
+          answers from the registration form (for example grade or shirt size). Pick any combination of fields below;
+          leave none selected to show only name, status, and registration number.{" "}
+          <span className="font-medium text-foreground/85">Age (~years)</span> is always appended when the class uses
+          an age rule, so you do not need to select date of birth unless you want the exact date shown.
+        </p>
+        {mergeFieldOptions.length > 0 ? (
+          <div>
+            <p className="text-xs font-medium text-foreground/70">Show in “Add unassigned” dropdown</p>
+            <ul className="mt-2 max-h-48 space-y-1.5 overflow-y-auto rounded-md border border-foreground/10 p-2 text-sm">
+              {mergeFieldOptions.map((opt) => (
+                <li key={`picker-${opt.key}`}>
+                  <label className="flex cursor-pointer items-center gap-2">
+                    <input
+                      type="checkbox"
+                      className="size-4 rounded border-foreground/30"
+                      checked={unassignedClassPickerFieldKeys.includes(opt.key)}
+                      onChange={() =>
+                        setUnassignedClassPickerFieldKeys((prev) =>
+                          prev.includes(opt.key) ? prev.filter((k) => k !== opt.key) : [...prev, opt.key],
+                        )
+                      }
+                    />
+                    <span>
+                      <span className="font-medium">{opt.label}</span>
+                      <span className="text-foreground/50">
+                        {" "}
+                        (
+                        {opt.audience === "guardian"
+                          ? "Guardian"
+                          : opt.audience === "consent"
+                            ? "Consent"
+                            : "Child"}
+                        )
+                      </span>
+                    </span>
+                  </label>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : (
+          <p className="text-xs text-foreground/60">Publish a form definition with fields to enable this list.</p>
+        )}
+      </div>
+
+      <div className="space-y-4 rounded-xl border border-foreground/10 p-4">
         <h2 className="text-sm font-semibold">Stripe online payment</h2>
         <p className="text-sm text-foreground/70">
           After families submit the form, they are sent to Stripe Checkout to pay by card. Requires{" "}
@@ -377,6 +433,13 @@ export function FormSettingsForm({
           />
           Require Stripe payment for this form
         </label>
+        <p className="text-xs text-foreground/60">
+          The <strong>Fee (USD)</strong> amount and <strong>Fee applies to</strong> work together: choose{" "}
+          <strong>Per child</strong> if the dollar amount is for each student (e.g. US$25 with three children → US$75
+          base, plus processing gross-up when enabled). Choose <strong>One payment per form</strong> if families pay
+          that amount once no matter how many children are on the same submission. The public review page and Stripe
+          Checkout use the same total.
+        </p>
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <label htmlFor="stripeAmountDollars" className="block text-xs font-medium text-foreground/70">
@@ -411,6 +474,13 @@ export function FormSettingsForm({
               <option value="PER_SUBMISSION">One payment per form (all children)</option>
               <option value="PER_CHILD">Per child (total = fee × number of children)</option>
             </select>
+            <p className="mt-1 text-xs text-foreground/60">
+              Current form setting:{" "}
+              <span className="font-medium text-foreground/80">
+                {initial.stripePricingUnit === "PER_CHILD" ? "Per child (fee × children)" : "One payment per form"}
+              </span>
+              . Save after changing.
+            </p>
           </div>
         </div>
         <div>

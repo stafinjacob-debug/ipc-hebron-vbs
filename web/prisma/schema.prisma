@@ -240,6 +240,8 @@ model PublicRegistrationSettings {
   requireAllergiesNotes Boolean @default(false)
 
   welcomeMessage String? @db.Text
+  /// Shown on the login landing card and /register hero (e.g. "9:00 AM – 12:15 PM daily").
+  sessionTimeDescription String? @db.Text
   /// Public URL or site-relative path (e.g. /uploads/...) for /register background when this season is selected.
   registrationBackgroundImageUrl String?
   /// Optional looping background video (MP4/WebP video). When set, takes precedence over the image for display.
@@ -301,6 +303,8 @@ model RegistrationForm {
   waiverBody                 String? @db.Text
   /// JSON string[] of form field keys (guardian / eachChild) to copy onto each signed waiver PDF.
   waiverMergeFieldKeys      Json?
+  /// JSON string[] of form field keys (guardian / consent / eachChild) shown in staff “Add unassigned” class picker.
+  unassignedClassPickerFieldKeys Json?
   /// JSON array of { key, label, required } for extra per-child waiver prompts (stored on PDF).
   waiverSupplementalFields  Json?
 

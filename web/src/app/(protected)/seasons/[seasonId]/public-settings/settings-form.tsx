@@ -7,13 +7,18 @@ import {
   savePublicRegistrationSettings,
   type SavePublicSettingsState,
 } from "./actions";
-import { PublicRegistrationGateFields, RegistrationBackgroundFields } from "./public-registration-display-blocks";
+import {
+  PublicRegistrationGateFields,
+  PublicRegistrationSessionTimeField,
+  RegistrationBackgroundFields,
+} from "./public-registration-display-blocks";
 
 type Props = {
   seasonId: string;
   publicRegistrationOpen: boolean;
   seasonStartDate: Date;
   seasonEndDate: Date;
+  sessionTimeDescription: string | null;
   registrationBackgroundImageUrl: string | null;
   registrationBackgroundVideoUrl: string | null;
   registrationBackgroundDimmingPercent: number;
@@ -75,6 +80,10 @@ export function PublicRegistrationSettingsForm(p: Props) {
             />
           </div>
         </div>
+        <PublicRegistrationSessionTimeField
+          sessionTimeDescription={p.sessionTimeDescription}
+          embedded
+        />
       </div>
 
       <RegistrationBackgroundFields

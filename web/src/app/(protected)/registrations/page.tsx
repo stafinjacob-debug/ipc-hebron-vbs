@@ -10,7 +10,12 @@ import { canManageDirectory, canViewOperations } from "@/lib/roles";
 import type { Prisma, RegistrationStatus } from "@/generated/prisma";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import {
+  mergeRegistrationPaymentStatusFilter,
+  registrationListPaymentBadge,
+} from "@/lib/registration-list-payment";
 import { ExportRegistrationsModal } from "./export-registrations-modal";
+import { RegistrationsBulkTable, type RegistrationBulkTableRow } from "./registrations-bulk-table";
 
 type QueryParams = {
   season?: string;
@@ -82,6 +87,26 @@ function mergeWhereAnd(where: Prisma.RegistrationWhereInput, clause: Prisma.Regi
   arr.push(clause);
   where.AND = arr;
 }
+
+const CLASS_ASSIGNMENT_STATUS_OPTIONS: { value: string; label: string }[] = [
+  { value: "", label: "Any" },
+  { value: "PENDING", label: "Pending" },
+  { value: "CONFIRMED", label: "Confirmed" },
+  { value: "WAITLIST", label: "Waitlist" },
+  { value: "CANCELLED", label: "Cancelled" },
+  { value: "CHECKED_OUT", label: "Checked out" },
+  { value: "DRAFT", label: "Draft" },
+];
+
+const PAYMENT_STATUS_FILTER_OPTIONS: { value: string; label: string }[] = [
+  { value: "", label: "Any" },
+  { value: "paid", label: "Paid" },
+  { value: "not_required", label: "Not required" },
+  { value: "checkout_pending", label: "Checkout pending" },
+  { value: "due_plain", label: "Due" },
+  { value: "due_canceled", label: "Due (checkout canceled)" },
+  { value: "due", label: "Outstanding (expects payment, not received)" },
+];
 
 function matchesDynamicFilters(
   r: {
@@ -215,8 +240,7 @@ export default async function RegistrationsPage({
   if (status) where.status = status as RegistrationStatus;
   if (classroom === "__unassigned") where.classroomId = null;
   else if (classroom) where.classroomId = classroom;
-  if (payment === "due") mergeWhereAnd(where, { expectsPayment: true, paymentReceivedAt: null });
-  if (payment === "paid") mergeWhereAnd(where, { paymentReceivedAt: { not: null } });
+  mergeRegistrationPaymentStatusFilter(where, payment);
   if (q) {
     where.OR = [
       { registrationNumber: { contains: q, mode: "insensitive" } },
@@ -233,7 +257,14 @@ export default async function RegistrationsPage({
     child: { include: { guardian: true } },
     season: true,
     classroom: true,
-    formSubmission: { select: { registrationCode: true, guardianResponses: true } },
+    formSubmission: {
+      select: {
+        registrationCode: true,
+        guardianResponses: true,
+        stripePaymentStatus: true,
+        stripeCheckoutSessionId: true,
+      },
+    },
   } as const;
 
   type RegistrationListRow = Prisma.RegistrationGetPayload<{ include: typeof include }>;
@@ -374,79 +405,6 @@ export default async function RegistrationsPage({
     if (k === "page") continue;
     qsBase.set(k, String(v));
   }
-  const linkForPage = (p: number) => {
-    const q = new URLSearchParams(qsBase);
-    if (p > 1) q.set("page", String(p));
-    const s = q.toString();
-    return s ? `/registrations?${s}` : "/registrations";
-  };
-
-  const pageLinkNums = (() => {
-    const tp = totalPages;
-    if (tp <= 1) return [1];
-    if (tp <= 7) return Array.from({ length: tp }, (_, i) => i + 1);
-
-    const nums = new Set<number>([1, tp]);
-    const windowStart = Math.max(2, page - 1);
-    const windowEnd = Math.min(tp - 1, page + 1);
-    for (let p = windowStart; p <= windowEnd; p++) nums.add(p);
-    return [...nums].sort((a, b) => a - b);
-  })();
-
-  const listPaginationBar = (
-    <div className="flex flex-wrap items-center justify-between gap-2 border-foreground/10 px-4 py-2 text-xs text-foreground/65">
-      <span className="tabular-nums">
-        Page {page} of {totalPages}
-      </span>
-      <div className="flex flex-wrap items-center justify-end gap-2">
-        {page > 1 ? (
-          <Link
-            href={linkForPage(page - 1)}
-            className="rounded-md border border-foreground/15 px-2 py-1 text-xs font-medium hover:bg-foreground/[0.04]"
-          >
-            Prev
-          </Link>
-        ) : (
-          <span className="rounded-md border border-transparent px-2 py-1 text-xs text-foreground/35">Prev</span>
-        )}
-        <div className="flex flex-wrap items-center gap-1">
-          {pageLinkNums.map((p, idx) => {
-            const prev = pageLinkNums[idx - 1];
-            const showGap = idx > 0 && prev != null && p - prev > 1;
-            const isCurrent = p === page;
-            return (
-              <span key={p} className="inline-flex items-center gap-1">
-                {showGap ? <span className="px-1 text-foreground/35">…</span> : null}
-                {isCurrent ? (
-                  <span className="rounded-md border border-foreground/25 bg-foreground/[0.06] px-2 py-1 text-xs font-semibold text-foreground">
-                    {p}
-                  </span>
-                ) : (
-                  <Link
-                    href={linkForPage(p)}
-                    className="rounded-md border border-foreground/15 px-2 py-1 text-xs font-medium hover:bg-foreground/[0.04]"
-                  >
-                    {p === 1 ? "Page 1" : p}
-                  </Link>
-                )}
-              </span>
-            );
-          })}
-        </div>
-        {hasNextPage ? (
-          <Link
-            href={linkForPage(page + 1)}
-            className="rounded-md border border-foreground/15 px-2 py-1 text-xs font-medium hover:bg-foreground/[0.04]"
-          >
-            Next
-          </Link>
-        ) : (
-          <span className="rounded-md border border-transparent px-2 py-1 text-xs text-foreground/35">Next</span>
-        )}
-      </div>
-    </div>
-  );
-
   const seasonExportConfigs = seasons.map((s) => ({
     id: s.id,
     name: s.name,
@@ -457,6 +415,34 @@ export default async function RegistrationsPage({
   }));
 
   const canAdd = canManageDirectory(session.user.role);
+
+  const bulkRows: RegistrationBulkTableRow[] = rows.map((r) => {
+    const badge = registrationListPaymentBadge(r);
+    return {
+      id: r.id,
+      status: r.status,
+      registrationNumber: r.registrationNumber,
+      childFirstName: r.child.firstName,
+      childLastName: r.child.lastName,
+      guardianEmail: r.child.guardian.email,
+      seasonName: r.season.name,
+      classroomName: r.classroom?.name ?? null,
+      registeredAtIso: r.registeredAt.toISOString(),
+      paymentBadgeLabel: badge.label,
+      paymentBadgeClassName: badge.className,
+    };
+  });
+
+  const selectionResetKey = [
+    page,
+    selectedSeason?.id ?? "",
+    q,
+    status,
+    classroom,
+    payment,
+    dynamicFilters.map((f) => `${f.key}=${f.value}`).join("&"),
+    bulkRows.map((r) => r.id).join(","),
+  ].join("|");
 
   return (
     <div className="space-y-6">
@@ -550,7 +536,7 @@ export default async function RegistrationsPage({
             </div>
             <div>
               <label htmlFor="status" className="block text-xs font-medium text-foreground/70">
-                Status
+                Class assignment status
               </label>
               <select
                 id="status"
@@ -558,10 +544,9 @@ export default async function RegistrationsPage({
                 defaultValue={status}
                 className="mt-1 w-full rounded-md border border-foreground/15 bg-background px-3 py-2 text-sm"
               >
-                <option value="">Any</option>
-                {["PENDING", "CONFIRMED", "WAITLIST", "CANCELLED", "CHECKED_OUT", "DRAFT"].map((s) => (
-                  <option key={s} value={s}>
-                    {s}
+                {CLASS_ASSIGNMENT_STATUS_OPTIONS.map((o) => (
+                  <option key={o.value || "any"} value={o.value}>
+                    {o.label}
                   </option>
                 ))}
               </select>
@@ -587,7 +572,7 @@ export default async function RegistrationsPage({
             </div>
             <div>
               <label htmlFor="payment" className="block text-xs font-medium text-foreground/70">
-                Payment
+                Payment status
               </label>
               <select
                 id="payment"
@@ -595,9 +580,11 @@ export default async function RegistrationsPage({
                 defaultValue={payment}
                 className="mt-1 w-full rounded-md border border-foreground/15 bg-background px-3 py-2 text-sm"
               >
-                <option value="">Any</option>
-                <option value="due">Payment due</option>
-                <option value="paid">Paid</option>
+                {PAYMENT_STATUS_FILTER_OPTIONS.map((o) => (
+                  <option key={o.value || "any-pay"} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
               </select>
             </div>
           </div>
@@ -673,55 +660,15 @@ export default async function RegistrationsPage({
         </form>
       </section>
 
-      <div className="overflow-hidden rounded-xl border border-foreground/10">
-        <div className="border-b">{listPaginationBar}</div>
-        <table className="w-full text-left text-sm">
-          <thead className="bg-foreground/[0.04] text-foreground/70">
-            <tr>
-              <th className="px-4 py-3 font-medium">Child</th>
-              <th className="px-4 py-3 font-medium">Reg #</th>
-              <th className="px-4 py-3 font-medium">Season</th>
-              <th className="px-4 py-3 font-medium">Class</th>
-              <th className="px-4 py-3 font-medium">Status</th>
-              <th className="px-4 py-3 font-medium">Registered</th>
-              <th className="px-4 py-3 font-medium text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.id} className="border-t border-foreground/10">
-                <td className="px-4 py-3">
-                  {r.child.firstName} {r.child.lastName}
-                  {r.child.guardian.email ? (
-                    <span className="mt-0.5 block text-xs text-foreground/50">{r.child.guardian.email}</span>
-                  ) : null}
-                </td>
-                <td className="px-4 py-3 font-mono text-xs font-medium text-foreground/90">
-                  {r.registrationNumber ?? "Pending approval"}
-                </td>
-                <td className="px-4 py-3">{r.season.name}</td>
-                <td className="px-4 py-3 text-foreground/80">{r.classroom?.name ?? "—"}</td>
-                <td className="px-4 py-3">{r.status}</td>
-                <td className="px-4 py-3 text-foreground/70">
-                  {r.registeredAt.toLocaleString()}
-                </td>
-                <td className="px-4 py-3 text-right">
-                  <Link
-                    href={`/registrations/${r.id}`}
-                    className="font-medium text-brand underline hover:no-underline"
-                  >
-                    View
-                  </Link>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        {rows.length === 0 && (
-          <p className="px-4 py-8 text-center text-foreground/60">No registrations yet.</p>
-        )}
-        <div className="border-t">{listPaginationBar}</div>
-      </div>
+      <RegistrationsBulkTable
+        rows={bulkRows}
+        canBulkAct={canAdd}
+        baseQueryString={qsBase.toString()}
+        page={page}
+        totalPages={totalPages}
+        hasNextPage={hasNextPage}
+        selectionResetKey={selectionResetKey}
+      />
     </div>
   );
 }

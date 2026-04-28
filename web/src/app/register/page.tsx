@@ -101,6 +101,7 @@ export default async function PublicRegisterPage({
       stripeProductLabel: formRow.stripeProductLabel,
       stripeSkipWhenFieldKey: formRow.stripeSkipWhenFieldKey,
       stripeSkipWhenFieldValue: formRow.stripeSkipWhenFieldValue,
+      sessionTimeDescription: s.publicRegistrationSettings?.sessionTimeDescription?.trim() || null,
       waiverEnabled: formRow.waiverEnabled,
       waiverTitle: formRow.waiverTitle,
       waiverDescription: formRow.waiverDescription,
