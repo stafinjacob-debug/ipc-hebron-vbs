@@ -30,6 +30,7 @@ export const metadata: Metadata = {
 };
 
 const CHURCH_DISPLAY_NAME = "IPC Hebron";
+const DEFAULT_HELP_EMAIL = "vbs@ipchouston.com";
 
 export default async function PublicRegisterPage({
   searchParams,
@@ -102,6 +103,10 @@ export default async function PublicRegisterPage({
       stripeSkipWhenFieldKey: formRow.stripeSkipWhenFieldKey,
       stripeSkipWhenFieldValue: formRow.stripeSkipWhenFieldValue,
       sessionTimeDescription: s.publicRegistrationSettings?.sessionTimeDescription?.trim() || null,
+      helpContactEmail:
+        s.publicRegistrationSettings?.helpContactEmail?.trim() ||
+        process.env.VBS_HELP_EMAIL?.trim() ||
+        DEFAULT_HELP_EMAIL,
       waiverEnabled: formRow.waiverEnabled,
       waiverTitle: formRow.waiverTitle,
       waiverDescription: formRow.waiverDescription,
@@ -111,7 +116,10 @@ export default async function PublicRegisterPage({
     });
   }
 
-  const contactEmail = process.env.NEXT_PUBLIC_VBS_CONTACT_EMAIL?.trim() ?? "";
+  const contactEmail =
+    process.env.NEXT_PUBLIC_VBS_CONTACT_EMAIL?.trim() ||
+    process.env.VBS_HELP_EMAIL?.trim() ||
+    DEFAULT_HELP_EMAIL;
   const contactPhone = process.env.NEXT_PUBLIC_VBS_CONTACT_PHONE?.trim() ?? "";
   const clientSubmitKey = randomUUID();
 

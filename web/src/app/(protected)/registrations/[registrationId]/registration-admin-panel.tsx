@@ -186,7 +186,7 @@ export function RegistrationAdminPanel({
       </div>
 
       <div className="border-t border-foreground/10 pt-4">
-        <p className="text-xs font-medium text-foreground/60">SMS (Twilio)</p>
+        <p className="text-xs font-medium text-foreground/60">SMS (Sent.dm or Twilio)</p>
         <div className="mt-2 flex flex-wrap gap-2">
           <button
             type="button"

@@ -242,10 +242,11 @@ export async function sendRegistrationConfirmationSmsAction(
 
   const r = await sendRegistrationConfirmationSms(registrationId);
   if (r === "sent") return { ok: true, message: "Confirmation SMS sent." };
-  if (r === "skipped_no_twilio") {
+  if (r === "skipped_no_sms") {
     return {
       ok: false,
-      message: "Twilio SMS is not configured (TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN / TWILIO_FROM_PHONE).",
+      message:
+        "SMS is not configured. Set Sent.dm (SENT_DM_API_KEY + SENT_DM_SMS_TEMPLATE_ID) or Twilio (TWILIO_* + TWILIO_FROM_PHONE). See .env.example.",
     };
   }
   if (r === "skipped_no_phone") {
@@ -254,7 +255,7 @@ export async function sendRegistrationConfirmationSmsAction(
   if (r === "skipped_ineligible") {
     return { ok: false, message: "Registration must be confirmed with ticket + registration number first." };
   }
-  return { ok: false, message: "SMS failed to send. Check server logs / Twilio console." };
+  return { ok: false, message: "SMS failed to send. Check server logs and your Sent.dm or Twilio dashboard." };
 }
 
 export async function sendCustomRegistrationSmsAction(
@@ -269,10 +270,11 @@ export async function sendCustomRegistrationSmsAction(
 
   const r = await sendCustomRegistrationSms(registrationId, message);
   if (r === "sent") return { ok: true, message: "SMS sent." };
-  if (r === "skipped_no_twilio") {
+  if (r === "skipped_no_sms") {
     return {
       ok: false,
-      message: "Twilio SMS is not configured (TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN / TWILIO_FROM_PHONE).",
+      message:
+        "SMS is not configured. Set Sent.dm (SENT_DM_API_KEY + SENT_DM_SMS_TEMPLATE_ID) or Twilio (TWILIO_* + TWILIO_FROM_PHONE). See .env.example.",
     };
   }
   if (r === "skipped_no_phone") {
@@ -281,5 +283,5 @@ export async function sendCustomRegistrationSmsAction(
   if (r === "skipped_ineligible") {
     return { ok: false, message: "Message is empty." };
   }
-  return { ok: false, message: "SMS failed to send. Check server logs / Twilio console." };
+  return { ok: false, message: "SMS failed to send. Check server logs and your Sent.dm or Twilio dashboard." };
 }

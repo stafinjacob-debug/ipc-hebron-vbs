@@ -8,6 +8,7 @@ import {
   BookOpenText,
   ClipboardCheck,
   LayoutDashboard,
+  Mail,
   Megaphone,
   Settings,
   UserSquare2,
@@ -60,6 +61,7 @@ const NAV: {
     icon: Megaphone,
     match: (p) => p.startsWith("/content"),
   },
+  { href: "/messages", label: "Messages", icon: Mail, match: (p) => p === "/messages" || p.startsWith("/messages/") },
   { href: "/reports", label: "Reports", icon: BarChart3, match: (p) => p === "/reports" || p.startsWith("/reports/") },
   { href: "/settings", label: "Settings", icon: Settings, match: (p) => p === "/settings" || p.startsWith("/settings/") },
 ];

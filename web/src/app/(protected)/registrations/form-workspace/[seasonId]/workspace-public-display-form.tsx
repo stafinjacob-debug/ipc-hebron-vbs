@@ -9,6 +9,7 @@ import {
 import type { PublicRegistrationLayout } from "@/generated/prisma";
 import {
   PublicRegistrationGateFields,
+  PublicRegistrationHelpEmailField,
   PublicRegistrationRequiredFields,
   PublicRegistrationSessionTimeField,
   PublicRegistrationWelcomeField,
@@ -29,6 +30,7 @@ export function WorkspacePublicDisplayForm({
   requireAllergiesNotes,
   welcomeMessage,
   sessionTimeDescription,
+  helpContactEmail,
 }: {
   seasonId: string;
   publicRegistrationOpen: boolean;
@@ -41,6 +43,7 @@ export function WorkspacePublicDisplayForm({
   requireAllergiesNotes: boolean;
   welcomeMessage: string;
   sessionTimeDescription: string;
+  helpContactEmail: string;
 }) {
   const router = useRouter();
   const [state, action, pending] = useActionState(
@@ -84,6 +87,8 @@ export function WorkspacePublicDisplayForm({
       <PublicRegistrationWelcomeField welcomeMessage={welcomeMessage} />
 
       <PublicRegistrationSessionTimeField sessionTimeDescription={sessionTimeDescription} />
+
+      <PublicRegistrationHelpEmailField helpContactEmail={helpContactEmail} />
 
       <button
         type="submit"

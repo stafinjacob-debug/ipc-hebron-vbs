@@ -13,6 +13,10 @@ function brandName(): string {
   );
 }
 
+function helpEmailAddress(): string {
+  return process.env.VBS_HELP_EMAIL?.trim() || "vbs@ipchouston.com";
+}
+
 function escapeHtml(s: string): string {
   return s
     .replace(/&/g, "&amp;")
@@ -202,10 +206,7 @@ export async function sendSubmissionPendingReviewEmail(submissionId: string): Pr
   const to = submission.guardian.email.trim();
   const gname = `${submission.guardian.firstName} ${submission.guardian.lastName}`.trim();
   const season = escapeHtml(submission.season.name);
-  const contact =
-    process.env.NEXT_PUBLIC_VBS_CONTACT_EMAIL?.trim() ||
-    process.env.VBS_OFFICE_EMAIL?.trim() ||
-    "";
+  const contact = helpEmailAddress();
 
   const waitlisted = submission.registrations.some((r) => r.status === "WAITLIST");
   const waitlistNote = waitlisted
@@ -307,6 +308,7 @@ export async function sendSubmissionReceivedEmail(submissionId: string): Promise
     <p style="margin:0 0 14px;">Thanks for registering for <strong>${season}</strong>. Each child now has a registration number and digital check-in card:</p>
     <table role="presentation" width="100%" cellspacing="0" cellpadding="0">${blocks}</table>
     <p style="margin:10px 0 0;font-size:13px;color:#64748b;">Save this email for check-in day. Staff may still follow up if details need review.</p>
+    <p style="margin:8px 0 0;font-size:13px;color:#475569;">Questions? Email <a href="mailto:${escapeHtml(helpEmailAddress())}" style="color:#2563eb;">${escapeHtml(helpEmailAddress())}</a>.</p>
   `;
 
   const { result, error } = await sendHtml(
@@ -405,6 +407,7 @@ export async function sendRegistrationApprovedEmail(
       </tr>
     </table>
     <p style="margin:18px 0 0;font-size:14px;color:#334155;">Kid-friendly reminder: bring your biggest smile, comfy shoes, and a heart ready for fun.</p>
+    <p style="margin:8px 0 0;font-size:13px;color:#475569;">Questions? Email <a href="mailto:${escapeHtml(helpEmailAddress())}" style="color:#2563eb;">${escapeHtml(helpEmailAddress())}</a>.</p>
   `;
 
   const { result, error } = await sendHtml(
@@ -500,6 +503,7 @@ export async function sendAllApprovedRegistrationsEmailForSubmission(submissionI
     <p style="margin:0 0 14px;">Your confirmed registrations are ready. Each child&apos;s digital card is below:</p>
     <table role="presentation" width="100%" cellspacing="0" cellpadding="0">${blocks}</table>
     <p style="margin:10px 0 0;font-size:13px;color:#64748b;">Save this email and show each QR code at check-in. We can&apos;t wait to see your family!</p>
+    <p style="margin:8px 0 0;font-size:13px;color:#475569;">Questions? Email <a href="mailto:${escapeHtml(helpEmailAddress())}" style="color:#2563eb;">${escapeHtml(helpEmailAddress())}</a>.</p>
   `;
 
   const { result, error } = await sendHtml(
@@ -535,10 +539,7 @@ export async function sendPaymentReminderEmail(registrationId: string): Promise<
   const gname = `${guardian.firstName} ${guardian.lastName}`.trim();
   const num = escapeHtml(reg.registrationNumber ?? "Pending approval");
   const season = escapeHtml(reg.season.name);
-  const contact =
-    process.env.NEXT_PUBLIC_VBS_CONTACT_EMAIL?.trim() ||
-    process.env.VBS_OFFICE_EMAIL?.trim() ||
-    "";
+  const contact = helpEmailAddress();
 
   const inner = `
     <p style="margin:0 0 16px;">Hi ${escapeHtml(gname)},</p>
@@ -546,7 +547,7 @@ export async function sendPaymentReminderEmail(registrationId: string): Promise<
     <p style="margin:0 0 16px;">If you’ve already paid, thank you — you can disregard this message.</p>
     ${
       contact
-        ? `<p style="margin:0;font-size:14px;color:#475569;">Questions? Reply or write to <a href="mailto:${escapeHtml(contact)}" style="color:#2563eb;">${escapeHtml(contact)}</a>.</p>`
+        ? `<p style="margin:0;font-size:14px;color:#475569;">Questions? Please email <a href="mailto:${escapeHtml(contact)}" style="color:#2563eb;">${escapeHtml(contact)}</a>.</p>`
         : `<p style="margin:0;font-size:14px;color:#475568;">Questions? Contact the church office.</p>`
     }
   `;

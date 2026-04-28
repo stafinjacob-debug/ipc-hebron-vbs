@@ -194,6 +194,7 @@ export async function updateRegistrationFormSettings(
     waiverSupplementalFields: WaiverSupplementalFieldDef[];
     /** Keys (guardian / consent / eachChild) to show in staff “Add unassigned” class picker. */
     unassignedClassPickerFieldKeys: string[];
+    helpContactEmail: string | null;
   },
 ): Promise<ActionState> {
   const session = await auth();
@@ -240,6 +241,10 @@ export async function updateRegistrationFormSettings(
   }
 
   const seqDigits = Math.min(8, Math.max(2, Math.floor(data.registrationNumberSeqDigits) || 3));
+  const normalizedHelpEmail = (data.helpContactEmail ?? "").trim().toLowerCase() || null;
+  if (normalizedHelpEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedHelpEmail)) {
+    return { ok: false, message: "Help email must be a valid email address." };
+  }
 
   let stripeAmountCents: number | null = null;
   const stripeSkipWhenFieldKey = data.stripeSkipWhenFieldKey?.trim() || null;
@@ -296,6 +301,11 @@ export async function updateRegistrationFormSettings(
     prisma.vbsSeason.update({
       where: { id: seasonId },
       data: { publicRegistrationOpen: data.publicRegistrationOpen },
+    }),
+    prisma.publicRegistrationSettings.upsert({
+      where: { seasonId },
+      create: { seasonId, helpContactEmail: normalizedHelpEmail },
+      update: { helpContactEmail: normalizedHelpEmail },
     }),
     prisma.registrationForm.update({
       where: { id: form.id },
@@ -668,6 +678,7 @@ export type FormWorkspacePayload = {
     requireAllergiesNotes: boolean;
     welcomeMessage: string;
     sessionTimeDescription: string;
+    helpContactEmail: string;
   };
   settingsInitial: {
     title: string;
@@ -698,6 +709,7 @@ export type FormWorkspacePayload = {
     waiverMergeFieldKeys: string[];
     waiverSupplementalFields: WaiverSupplementalFieldDef[];
     unassignedClassPickerFieldKeys: string[];
+    helpContactEmail: string | null;
     /** Bumps when the registration form row changes so client settings UI can remount / refetch. */
     settingsStamp: string;
   };
@@ -810,6 +822,7 @@ export async function loadFormWorkspacePayload(
         requireAllergiesNotes: publicRules.requireAllergiesNotes,
         welcomeMessage: publicWelcome,
         sessionTimeDescription: season.publicRegistrationSettings?.sessionTimeDescription ?? "",
+        helpContactEmail: season.publicRegistrationSettings?.helpContactEmail ?? "",
       },
       settingsInitial: {
         title: form.title,
@@ -840,6 +853,7 @@ export async function loadFormWorkspacePayload(
         waiverMergeFieldKeys: parseWaiverMergeFieldKeysFromDb(form.waiverMergeFieldKeys),
         waiverSupplementalFields: parseWaiverSupplementalDefsFromDb(form.waiverSupplementalFields),
         unassignedClassPickerFieldKeys: parseWaiverMergeFieldKeysFromDb(form.unassignedClassPickerFieldKeys),
+        helpContactEmail: season.publicRegistrationSettings?.helpContactEmail ?? null,
         settingsStamp: form.updatedAt.toISOString(),
       },
       paymentConditionFieldOptions,

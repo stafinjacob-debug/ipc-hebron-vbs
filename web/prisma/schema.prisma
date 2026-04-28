@@ -90,6 +90,13 @@ enum ClassAssignmentMethod {
   MANUAL
 }
 
+enum IncomingMessageStatus {
+  NEW
+  OPEN
+  REPLIED
+  ARCHIVED
+}
+
 model User {
   id           String      @id @default(cuid())
   email        String      @unique
@@ -122,6 +129,8 @@ model User {
   staffAuditAsTarget StaffAccessAuditLog[] @relation("StaffAuditTarget")
 
   announcementsCreated VbsAnnouncement[]
+  assignedIncomingMessages IncomingMessage[] @relation("IncomingAssignedUser")
+  incomingMessageReplies  IncomingMessageReply[] @relation("IncomingReplyAuthor")
 }
 
 model UserSeasonScope {
@@ -242,6 +251,8 @@ model PublicRegistrationSettings {
   welcomeMessage String? @db.Text
   /// Shown on the login landing card and /register hero (e.g. "9:00 AM – 12:15 PM daily").
   sessionTimeDescription String? @db.Text
+  /// Help email shown on public cards and confirmation screens (e.g. vbs@ipchouston.com).
+  helpContactEmail String? @db.Text
   /// Public URL or site-relative path (e.g. /uploads/...) for /register background when this season is selected.
   registrationBackgroundImageUrl String?
   /// Optional looping background video (MP4/WebP video). When set, takes precedence over the image for display.
@@ -557,4 +568,51 @@ model VolunteerAssignment {
   classroom   Classroom? @relation(fields: [classroomId], references: [id], onDelete: SetNull)
 
   @@index([seasonId])
+}
+
+model IncomingMessage {
+  id                String                @id @default(cuid())
+  graphMessageId    String                @unique
+  conversationId    String?
+  internetMessageId String?
+
+  subject      String
+  fromName     String?
+  fromAddress  String
+  receivedAt   DateTime
+  bodyPreview  String?
+  bodyText     String?
+  bodyContentType String?
+  isRead       Boolean               @default(false)
+  status       IncomingMessageStatus @default(NEW)
+  rawJson      Json?
+
+  assignedToUserId String?
+  assignedTo       User?             @relation("IncomingAssignedUser", fields: [assignedToUserId], references: [id], onDelete: SetNull)
+
+  lastSyncedAt DateTime @default(now())
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  replies IncomingMessageReply[]
+
+  @@index([receivedAt])
+  @@index([status, receivedAt])
+  @@index([assignedToUserId])
+}
+
+model IncomingMessageReply {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  incomingMessageId String
+  incomingMessage   IncomingMessage @relation(fields: [incomingMessageId], references: [id], onDelete: Cascade)
+
+  sentByUserId String?
+  sentBy       User?   @relation("IncomingReplyAuthor", fields: [sentByUserId], references: [id], onDelete: SetNull)
+
+  replyBodyText   String
+  graphResponseId String?
+
+  @@index([incomingMessageId, createdAt])
 }

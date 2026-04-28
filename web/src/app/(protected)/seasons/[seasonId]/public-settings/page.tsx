@@ -42,6 +42,7 @@ export default async function PublicRegistrationSettingsPage({ params }: PagePro
         seasonStartDate={season.startDate}
         seasonEndDate={season.endDate}
         sessionTimeDescription={season.publicRegistrationSettings?.sessionTimeDescription ?? null}
+        helpContactEmail={season.publicRegistrationSettings?.helpContactEmail ?? null}
         registrationBackgroundImageUrl={
           season.publicRegistrationSettings?.registrationBackgroundImageUrl ?? null
         }

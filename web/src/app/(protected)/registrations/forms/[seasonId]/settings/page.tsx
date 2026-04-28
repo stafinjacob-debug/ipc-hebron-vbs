@@ -25,7 +25,7 @@ export default async function RegistrationFormSettingsPage({
 
   const season = await prisma.vbsSeason.findUnique({
     where: { id: seasonId },
-    include: { registrationForm: true },
+    include: { registrationForm: true, publicRegistrationSettings: true },
   });
   if (!season) notFound();
 
@@ -115,6 +115,7 @@ export default async function RegistrationFormSettingsPage({
           waiverMergeFieldKeys: parseWaiverMergeFieldKeysFromDb(form.waiverMergeFieldKeys),
           waiverSupplementalFields: parseWaiverSupplementalDefsFromDb(form.waiverSupplementalFields),
           unassignedClassPickerFieldKeys: parseWaiverMergeFieldKeysFromDb(form.unassignedClassPickerFieldKeys),
+          helpContactEmail: season.publicRegistrationSettings?.helpContactEmail ?? null,
           settingsStamp: form.updatedAt.toISOString(),
         }}
         paymentConditionFieldOptions={paymentConditionFieldOptions}

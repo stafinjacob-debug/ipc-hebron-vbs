@@ -29,6 +29,13 @@ function parseDateInput(value: string): Date | null {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
+function normalizeOptionalEmail(raw: string): string | null {
+  const v = raw.trim().toLowerCase();
+  if (!v) return null;
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) return null;
+  return v;
+}
+
 export async function savePublicRegistrationSettings(
   seasonId: string,
   _prev: SavePublicSettingsState | null,
@@ -95,6 +102,11 @@ export async function savePublicRegistrationSettings(
   const welcomeMessage = welcomeRaw.length > 0 ? welcomeRaw : null;
   const sessionTimeRaw = str(formData, "sessionTimeDescription").trim();
   const sessionTimeDescription = sessionTimeRaw.length > 0 ? sessionTimeRaw : null;
+  const helpEmailRaw = str(formData, "helpContactEmail");
+  const helpContactEmail = normalizeOptionalEmail(helpEmailRaw);
+  if (helpEmailRaw.trim() && !helpContactEmail) {
+    return { ok: false, message: "Help email must be a valid email address." };
+  }
   const registrationBackgroundDimmingPercent = clampRegistrationBackgroundDimmingPercent(
     str(formData, "registrationBackgroundDimmingPercent"),
   );
@@ -129,6 +141,7 @@ export async function savePublicRegistrationSettings(
       requireAllergiesNotes,
       welcomeMessage,
       sessionTimeDescription,
+      helpContactEmail,
       registrationBackgroundImageUrl,
       registrationBackgroundVideoUrl,
       registrationBackgroundDimmingPercent,
@@ -140,6 +153,7 @@ export async function savePublicRegistrationSettings(
       requireAllergiesNotes,
       welcomeMessage,
       sessionTimeDescription,
+      helpContactEmail,
       registrationBackgroundImageUrl,
       registrationBackgroundVideoUrl,
       registrationBackgroundDimmingPercent,

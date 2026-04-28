@@ -257,6 +257,32 @@ export function PublicRegistrationSessionTimeField({
   return <div className="rounded-xl border border-foreground/10 p-4">{body}</div>;
 }
 
+/** Optional help email shown on public landing + registration pages. */
+export function PublicRegistrationHelpEmailField({
+  helpContactEmail,
+}: {
+  helpContactEmail: string | null;
+}) {
+  return (
+    <div className="rounded-xl border border-foreground/10 p-4">
+      <label htmlFor="helpContactEmail" className="text-sm font-semibold text-foreground/90">
+        Help email (optional)
+      </label>
+      <p className="mt-1 text-sm text-foreground/60">
+        Displayed on the public login card, registration form, and thank-you screen for parent questions.
+      </p>
+      <input
+        id="helpContactEmail"
+        name="helpContactEmail"
+        type="email"
+        defaultValue={helpContactEmail ?? ""}
+        placeholder="e.g. vbs@ipchouston.com"
+        className="mt-2 w-full rounded-md border border-foreground/15 bg-background px-3 py-2 text-sm text-foreground"
+      />
+    </div>
+  );
+}
+
 /** Public `/register` welcome banner (not the staff registration form welcome). */
 export function PublicRegistrationWelcomeField({ welcomeMessage }: { welcomeMessage: string }) {
   return (

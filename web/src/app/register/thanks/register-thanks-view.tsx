@@ -133,6 +133,15 @@ export function RegisterThanksView({ paid, seasonName, contactEmail }: RegisterT
                   </Link>
                 ) : null}
               </div>
+              {contactEmail ? (
+                <p className="mt-5 text-xs text-neutral-300">
+                  Questions? Email{" "}
+                  <a href={`mailto:${contactEmail}`} className="font-semibold text-cyan-200 underline">
+                    {contactEmail}
+                  </a>
+                  .
+                </p>
+              ) : null}
             </>
           ) : (
             <>
@@ -156,6 +165,15 @@ export function RegisterThanksView({ paid, seasonName, contactEmail }: RegisterT
                   Return to registration
                 </Link>
               </div>
+              {contactEmail ? (
+                <p className="mt-5 text-xs text-neutral-300">
+                  Questions? Email{" "}
+                  <a href={`mailto:${contactEmail}`} className="font-semibold text-cyan-200 underline">
+                    {contactEmail}
+                  </a>
+                  .
+                </p>
+              ) : null}
             </>
           )}
         </div>

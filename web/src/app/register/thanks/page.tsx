@@ -6,6 +6,7 @@ import { getStripeClient } from "@/lib/stripe-registration-payment";
 import { RegisterThanksView } from "./register-thanks-view";
 
 export const dynamic = "force-dynamic";
+const DEFAULT_HELP_EMAIL = "vbs@ipchouston.com";
 
 export default async function RegisterThanksPage({
   searchParams,
@@ -86,15 +87,21 @@ export default async function RegisterThanksPage({
   }
 
   let seasonName: string | null = null;
+  let seasonHelpEmail: string | null = null;
   if (seasonId) {
     const row = await prisma.vbsSeason.findUnique({
       where: { id: seasonId },
-      select: { name: true },
+      select: { name: true, publicRegistrationSettings: { select: { helpContactEmail: true } } },
     });
     seasonName = row?.name ?? null;
+    seasonHelpEmail = row?.publicRegistrationSettings?.helpContactEmail?.trim() ?? null;
   }
 
-  const contactEmail = process.env.NEXT_PUBLIC_VBS_CONTACT_EMAIL?.trim() ?? "";
+  const contactEmail =
+    seasonHelpEmail ||
+    process.env.NEXT_PUBLIC_VBS_CONTACT_EMAIL?.trim() ||
+    process.env.VBS_HELP_EMAIL?.trim() ||
+    DEFAULT_HELP_EMAIL;
 
   return (
     <RegisterThanksView paid={paid} seasonName={seasonName} contactEmail={contactEmail} />

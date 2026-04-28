@@ -21,6 +21,8 @@ export type OpenPublicRegistrationSummary = {
   endDateIso: string;
   /** Optional line shown under VBS dates (e.g. daily hours). */
   sessionTimeDescription: string | null;
+  /** Optional help email shown on cards / public pages. */
+  helpContactEmail: string | null;
   formTitle: string | null;
   teaser: string | null;
   theme: string | null;

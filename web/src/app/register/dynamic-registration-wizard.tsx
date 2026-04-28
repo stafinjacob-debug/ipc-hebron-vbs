@@ -12,6 +12,7 @@ import {
   FileText,
   Heart,
   Lock,
+  Mail,
   Plus,
   Shield,
   Trash2,
@@ -89,6 +90,8 @@ export type PublicSeasonOption = {
   stripeSkipWhenFieldValue: string | null;
   /** Optional line under VBS dates on the wizard header (from public settings). */
   sessionTimeDescription: string | null;
+  /** Optional per-season help email shown in public UI. */
+  helpContactEmail: string | null;
   waiverEnabled: boolean;
   waiverTitle: string | null;
   waiverDescription: string | null;
@@ -669,6 +672,7 @@ export function DynamicRegistrationWizard({
   const current = useMemo(() => seasons.find((s) => s.id === seasonId), [seasons, seasonId]);
   const def = current?.definition;
   const rules = current?.rules ?? defaultPublicFieldRules;
+  const effectiveContactEmail = current?.helpContactEmail?.trim() || contactEmail;
 
   const waiverSnap = useMemo((): PublicSeasonWaiverSnapshot | null => {
     const fromMap = waiverBySeasonId[seasonId];
@@ -1076,18 +1080,18 @@ export function DynamicRegistrationWizard({
           ) : null}
           <p className="mt-6 text-xs text-neutral-500">
             Questions?{" "}
-            {contactEmail ? (
-              <a className="font-medium text-brand underline" href={`mailto:${contactEmail}`}>
-                {contactEmail}
+            {effectiveContactEmail ? (
+              <a className="font-medium text-brand underline" href={`mailto:${effectiveContactEmail}`}>
+                {effectiveContactEmail}
               </a>
             ) : null}
-            {contactEmail && contactPhone ? " · " : null}
+            {effectiveContactEmail && contactPhone ? " · " : null}
             {contactPhone ? (
               <a className="font-medium text-brand underline" href={`tel:${phoneDigits(contactPhone)}`}>
                 {contactPhone}
               </a>
             ) : null}
-            {!contactEmail && !contactPhone ? `Reach out to ${churchDisplayName}.` : null}
+            {!effectiveContactEmail && !contactPhone ? `Reach out to ${churchDisplayName}.` : null}
           </p>
         </div>
       </div>
@@ -1121,6 +1125,14 @@ export function DynamicRegistrationWizard({
             {season.welcomeMessage?.trim() ||
               `Please complete this form to register your ${children.length > 1 ? "children" : "child"} for VBS.`}
           </p>
+          {effectiveContactEmail ? (
+            <p className="mx-auto mt-2 inline-flex items-center gap-1.5 text-xs font-semibold text-cyan-100/95">
+              <Mail className="size-3.5 shrink-0" aria-hidden />
+              <a href={`mailto:${effectiveContactEmail}`} className="underline decoration-cyan-100/50 underline-offset-2">
+                {effectiveContactEmail}
+              </a>
+            </p>
+          ) : null}
         </div>
 
         {paymentCanceled ? (
@@ -1496,16 +1508,16 @@ export function DynamicRegistrationWizard({
                     })}
                 </div>
               ))}
-              {(contactEmail || contactPhone) && (
+              {(effectiveContactEmail || contactPhone) && (
                 <div className="mt-5 rounded-xl border border-white/15 bg-white/10 px-4 py-3 text-sm text-neutral-100">
                   <p className="font-semibold">Questions?</p>
                   <p className="mt-1 text-neutral-200/90">
-                    {contactEmail ? (
-                      <a href={`mailto:${contactEmail}`} className="font-medium text-brand underline">
-                        {contactEmail}
+                    {effectiveContactEmail ? (
+                      <a href={`mailto:${effectiveContactEmail}`} className="font-medium text-brand underline">
+                        {effectiveContactEmail}
                       </a>
                     ) : null}
-                    {contactEmail && contactPhone ? " · " : null}
+                    {effectiveContactEmail && contactPhone ? " · " : null}
                     {contactPhone ? (
                       <a href={`tel:${phoneDigits(contactPhone)}`} className="font-medium text-brand underline">
                         {contactPhone}

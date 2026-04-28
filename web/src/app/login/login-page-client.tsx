@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { Fredoka, Nunito } from "next/font/google";
 import { useCallback, useEffect, useState } from "react";
-import { CalendarDays, ChevronDown, ChevronUp, Clock, Sparkles, UserRound, Users } from "lucide-react";
+import { CalendarDays, ChevronDown, ChevronUp, Clock, Mail, Sparkles, UserRound, Users } from "lucide-react";
 import {
   formatAgeRangeForCard,
   type OpenPublicRegistrationSummary,
@@ -338,6 +338,17 @@ export function LoginPageClient({ seasons }: { seasons: OpenPublicRegistrationSu
                                         {s.teaser}
                                       </p>
                                     ) : null}
+                                  {s.helpContactEmail ? (
+                                    <p className="inline-flex items-center gap-1.5 text-xs font-semibold text-neutral-700">
+                                      <Mail className="size-3.5 shrink-0 text-sky-600/90" aria-hidden />
+                                      <a
+                                        href={`mailto:${s.helpContactEmail}`}
+                                        className="underline decoration-sky-600/50 underline-offset-2 hover:text-sky-700"
+                                      >
+                                        {s.helpContactEmail}
+                                      </a>
+                                    </p>
+                                  ) : null}
                                   <p className="inline-flex items-center gap-1.5 text-xs font-semibold text-neutral-600">
                                     <UserRound className="size-3.5 shrink-0 text-teal-600/85" aria-hidden />
                                     One short form per family.

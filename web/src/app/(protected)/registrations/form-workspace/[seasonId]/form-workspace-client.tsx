@@ -254,6 +254,7 @@ export function FormWorkspacePanel({
                   requireAllergiesNotes={publicDisplayInitial.requireAllergiesNotes}
                   welcomeMessage={publicDisplayInitial.welcomeMessage}
                   sessionTimeDescription={publicDisplayInitial.sessionTimeDescription}
+                  helpContactEmail={publicDisplayInitial.helpContactEmail}
                 />
                 <p className="text-sm text-foreground/70">
                   The same public fields can be edited from{" "}

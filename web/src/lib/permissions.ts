@@ -75,6 +75,7 @@ export function canSeeMainNavLink(role: UserRole | string, href: string): boolea
     return (
       href === "/dashboard" ||
       href.startsWith("/registrations") ||
+      href.startsWith("/messages") ||
       href.startsWith("/classes") ||
       href.startsWith("/check-in") ||
       href.startsWith("/content") ||
