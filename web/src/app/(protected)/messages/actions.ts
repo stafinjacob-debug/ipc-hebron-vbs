@@ -66,7 +66,7 @@ export async function syncIncomingMessagesAction(): Promise<IncomingMessageActio
   return { ok: true, message: `Synced ${result.messages.length} inbox messages.` };
 }
 
-export async function replyToIncomingMessageAction(formData: FormData): Promise<IncomingMessageActionState> {
+export async function replyToIncomingMessageAction(_prevState: IncomingMessageActionState, formData: FormData): Promise<IncomingMessageActionState> {
   const session = await auth();
   if (!session?.user?.role || !canManageDirectory(session.user.role)) {
     return { ok: false, error: "You do not have permission to send replies." };
