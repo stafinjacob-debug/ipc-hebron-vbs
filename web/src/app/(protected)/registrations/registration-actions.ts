@@ -265,7 +265,7 @@ export async function sendRegistrationConfirmationSmsAction(
   }
   return {
     ok: false,
-    message: `SMS failed: ${r.detail}`,
+    message: r.status === "failed" ? `SMS failed: ${r.detail}` : "SMS could not be sent.",
   };
 }
 
@@ -304,6 +304,6 @@ export async function sendCustomRegistrationSmsAction(
   }
   return {
     ok: false,
-    message: `SMS failed: ${r.detail}`,
+    message: r.status === "failed" ? `SMS failed: ${r.detail}` : "SMS could not be sent.",
   };
 }
