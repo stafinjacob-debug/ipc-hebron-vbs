@@ -16,6 +16,13 @@ export type GraphMailboxMessage = {
   bodyContent: string | null;
 };
 
+type GraphSyncResult = {
+  messages: GraphMailboxMessage[];
+  removedIds: string[];
+  deltaLink: string | null;
+  usedDeltaLink: boolean;
+};
+
 function mailboxAddress(): string | null {
   return process.env.MICROSOFT_GRAPH_MAILBOX?.trim() || null;
 }
@@ -27,6 +34,10 @@ export function isMicrosoftGraphMailboxConfigured(): boolean {
       process.env.MICROSOFT_GRAPH_CLIENT_SECRET?.trim() &&
       mailboxAddress(),
   );
+}
+
+export function configuredGraphMailboxAddress(): string | null {
+  return mailboxAddress();
 }
 
 async function getAppAccessToken(): Promise<{ ok: true; token: string } | { ok: false; error: string }> {
@@ -157,6 +168,99 @@ export async function listInboxMessages(
     }));
 
   return { ok: true, messages };
+}
+
+function parseGraphMessages(items: Array<Record<string, unknown>>): {
+  messages: GraphMailboxMessage[];
+  removedIds: string[];
+} {
+  const messages: GraphMailboxMessage[] = [];
+  const removedIds: string[] = [];
+  for (const raw of items) {
+    const id = typeof raw.id === "string" ? raw.id : null;
+    if (!id) continue;
+    if (raw["@removed"]) {
+      removedIds.push(id);
+      continue;
+    }
+    const from = raw.from as { emailAddress?: { name?: string | null; address?: string | null } } | undefined;
+    const fromAddress = from?.emailAddress?.address?.trim().toLowerCase();
+    const receivedDateTime = typeof raw.receivedDateTime === "string" ? raw.receivedDateTime : null;
+    if (!fromAddress || !receivedDateTime) continue;
+    const body = raw.body as { contentType?: string | null; content?: string | null } | undefined;
+    messages.push({
+      id,
+      conversationId: typeof raw.conversationId === "string" ? raw.conversationId : null,
+      internetMessageId: typeof raw.internetMessageId === "string" ? raw.internetMessageId : null,
+      subject: typeof raw.subject === "string" && raw.subject.trim() ? raw.subject.trim() : "(No subject)",
+      fromName: from?.emailAddress?.name?.trim() || null,
+      fromAddress,
+      receivedAt: new Date(receivedDateTime),
+      isRead: Boolean(raw.isRead),
+      bodyPreview: typeof raw.bodyPreview === "string" ? raw.bodyPreview.trim() || null : null,
+      bodyContentType: body?.contentType?.trim() || null,
+      bodyContent: normalizeBodyToText(body?.contentType, body?.content),
+    });
+  }
+  return { messages, removedIds };
+}
+
+export async function syncInboxMessagesByDelta(
+  previousDeltaLink?: string | null,
+): Promise<{ ok: true; result: GraphSyncResult } | { ok: false; error: string }> {
+  const mailbox = mailboxAddress();
+  if (!mailbox) return { ok: false, error: "MICROSOFT_GRAPH_MAILBOX is not configured." };
+  const tokenResult = await getAppAccessToken();
+  if (!tokenResult.ok) return tokenResult;
+
+  const selectFields = ["id", "conversationId", "internetMessageId", "subject", "from", "receivedDateTime", "isRead", "bodyPreview", "body"].join(",");
+  let url =
+    previousDeltaLink?.trim() ||
+    `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(mailbox)}/mailFolders/Inbox/messages/delta?$select=${encodeURIComponent(selectFields)}&$top=75`;
+
+  const allMessages: GraphMailboxMessage[] = [];
+  const removedIds: string[] = [];
+  let deltaLink: string | null = null;
+
+  // Delta can return multiple pages before yielding @odata.deltaLink.
+  while (url) {
+    const res = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${tokenResult.token}`,
+        "Content-Type": "application/json",
+        Prefer: 'outlook.body-content-type="text"',
+      },
+    });
+    const json = (await res.json().catch(() => ({}))) as {
+      value?: Array<Record<string, unknown>>;
+      "@odata.nextLink"?: string;
+      "@odata.deltaLink"?: string;
+      error?: { message?: string };
+    };
+    if (!res.ok) {
+      return {
+        ok: false,
+        error: `Graph delta sync failed (${res.status}): ${json.error?.message ?? res.statusText}`,
+      };
+    }
+
+    const parsed = parseGraphMessages(json.value ?? []);
+    allMessages.push(...parsed.messages);
+    removedIds.push(...parsed.removedIds);
+
+    if (typeof json["@odata.deltaLink"] === "string") deltaLink = json["@odata.deltaLink"];
+    url = typeof json["@odata.nextLink"] === "string" ? json["@odata.nextLink"] : "";
+  }
+
+  return {
+    ok: true,
+    result: {
+      messages: allMessages,
+      removedIds,
+      deltaLink,
+      usedDeltaLink: Boolean(previousDeltaLink?.trim()),
+    },
+  };
 }
 
 export async function replyToMessageViaGraph(params: {

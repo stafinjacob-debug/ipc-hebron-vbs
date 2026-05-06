@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { auth } from "@/auth";
+import { MessageMetaForm } from "@/app/(protected)/messages/message-meta-form";
 import { ReplyForm } from "@/app/(protected)/messages/reply-form";
 import { prisma } from "@/lib/prisma";
 import { canManageDirectory, canViewOperations } from "@/lib/roles";
@@ -37,6 +38,13 @@ export default async function MessageDetailPage({
   if (!message) notFound();
 
   const canReply = canManageDirectory(session.user.role);
+  const assignees = canReply
+    ? await prisma.user.findMany({
+        where: { status: "ACTIVE", role: { not: "PARENT" } },
+        select: { id: true, name: true, email: true },
+        orderBy: [{ name: "asc" }, { email: "asc" }],
+      })
+    : [];
 
   return (
     <section className="space-y-5">
@@ -52,6 +60,16 @@ export default async function MessageDetailPage({
 
       <div className="rounded-xl border border-foreground/10 bg-surface-elevated p-4">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-foreground/70">Message</h2>
+        {canReply ? (
+          <div className="mt-3">
+            <MessageMetaForm
+              incomingMessageId={message.id}
+              status={message.status}
+              assignedToUserId={message.assignedToUserId}
+              assignees={assignees}
+            />
+          </div>
+        ) : null}
         <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-foreground/90">
           {message.bodyText || message.bodyPreview || "(No body content.)"}
         </p>

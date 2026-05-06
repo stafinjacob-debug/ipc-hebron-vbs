@@ -11,6 +11,7 @@ import {
 } from "@/lib/open-public-registration-landing";
 import { OrganizationLogo } from "@/components/layout/organization-logo";
 import { LoginForm } from "./login-form";
+import { StaffPasswordResetForm } from "./staff-password-reset-form";
 
 const CHURCH = "IPC Hebron";
 const BACKDROP_VIDEO_SRC = "/VBS_backdrop.mp4";
@@ -224,6 +225,7 @@ export function LoginPageClient({ seasons }: { seasons: OpenPublicRegistrationSu
           <div className="mx-auto w-full max-w-sm">
             <p className="mb-3 text-center text-[11px] text-stone-500">Management portal — coordinators & staff</p>
             <LoginForm />
+            <StaffPasswordResetForm />
           </div>
         </div>
       ) : null}

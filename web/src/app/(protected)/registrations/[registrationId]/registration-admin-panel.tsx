@@ -21,6 +21,7 @@ export function RegistrationAdminPanel({
   paymentReceivedAt,
   guardianHasEmail,
   guardianHasPhone,
+  smsSetupHint,
 }: {
   registrationId: string;
   status: string;
@@ -28,6 +29,8 @@ export function RegistrationAdminPanel({
   paymentReceivedAt: string | null;
   guardianHasEmail: boolean;
   guardianHasPhone: boolean;
+  /** Shown when SMS env is incomplete (e.g. Sent.dm key without template ID). */
+  smsSetupHint?: string | null;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -187,6 +190,11 @@ export function RegistrationAdminPanel({
 
       <div className="border-t border-foreground/10 pt-4">
         <p className="text-xs font-medium text-foreground/60">SMS (Sent.dm or Twilio)</p>
+        {smsSetupHint ? (
+          <p className="mt-2 rounded-md border border-amber-500/35 bg-amber-500/10 px-3 py-2 text-xs text-amber-950 dark:text-amber-100">
+            {smsSetupHint}
+          </p>
+        ) : null}
         <div className="mt-2 flex flex-wrap gap-2">
           <button
             type="button"

@@ -1,7 +1,8 @@
-import Link from "next/link";
 import { Mail } from "lucide-react";
 import { redirect } from "next/navigation";
+import { IncomingMessageStatus } from "@/generated/prisma";
 import { auth } from "@/auth";
+import { MessagesBulkTable } from "@/app/(protected)/messages/messages-bulk-table";
 import { MessageSyncButton } from "@/app/(protected)/messages/message-sync-button";
 import { prisma } from "@/lib/prisma";
 import { canViewOperations } from "@/lib/roles";
@@ -16,12 +17,54 @@ function formatDateTime(value: Date): string {
   }).format(value);
 }
 
-export default async function IncomingMessagesPage() {
+export default async function IncomingMessagesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string; status?: string; assignment?: string }>;
+}) {
   const session = await auth();
   if (!session?.user?.role) redirect("/login");
   if (!canViewOperations(session.user.role)) redirect("/dashboard");
 
+  const sp = await searchParams;
+  const q = (sp.q ?? "").trim();
+  const statusFilter = (sp.status ?? "").trim().toUpperCase();
+  const assignmentFilter = (sp.assignment ?? "").trim().toLowerCase();
+  const validStatuses: IncomingMessageStatus[] = ["NEW", "OPEN", "REPLIED", "ARCHIVED"];
+  const status = validStatuses.includes(statusFilter as IncomingMessageStatus)
+    ? (statusFilter as IncomingMessageStatus)
+    : undefined;
+
+  const where = {
+    ...(q
+      ? {
+          OR: [
+            { subject: { contains: q, mode: "insensitive" as const } },
+            { fromAddress: { contains: q, mode: "insensitive" as const } },
+            { fromName: { contains: q, mode: "insensitive" as const } },
+            { bodyPreview: { contains: q, mode: "insensitive" as const } },
+          ],
+        }
+      : {}),
+    ...(status ? { status } : {}),
+    ...(assignmentFilter === "assigned"
+      ? { assignedToUserId: { not: null } }
+      : assignmentFilter === "unassigned"
+        ? { assignedToUserId: null }
+        : {}),
+  };
+
+  const assignees = await prisma.user.findMany({
+    where: {
+      status: "ACTIVE",
+      role: { not: "PARENT" },
+    },
+    select: { id: true, name: true, email: true },
+    orderBy: [{ name: "asc" }, { email: "asc" }],
+  });
+
   const messages = await prisma.incomingMessage.findMany({
+    where,
     orderBy: [{ receivedAt: "desc" }],
     take: 100,
     include: {
@@ -43,57 +86,72 @@ export default async function IncomingMessagesPage() {
         <MessageSyncButton />
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-foreground/10 bg-surface-elevated">
-        <table className="w-full min-w-[760px] text-sm">
-          <thead className="bg-foreground/[0.03] text-left text-xs uppercase tracking-wide text-foreground/60">
-            <tr>
-              <th className="px-4 py-3">From</th>
-              <th className="px-4 py-3">Subject</th>
-              <th className="px-4 py-3">Received</th>
-              <th className="px-4 py-3">Status</th>
-              <th className="px-4 py-3">Replies</th>
-            </tr>
-          </thead>
-          <tbody>
-            {messages.length === 0 ? (
-              <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-sm text-muted">
-                  No messages yet. Click Sync inbox to pull messages from Microsoft 365.
-                </td>
-              </tr>
-            ) : (
-              messages.map((message) => (
-                <tr key={message.id} className="border-t border-foreground/10 align-top">
-                  <td className="px-4 py-3">
-                    <p className="font-medium text-foreground">{message.fromName || message.fromAddress}</p>
-                    <p className="text-xs text-muted">{message.fromAddress}</p>
-                  </td>
-                  <td className="px-4 py-3">
-                    <Link href={`/messages/${message.id}`} className="font-medium text-brand hover:underline">
-                      {message.subject}
-                    </Link>
-                    {message.bodyPreview ? (
-                      <p className="mt-1 line-clamp-2 text-xs text-muted">{message.bodyPreview}</p>
-                    ) : null}
-                  </td>
-                  <td className="px-4 py-3 text-xs text-muted">{formatDateTime(message.receivedAt)}</td>
-                  <td className="px-4 py-3">
-                    <span className="rounded-full border border-foreground/15 bg-background px-2 py-1 text-xs font-medium text-foreground/80">
-                      {message.status}
-                    </span>
-                    {message.assignedTo ? (
-                      <p className="mt-1 text-xs text-muted">
-                        Assigned to {message.assignedTo.name || message.assignedTo.email}
-                      </p>
-                    ) : null}
-                  </td>
-                  <td className="px-4 py-3 text-xs text-muted">{message._count.replies}</td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+      <form method="get" className="flex flex-wrap items-end gap-2 rounded-xl border border-foreground/10 bg-surface-elevated p-3">
+        <div className="min-w-[14rem] flex-1">
+          <label htmlFor="q" className="block text-xs font-medium text-foreground/70">
+            Search
+          </label>
+          <input
+            id="q"
+            name="q"
+            type="search"
+            defaultValue={q}
+            placeholder="Subject, sender, preview..."
+            className="mt-1 w-full rounded-md border border-foreground/15 bg-background px-2.5 py-2 text-sm"
+          />
+        </div>
+        <div>
+          <label htmlFor="status" className="block text-xs font-medium text-foreground/70">
+            Status
+          </label>
+          <select
+            id="status"
+            name="status"
+            defaultValue={status ?? ""}
+            className="mt-1 rounded-md border border-foreground/15 bg-background px-2.5 py-2 text-sm"
+          >
+            <option value="">All</option>
+            <option value="NEW">NEW</option>
+            <option value="OPEN">OPEN</option>
+            <option value="REPLIED">REPLIED</option>
+            <option value="ARCHIVED">ARCHIVED</option>
+          </select>
+        </div>
+        <div>
+          <label htmlFor="assignment" className="block text-xs font-medium text-foreground/70">
+            Assignment
+          </label>
+          <select
+            id="assignment"
+            name="assignment"
+            defaultValue={assignmentFilter || ""}
+            className="mt-1 rounded-md border border-foreground/15 bg-background px-2.5 py-2 text-sm"
+          >
+            <option value="">All</option>
+            <option value="assigned">Assigned</option>
+            <option value="unassigned">Unassigned</option>
+          </select>
+        </div>
+        <button type="submit" className="rounded-md bg-brand px-3 py-2 text-sm font-semibold text-white">
+          Apply
+        </button>
+      </form>
+
+      <MessagesBulkTable
+        assignees={assignees}
+        rows={messages.map((m) => ({
+          id: m.id,
+          fromName: m.fromName,
+          fromAddress: m.fromAddress,
+          subject: m.subject,
+          bodyPreview: m.bodyPreview,
+          receivedAtLabel: formatDateTime(m.receivedAt),
+          status: m.status,
+          assignedToUserId: m.assignedToUserId,
+          assignedToNameOrEmail: m.assignedTo ? m.assignedTo.name || m.assignedTo.email : null,
+          repliesCount: m._count.replies,
+        }))}
+      />
     </section>
   );
 }

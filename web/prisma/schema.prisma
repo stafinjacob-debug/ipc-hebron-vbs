@@ -133,6 +133,20 @@ model User {
   incomingMessageReplies  IncomingMessageReply[] @relation("IncomingReplyAuthor")
 }
 
+/// Email OTP for staff self-service password reset from the login screen.
+model PasswordResetOtp {
+  id               String    @id @default(cuid())
+  emailNormalized  String
+  codeHash         String
+  expiresAt        DateTime
+  consumedAt       DateTime?
+  attempts         Int       @default(0)
+  createdAt        DateTime  @default(now())
+
+  @@index([emailNormalized, createdAt])
+  @@index([expiresAt])
+}
+
 model UserSeasonScope {
   userId   String
   seasonId String
@@ -615,4 +629,13 @@ model IncomingMessageReply {
   graphResponseId String?
 
   @@index([incomingMessageId, createdAt])
+}
+
+model IncomingMessageSyncState {
+  id           String   @id @default(cuid())
+  mailbox      String   @unique
+  deltaLink    String?
+  lastSyncedAt DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }

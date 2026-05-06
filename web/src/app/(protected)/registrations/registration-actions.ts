@@ -241,21 +241,32 @@ export async function sendRegistrationConfirmationSmsAction(
   }
 
   const r = await sendRegistrationConfirmationSms(registrationId);
-  if (r === "sent") return { ok: true, message: "Confirmation SMS sent." };
-  if (r === "skipped_no_sms") {
+  if (r.status === "sent") {
+    const via =
+      r.sentViaTwilioFallback
+        ? " Sent via Twilio after Sent.dm returned an error (Twilio is acting as backup)."
+        : r.provider === "twilio"
+          ? " Sent via Twilio."
+          : "";
+    return { ok: true, message: `Confirmation SMS sent.${via}` };
+  }
+  if (r.status === "skipped_no_sms") {
     return {
       ok: false,
       message:
         "SMS is not configured. Set Sent.dm (SENT_DM_API_KEY + SENT_DM_SMS_TEMPLATE_ID) or Twilio (TWILIO_* + TWILIO_FROM_PHONE). See .env.example.",
     };
   }
-  if (r === "skipped_no_phone") {
+  if (r.status === "skipped_no_phone") {
     return { ok: false, message: "Guardian phone is missing or invalid for SMS." };
   }
-  if (r === "skipped_ineligible") {
+  if (r.status === "skipped_ineligible") {
     return { ok: false, message: "Registration must be confirmed with ticket + registration number first." };
   }
-  return { ok: false, message: "SMS failed to send. Check server logs and your Sent.dm or Twilio dashboard." };
+  return {
+    ok: false,
+    message: `SMS failed: ${r.detail}`,
+  };
 }
 
 export async function sendCustomRegistrationSmsAction(
@@ -269,19 +280,30 @@ export async function sendCustomRegistrationSmsAction(
   if (!message.trim()) return { ok: false, message: "Message is empty." };
 
   const r = await sendCustomRegistrationSms(registrationId, message);
-  if (r === "sent") return { ok: true, message: "SMS sent." };
-  if (r === "skipped_no_sms") {
+  if (r.status === "sent") {
+    const via =
+      r.sentViaTwilioFallback
+        ? " Sent via Twilio after Sent.dm returned an error (Twilio is acting as backup)."
+        : r.provider === "twilio"
+          ? " Sent via Twilio."
+          : "";
+    return { ok: true, message: `SMS sent.${via}` };
+  }
+  if (r.status === "skipped_no_sms") {
     return {
       ok: false,
       message:
         "SMS is not configured. Set Sent.dm (SENT_DM_API_KEY + SENT_DM_SMS_TEMPLATE_ID) or Twilio (TWILIO_* + TWILIO_FROM_PHONE). See .env.example.",
     };
   }
-  if (r === "skipped_no_phone") {
+  if (r.status === "skipped_no_phone") {
     return { ok: false, message: "Guardian phone is missing or invalid for SMS." };
   }
-  if (r === "skipped_ineligible") {
+  if (r.status === "skipped_ineligible") {
     return { ok: false, message: "Message is empty." };
   }
-  return { ok: false, message: "SMS failed to send. Check server logs and your Sent.dm or Twilio dashboard." };
+  return {
+    ok: false,
+    message: `SMS failed: ${r.detail}`,
+  };
 }

@@ -18,6 +18,9 @@
     "db:seed": "tsx prisma/seed.ts",
     "db:studio": "dotenv -e .env.local -- prisma studio",
     "db:check-url": "node scripts/check-db-url.mjs",
+    "sms:test-sent": "dotenv -e .env.local -- tsx scripts/test-sent-dm-sms.ts",
+    "sms:sent-debug": "dotenv -e .env.local -- tsx scripts/sent-dm-message-debug.ts",
+    "sms:sent-template": "dotenv -e .env.local -- tsx scripts/sent-dm-template-info.ts",
     "postinstall": "prisma generate",
     "build:azure": "prisma generate && next build && node scripts/prepare-standalone.mjs"
   },

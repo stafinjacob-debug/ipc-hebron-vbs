@@ -7,6 +7,7 @@ import { getPublicAppBaseUrl } from "@/lib/public-app-url";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import QRCode from "qrcode";
+import { smsGatewaySetupHint } from "@/lib/sms/sms-config-hint";
 import { RegistrationAdminPanel } from "./registration-admin-panel";
 import { RegistrationClassAssignment } from "./registration-class-assignment";
 
@@ -286,6 +287,7 @@ export default async function RegistrationDetailPage({
               paymentReceivedAt={reg.paymentReceivedAt?.toISOString() ?? null}
               guardianHasEmail={Boolean(g.email?.trim())}
               guardianHasPhone={Boolean(g.phone?.trim())}
+              smsSetupHint={smsGatewaySetupHint()}
             />
           ) : null}
         </div>
