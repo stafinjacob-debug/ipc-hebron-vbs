@@ -39,6 +39,7 @@ import {
   computeRegistrationBaseCents,
   formatUsdFromCents,
   includeProcessingFeeForMode,
+  STRIPE_PER_CHILD_MAX_PAID_COUNT,
 } from "@/lib/stripe-fee-math";
 import { extractStripeSkipEvaluationData } from "@/lib/registration-form-validate";
 import { shouldSkipStripeForSubmission } from "@/lib/stripe-skip-rule";
@@ -83,6 +84,8 @@ export type PublicSeasonOption = {
   stripeCheckoutEnabled: boolean;
   stripeAmountCents: number | null;
   stripePricingUnit: "PER_SUBMISSION" | "PER_CHILD";
+  /** With per-child pricing: bill at most three children per submission (fourth+ free). */
+  stripeCapPaidChildrenAtThree: boolean;
   stripeProcessingFeeMode: "OPTIONAL" | "REQUIRED";
   stripeProductLabel: string | null;
   /** When set with {@link stripeSkipWhenFieldValue}, card checkout is skipped if any matching field equals (case-insensitive). */
@@ -722,9 +725,15 @@ export function DynamicRegistrationWizard({
       current.stripePricingUnit,
       current.stripeAmountCents,
       children.length,
+      current.stripeCapPaidChildrenAtThree,
     );
     const includeFee = includeProcessingFeeForMode(current.stripeProcessingFeeMode, coverProcessingFee);
     const { totalCents, processingCents } = computeProcessingGrossUp(baseCents, includeFee);
+    const childCount = children.length;
+    const billableChildren =
+      current.stripePricingUnit === "PER_CHILD" && current.stripeCapPaidChildrenAtThree
+        ? Math.min(Math.max(1, childCount), STRIPE_PER_CHILD_MAX_PAID_COUNT)
+        : childCount;
     return {
       active: true as const,
       baseCents,
@@ -733,6 +742,9 @@ export function DynamicRegistrationWizard({
       includeFee,
       mode: current.stripeProcessingFeeMode,
       unit: current.stripePricingUnit,
+      capPaidChildrenAtThree: current.stripeCapPaidChildrenAtThree,
+      billableChildren,
+      childCount,
       label: current.stripeProductLabel?.trim() || "VBS registration",
     };
   }, [current, children.length, coverProcessingFee, stripeSkippedByRule]);
@@ -1814,7 +1826,10 @@ export function DynamicRegistrationWizard({
                       <div className="flex justify-between gap-4">
                         <dt className="text-neutral-600 dark:text-neutral-400">
                           {stripePayment.unit === "PER_CHILD"
-                            ? `Program fee (${children.length} ${children.length === 1 ? "child" : "children"})`
+                            ? stripePayment.capPaidChildrenAtThree &&
+                              stripePayment.childCount > STRIPE_PER_CHILD_MAX_PAID_COUNT
+                              ? `Program fee (${stripePayment.billableChildren} of ${stripePayment.childCount} children; additional children no charge)`
+                              : `Program fee (${children.length} ${children.length === 1 ? "child" : "children"})`
                             : children.length > 1
                               ? `Program fee (one payment — all ${children.length} children)`
                               : "Program fee"}

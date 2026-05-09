@@ -4,15 +4,23 @@ import type { StripePricingUnit, StripeProcessingFeeMode } from "@/generated/pri
 const CARD_FEE_RATE = 0.029;
 const CARD_FEE_FIXED_CENTS = 30;
 
+/** Max children counted toward the base fee when {@link computeRegistrationBaseCents} uses the family cap. */
+export const STRIPE_PER_CHILD_MAX_PAID_COUNT = 3;
+
 export function computeRegistrationBaseCents(
   unit: StripePricingUnit,
   amountPerUnitCents: number | null | undefined,
   childCount: number,
+  capPaidChildrenAtThree = false,
 ): number {
   const per = amountPerUnitCents ?? 0;
   if (per <= 0) return 0;
   const n = Math.max(1, childCount);
-  return unit === "PER_CHILD" ? Math.round(per * n) : per;
+  if (unit === "PER_CHILD") {
+    const billable = capPaidChildrenAtThree ? Math.min(n, STRIPE_PER_CHILD_MAX_PAID_COUNT) : n;
+    return Math.round(per * billable);
+  }
+  return per;
 }
 
 export function computeProcessingGrossUp(

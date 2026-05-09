@@ -63,6 +63,7 @@ export function FormSettingsForm({
     stripeCheckoutEnabled: boolean;
     stripeAmountCents: number | null;
     stripePricingUnit: "PER_SUBMISSION" | "PER_CHILD";
+    stripeCapPaidChildrenAtThree: boolean;
     stripeProcessingFeeMode: "OPTIONAL" | "REQUIRED";
     stripeProductLabel: string | null;
     stripeSkipWhenFieldKey: string | null;
@@ -178,6 +179,7 @@ export function FormSettingsForm({
             : null;
         const stripePricingUnit =
           String(fd.get("stripePricingUnit") ?? "") === "PER_CHILD" ? "PER_CHILD" : "PER_SUBMISSION";
+        const stripeCapPaidChildrenAtThree = fd.get("stripeCapPaidChildrenAtThree") === "on";
         const stripeProcessingFeeMode =
           String(fd.get("stripeProcessingFeeMode") ?? "") === "REQUIRED" ? "REQUIRED" : "OPTIONAL";
         const stripeProductLabel = String(fd.get("stripeProductLabel") ?? "").trim() || null;
@@ -234,6 +236,7 @@ export function FormSettingsForm({
             stripeCheckoutEnabled,
             stripeAmountCents,
             stripePricingUnit,
+            stripeCapPaidChildrenAtThree,
             stripeProcessingFeeMode,
             stripeProductLabel,
             stripeSkipWhenFieldKey,
@@ -453,7 +456,8 @@ export function FormSettingsForm({
         <p className="text-xs text-foreground/60">
           The <strong>Fee (USD)</strong> amount and <strong>Fee applies to</strong> work together: choose{" "}
           <strong>Per child</strong> if the dollar amount is for each student (e.g. US$25 with three children → US$75
-          base, plus processing gross-up when enabled). Choose <strong>One payment per form</strong> if families pay
+          base, plus processing gross-up when enabled). You can cap per-child billing at three paid spots per family
+          submission so a fourth child (and beyond) is no charge. Choose <strong>One payment per form</strong> if families pay
           that amount once no matter how many children are on the same submission. The public review page and Stripe
           Checkout use the same total.
         </p>
@@ -500,6 +504,18 @@ export function FormSettingsForm({
             </p>
           </div>
         </div>
+        <label className="flex items-start gap-2 text-sm font-medium">
+          <input
+            type="checkbox"
+            name="stripeCapPaidChildrenAtThree"
+            defaultChecked={initial.stripeCapPaidChildrenAtThree}
+            className="mt-0.5 size-4 rounded border-foreground/30"
+          />
+          <span>
+            Cap per-child billing at three children (fourth and beyond free on the same submission). Only applies when
+            “Fee applies to” is <strong>Per child</strong>; Stripe totals and the public review step use the same math.
+          </span>
+        </label>
         <div>
           <span className="block text-xs font-medium text-foreground/70">Card processing fee</span>
           <p className="mt-1 text-xs text-foreground/60">

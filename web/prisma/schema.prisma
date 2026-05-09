@@ -318,6 +318,8 @@ model RegistrationForm {
   /// Base registration fee in cents (before optional processing gross-up).
   stripeAmountCents           Int?
   stripePricingUnit           StripePricingUnit    @default(PER_SUBMISSION)
+  /// With PER_CHILD pricing: when true, at most three children are billed per submission (fourth and beyond no charge).
+  stripeCapPaidChildrenAtThree Boolean             @default(false)
   stripeProcessingFeeMode     StripeProcessingFeeMode @default(OPTIONAL)
   /// Shown on Stripe Checkout line item (e.g. "Summer VBS 2026 registration").
   stripeProductLabel          String?

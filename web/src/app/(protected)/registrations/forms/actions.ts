@@ -182,6 +182,7 @@ export async function updateRegistrationFormSettings(
     stripeCheckoutEnabled: boolean;
     stripeAmountCents: number | null;
     stripePricingUnit: "PER_SUBMISSION" | "PER_CHILD";
+    stripeCapPaidChildrenAtThree: boolean;
     stripeProcessingFeeMode: "OPTIONAL" | "REQUIRED";
     stripeProductLabel: string | null;
     stripeSkipWhenFieldKey: string | null;
@@ -325,6 +326,7 @@ export async function updateRegistrationFormSettings(
         stripeCheckoutEnabled: data.stripeCheckoutEnabled,
         stripeAmountCents: data.stripeCheckoutEnabled ? stripeAmountCents : null,
         stripePricingUnit: data.stripePricingUnit,
+        stripeCapPaidChildrenAtThree: data.stripeCapPaidChildrenAtThree,
         stripeProcessingFeeMode: data.stripeProcessingFeeMode,
         stripeProductLabel: data.stripeProductLabel?.trim() ? data.stripeProductLabel.trim() : null,
         stripeSkipWhenFieldKey: data.stripeCheckoutEnabled ? stripeSkipWhenFieldKey : null,
@@ -403,6 +405,7 @@ export async function cloneRegistrationFormFromSeason(
       stripeCheckoutEnabled: srcForm.stripeCheckoutEnabled,
       stripeAmountCents: srcForm.stripeAmountCents,
       stripePricingUnit: srcForm.stripePricingUnit,
+      stripeCapPaidChildrenAtThree: srcForm.stripeCapPaidChildrenAtThree,
       stripeProcessingFeeMode: srcForm.stripeProcessingFeeMode,
       stripeProductLabel: srcForm.stripeProductLabel,
       stripeSkipWhenFieldKey: srcForm.stripeSkipWhenFieldKey,
@@ -698,6 +701,7 @@ export type FormWorkspacePayload = {
     stripeCheckoutEnabled: boolean;
     stripeAmountCents: number | null;
     stripePricingUnit: "PER_SUBMISSION" | "PER_CHILD";
+    stripeCapPaidChildrenAtThree: boolean;
     stripeProcessingFeeMode: "OPTIONAL" | "REQUIRED";
     stripeProductLabel: string | null;
     stripeSkipWhenFieldKey: string | null;
@@ -842,6 +846,7 @@ export async function loadFormWorkspacePayload(
         stripeCheckoutEnabled: form.stripeCheckoutEnabled,
         stripeAmountCents: form.stripeAmountCents,
         stripePricingUnit: form.stripePricingUnit,
+        stripeCapPaidChildrenAtThree: form.stripeCapPaidChildrenAtThree,
         stripeProcessingFeeMode: form.stripeProcessingFeeMode,
         stripeProductLabel: form.stripeProductLabel,
         stripeSkipWhenFieldKey: form.stripeSkipWhenFieldKey,

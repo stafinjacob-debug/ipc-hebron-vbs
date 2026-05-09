@@ -104,6 +104,7 @@ export default async function RegistrationFormSettingsPage({
           stripeCheckoutEnabled: form.stripeCheckoutEnabled,
           stripeAmountCents: form.stripeAmountCents,
           stripePricingUnit: form.stripePricingUnit,
+          stripeCapPaidChildrenAtThree: form.stripeCapPaidChildrenAtThree,
           stripeProcessingFeeMode: form.stripeProcessingFeeMode,
           stripeProductLabel: form.stripeProductLabel,
           stripeSkipWhenFieldKey: form.stripeSkipWhenFieldKey,

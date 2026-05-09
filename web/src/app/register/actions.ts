@@ -311,6 +311,7 @@ async function submitPublicRegistrationCore(
     formRow.stripePricingUnit,
     formRow.stripeAmountCents,
     data.children.length,
+    formRow.stripeCapPaidChildrenAtThree,
   );
   const totalEarly = computeProcessingGrossUp(baseEarly, includeFeeEarly).totalCents;
   if (stripeCheckoutRequired && totalEarly < 50) {
@@ -536,6 +537,7 @@ async function submitPublicRegistrationCore(
           formRow.stripePricingUnit,
           formRow.stripeAmountCents,
           outcome.childCount,
+          formRow.stripeCapPaidChildrenAtThree,
         );
         const { totalCents, processingCents } = computeProcessingGrossUp(baseCents, includeFee);
 
