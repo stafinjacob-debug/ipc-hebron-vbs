@@ -16,8 +16,29 @@ export type GraphMailboxMessage = {
   bodyContent: string | null;
 };
 
+export type GraphSentMailboxMessage = {
+  id: string;
+  conversationId: string | null;
+  internetMessageId: string | null;
+  subject: string;
+  toDisplay: string;
+  toAddressesNormalized: string;
+  sentAt: Date;
+  isRead: boolean;
+  bodyPreview: string | null;
+  bodyContentType: string | null;
+  bodyContent: string | null;
+};
+
 type GraphSyncResult = {
   messages: GraphMailboxMessage[];
+  removedIds: string[];
+  deltaLink: string | null;
+  usedDeltaLink: boolean;
+};
+
+export type GraphSentSyncResult = {
+  messages: GraphSentMailboxMessage[];
   removedIds: string[];
   deltaLink: string | null;
   usedDeltaLink: boolean;
@@ -170,6 +191,107 @@ export async function listInboxMessages(
   return { ok: true, messages };
 }
 
+function summarizeToRecipients(
+  toRecipients: Array<{ emailAddress?: { name?: string | null; address?: string | null } }> | undefined,
+): { toDisplay: string; toAddressesNormalized: string } | null {
+  if (!toRecipients?.length) return null;
+  const parts: string[] = [];
+  const addresses: string[] = [];
+  for (const r of toRecipients) {
+    const addr = r.emailAddress?.address?.trim();
+    if (!addr) continue;
+    const lower = addr.toLowerCase();
+    addresses.push(lower);
+    const name = r.emailAddress?.name?.trim();
+    parts.push(name && name.toLowerCase() !== lower ? `${name} <${addr}>` : addr);
+  }
+  if (!addresses.length) return null;
+  const uniq = [...new Set(addresses)];
+  const toAddressesNormalized = uniq.join("; ");
+  const displayParts = parts.slice(0, 3);
+  const toDisplay =
+    displayParts.join("; ") + (parts.length > 3 ? ` +${parts.length - 3} more` : "");
+  return { toDisplay, toAddressesNormalized };
+}
+
+export async function listSentMessages(
+  top = 50,
+): Promise<{ ok: true; messages: GraphSentMailboxMessage[] } | { ok: false; error: string }> {
+  const mailbox = mailboxAddress();
+  if (!mailbox) return { ok: false, error: "MICROSOFT_GRAPH_MAILBOX is not configured." };
+
+  const tokenResult = await getAppAccessToken();
+  if (!tokenResult.ok) return tokenResult;
+
+  const params = new URLSearchParams({
+    $top: String(Math.min(Math.max(top, 1), 200)),
+    $orderby: "sentDateTime desc",
+    $select: [
+      "id",
+      "conversationId",
+      "internetMessageId",
+      "subject",
+      "toRecipients",
+      "sentDateTime",
+      "isRead",
+      "bodyPreview",
+      "body",
+    ].join(","),
+  });
+  const url = `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(mailbox)}/mailFolders/SentItems/messages?${params.toString()}`;
+  const res = await fetch(url, {
+    headers: {
+      Authorization: `Bearer ${tokenResult.token}`,
+      "Content-Type": "application/json",
+      Prefer: 'outlook.body-content-type="text"',
+    },
+  });
+
+  const json = (await res.json().catch(() => ({}))) as {
+    value?: Array<{
+      id: string;
+      conversationId?: string | null;
+      internetMessageId?: string | null;
+      subject?: string | null;
+      toRecipients?: Array<{ emailAddress?: { name?: string | null; address?: string | null } }>;
+      sentDateTime?: string;
+      isRead?: boolean;
+      bodyPreview?: string | null;
+      body?: { contentType?: string | null; content?: string | null };
+    }>;
+    error?: { message?: string };
+  };
+  if (!res.ok) {
+    return {
+      ok: false,
+      error: `Graph sent items fetch failed (${res.status}): ${json.error?.message ?? res.statusText}`,
+    };
+  }
+
+  const messages: GraphSentMailboxMessage[] = [];
+  for (const item of json.value ?? []) {
+    if (!item.id || !item.sentDateTime) continue;
+    const to = summarizeToRecipients(item.toRecipients);
+    if (!to) continue;
+    const body = item.body;
+    messages.push({
+      id: item.id,
+      conversationId: item.conversationId ?? null,
+      internetMessageId: item.internetMessageId ?? null,
+      subject: item.subject?.trim() || "(No subject)",
+      toDisplay: to.toDisplay,
+      toAddressesNormalized: to.toAddressesNormalized,
+      sentAt: new Date(item.sentDateTime),
+      isRead: Boolean(item.isRead),
+      bodyPreview: item.bodyPreview?.trim() || null,
+      bodyContentType: body?.contentType?.trim() || null,
+      bodyContent: normalizeBodyToText(body?.contentType, body?.content),
+    });
+  }
+
+  return { ok: true, messages };
+}
+
 function parseGraphMessages(items: Array<Record<string, unknown>>): {
   messages: GraphMailboxMessage[];
   removedIds: string[];
@@ -245,6 +367,111 @@ export async function syncInboxMessagesByDelta(
     }
 
     const parsed = parseGraphMessages(json.value ?? []);
+    allMessages.push(...parsed.messages);
+    removedIds.push(...parsed.removedIds);
+
+    if (typeof json["@odata.deltaLink"] === "string") deltaLink = json["@odata.deltaLink"];
+    url = typeof json["@odata.nextLink"] === "string" ? json["@odata.nextLink"] : "";
+  }
+
+  return {
+    ok: true,
+    result: {
+      messages: allMessages,
+      removedIds,
+      deltaLink,
+      usedDeltaLink: Boolean(previousDeltaLink?.trim()),
+    },
+  };
+}
+
+function parseSentGraphMessages(items: Array<Record<string, unknown>>): {
+  messages: GraphSentMailboxMessage[];
+  removedIds: string[];
+} {
+  const messages: GraphSentMailboxMessage[] = [];
+  const removedIds: string[] = [];
+  for (const raw of items) {
+    const id = typeof raw.id === "string" ? raw.id : null;
+    if (!id) continue;
+    if (raw["@removed"]) {
+      removedIds.push(id);
+      continue;
+    }
+    const toRecipients = raw.toRecipients as
+      | Array<{ emailAddress?: { name?: string | null; address?: string | null } }>
+      | undefined;
+    const to = summarizeToRecipients(toRecipients);
+    if (!to) continue;
+    const sentDateTime = typeof raw.sentDateTime === "string" ? raw.sentDateTime : null;
+    if (!sentDateTime) continue;
+    const body = raw.body as { contentType?: string | null; content?: string | null } | undefined;
+    messages.push({
+      id,
+      conversationId: typeof raw.conversationId === "string" ? raw.conversationId : null,
+      internetMessageId: typeof raw.internetMessageId === "string" ? raw.internetMessageId : null,
+      subject: typeof raw.subject === "string" && raw.subject.trim() ? raw.subject.trim() : "(No subject)",
+      toDisplay: to.toDisplay,
+      toAddressesNormalized: to.toAddressesNormalized,
+      sentAt: new Date(sentDateTime),
+      isRead: Boolean(raw.isRead),
+      bodyPreview: typeof raw.bodyPreview === "string" ? raw.bodyPreview.trim() || null : null,
+      bodyContentType: body?.contentType?.trim() || null,
+      bodyContent: normalizeBodyToText(body?.contentType, body?.content),
+    });
+  }
+  return { messages, removedIds };
+}
+
+export async function syncSentMessagesByDelta(
+  previousDeltaLink?: string | null,
+): Promise<{ ok: true; result: GraphSentSyncResult } | { ok: false; error: string }> {
+  const mailbox = mailboxAddress();
+  if (!mailbox) return { ok: false, error: "MICROSOFT_GRAPH_MAILBOX is not configured." };
+  const tokenResult = await getAppAccessToken();
+  if (!tokenResult.ok) return tokenResult;
+
+  const selectFields = [
+    "id",
+    "conversationId",
+    "internetMessageId",
+    "subject",
+    "toRecipients",
+    "sentDateTime",
+    "isRead",
+    "bodyPreview",
+    "body",
+  ].join(",");
+  let url =
+    previousDeltaLink?.trim() ||
+    `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(mailbox)}/mailFolders/SentItems/messages/delta?$select=${encodeURIComponent(selectFields)}&$top=75`;
+
+  const allMessages: GraphSentMailboxMessage[] = [];
+  const removedIds: string[] = [];
+  let deltaLink: string | null = null;
+
+  while (url) {
+    const res = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${tokenResult.token}`,
+        "Content-Type": "application/json",
+        Prefer: 'outlook.body-content-type="text"',
+      },
+    });
+    const json = (await res.json().catch(() => ({}))) as {
+      value?: Array<Record<string, unknown>>;
+      "@odata.nextLink"?: string;
+      "@odata.deltaLink"?: string;
+      error?: { message?: string };
+    };
+    if (!res.ok) {
+      return {
+        ok: false,
+        error: `Graph sent folder delta sync failed (${res.status}): ${json.error?.message ?? res.statusText}`,
+      };
+    }
+
+    const parsed = parseSentGraphMessages(json.value ?? []);
     allMessages.push(...parsed.messages);
     removedIds.push(...parsed.removedIds);
 

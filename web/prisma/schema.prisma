@@ -641,3 +641,35 @@ model IncomingMessageSyncState {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 }
+
+/// Outbound mail synced from the Microsoft 365 Sent Items folder (includes Graph sendMail with saveToSentItems).
+model SentMailboxMessage {
+  id                String @id @default(cuid())
+  graphMessageId    String @unique
+  conversationId    String?
+  internetMessageId String?
+
+  subject                  String
+  toDisplay                String
+  toAddressesNormalized    String @db.Text
+  sentAt                   DateTime
+  bodyPreview              String?
+  bodyText                 String?
+  bodyContentType          String?
+  rawJson                  Json?
+
+  lastSyncedAt DateTime @default(now())
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([sentAt])
+}
+
+model SentMailboxSyncState {
+  id           String   @id @default(cuid())
+  mailbox      String   @unique
+  deltaLink    String?
+  lastSyncedAt DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}

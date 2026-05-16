@@ -4,8 +4,10 @@ import { IncomingMessageStatus } from "@/generated/prisma";
 import { auth } from "@/auth";
 import { MessagesBulkTable } from "@/app/(protected)/messages/messages-bulk-table";
 import { MessageSyncButton } from "@/app/(protected)/messages/message-sync-button";
+import { MessagesFolderNav } from "@/app/(protected)/messages/messages-folder-nav";
+import { SentMessagesTable } from "@/app/(protected)/messages/sent-messages-table";
 import { prisma } from "@/lib/prisma";
-import { canViewOperations } from "@/lib/roles";
+import { canManageDirectory, canViewOperations } from "@/lib/roles";
 
 function formatDateTime(value: Date): string {
   return new Intl.DateTimeFormat("en-US", {
@@ -20,13 +22,14 @@ function formatDateTime(value: Date): string {
 export default async function IncomingMessagesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; status?: string; assignment?: string }>;
+  searchParams: Promise<{ q?: string; status?: string; assignment?: string; view?: string }>;
 }) {
   const session = await auth();
   if (!session?.user?.role) redirect("/login");
   if (!canViewOperations(session.user.role)) redirect("/dashboard");
 
   const sp = await searchParams;
+  const view = (sp.view ?? "").trim().toLowerCase() === "sent" ? "sent" : "inbox";
   const q = (sp.q ?? "").trim();
   const statusFilter = (sp.status ?? "").trim().toUpperCase();
   const assignmentFilter = (sp.assignment ?? "").trim().toLowerCase();
@@ -34,6 +37,86 @@ export default async function IncomingMessagesPage({
   const status = validStatuses.includes(statusFilter as IncomingMessageStatus)
     ? (statusFilter as IncomingMessageStatus)
     : undefined;
+
+  const showCompose = canManageDirectory(session.user.role);
+
+  if (view === "sent") {
+    const sentWhere = {
+      ...(q
+        ? {
+            OR: [
+              { subject: { contains: q, mode: "insensitive" as const } },
+              { toDisplay: { contains: q, mode: "insensitive" as const } },
+              { toAddressesNormalized: { contains: q, mode: "insensitive" as const } },
+              { bodyPreview: { contains: q, mode: "insensitive" as const } },
+            ],
+          }
+        : {}),
+    };
+
+    const sentRows = await prisma.sentMailboxMessage.findMany({
+      where: sentWhere,
+      orderBy: [{ sentAt: "desc" }],
+      take: 100,
+      select: {
+        id: true,
+        toDisplay: true,
+        toAddressesNormalized: true,
+        subject: true,
+        bodyPreview: true,
+        sentAt: true,
+      },
+    });
+
+    return (
+      <section className="space-y-5">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
+              <Mail className="size-6 text-brand" aria-hidden />
+              Sent messages
+            </h1>
+            <p className="mt-1 text-sm text-muted">Synced from your Microsoft 365 Sent Items folder.</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <MessagesFolderNav current="sent" showCompose={showCompose} />
+            <MessageSyncButton />
+          </div>
+        </div>
+
+        <form method="get" className="flex flex-wrap items-end gap-2 rounded-xl border border-foreground/10 bg-surface-elevated p-3">
+          <input type="hidden" name="view" value="sent" />
+          <div className="min-w-[14rem] flex-1">
+            <label htmlFor="q" className="block text-xs font-medium text-foreground/70">
+              Search
+            </label>
+            <input
+              id="q"
+              name="q"
+              type="search"
+              defaultValue={q}
+              placeholder="Subject, recipients, preview…"
+              className="mt-1 w-full rounded-md border border-foreground/15 bg-background px-2.5 py-2 text-sm"
+            />
+          </div>
+          <button type="submit" className="rounded-md bg-brand px-3 py-2 text-sm font-semibold text-white">
+            Apply
+          </button>
+        </form>
+
+        <SentMessagesTable
+          rows={sentRows.map((m) => ({
+            id: m.id,
+            toDisplay: m.toDisplay,
+            toAddressesNormalized: m.toAddressesNormalized,
+            subject: m.subject,
+            bodyPreview: m.bodyPreview,
+            sentAtLabel: formatDateTime(m.sentAt),
+          }))}
+        />
+      </section>
+    );
+  }
 
   const where = {
     ...(q
@@ -79,11 +162,14 @@ export default async function IncomingMessagesPage({
         <div>
           <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
             <Mail className="size-6 text-brand" aria-hidden />
-            Incoming Messages
+            Incoming messages
           </h1>
           <p className="mt-1 text-sm text-muted">Synced from your Microsoft 365 inbox.</p>
         </div>
-        <MessageSyncButton />
+        <div className="flex flex-wrap items-center gap-3">
+          <MessagesFolderNav current="inbox" showCompose={showCompose} />
+          <MessageSyncButton />
+        </div>
       </div>
 
       <form method="get" className="flex flex-wrap items-end gap-2 rounded-xl border border-foreground/10 bg-surface-elevated p-3">
@@ -96,7 +182,7 @@ export default async function IncomingMessagesPage({
             name="q"
             type="search"
             defaultValue={q}
-            placeholder="Subject, sender, preview..."
+            placeholder="Subject, sender, preview…"
             className="mt-1 w-full rounded-md border border-foreground/15 bg-background px-2.5 py-2 text-sm"
           />
         </div>

@@ -14,7 +14,7 @@ function SubmitButton() {
       className="inline-flex items-center rounded-md border border-foreground/15 bg-background px-3 py-1.5 text-sm font-medium text-foreground hover:bg-foreground/[0.04] disabled:cursor-not-allowed disabled:opacity-60"
       disabled={pending}
     >
-      {pending ? "Syncing..." : "Sync inbox"}
+      {pending ? "Syncing…" : "Sync mailbox"}
     </button>
   );
 }

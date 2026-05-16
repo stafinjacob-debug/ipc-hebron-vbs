@@ -81,6 +81,8 @@ export type GraphMailAttachment = {
 export type SendGraphMailInput = {
   toAddress: string;
   toName?: string | null;
+  /** Extra To: recipients (address only). Primary is still `toAddress` / `toName`. */
+  additionalToAddresses?: string[];
   subject: string;
   htmlBody: string;
   attachments?: GraphMailAttachment[];
@@ -109,6 +111,28 @@ export async function sendMailViaMicrosoftGraph(
       ...(a.contentId ? { contentId: a.contentId } : {}),
     })) ?? [];
 
+  const primaryTrimmed = input.toAddress.trim();
+  const primaryLower = primaryTrimmed.toLowerCase();
+  const seen = new Set<string>([primaryLower]);
+  const toRecipients: Array<{ emailAddress: { address: string; name: string } }> = [
+    {
+      emailAddress: {
+        address: primaryTrimmed,
+        name: input.toName?.trim() || primaryTrimmed,
+      },
+    },
+  ];
+  for (const raw of input.additionalToAddresses ?? []) {
+    const addr = raw.trim();
+    if (!addr) continue;
+    const lower = addr.toLowerCase();
+    if (seen.has(lower)) continue;
+    seen.add(lower);
+    toRecipients.push({
+      emailAddress: { address: addr, name: addr },
+    });
+  }
+
   const res = await fetch(url, {
     method: "POST",
     headers: {
@@ -122,14 +146,7 @@ export async function sendMailViaMicrosoftGraph(
           contentType: "HTML",
           content: input.htmlBody,
         },
-        toRecipients: [
-          {
-            emailAddress: {
-              address: input.toAddress,
-              name: input.toName?.trim() || input.toAddress,
-            },
-          },
-        ],
+        toRecipients,
         ...(attachments.length ? { attachments } : {}),
       },
       saveToSentItems: true,

@@ -8,10 +8,14 @@ import { canManageDirectory, canViewOperations } from "@/lib/roles";
 import {
   configuredGraphMailboxAddress,
   type GraphMailboxMessage,
+  type GraphSentMailboxMessage,
   listInboxMessages,
+  listSentMessages,
   replyToMessageViaGraph,
   syncInboxMessagesByDelta,
+  syncSentMessagesByDelta,
 } from "@/lib/messages/graph-mailbox";
+import { sendMailViaMicrosoftGraph } from "@/lib/email/microsoft-graph";
 
 export type IncomingMessageActionState = {
   ok: boolean;
@@ -29,34 +33,36 @@ export async function syncIncomingMessagesAction(_prevState: IncomingMessageActi
   const mailbox = configuredGraphMailboxAddress();
   if (!mailbox) return { ok: false, error: "MICROSOFT_GRAPH_MAILBOX is not configured." };
 
-  const syncState = await prisma.incomingMessageSyncState.findUnique({
-    where: { mailbox: mailbox.toLowerCase() },
+  const mailboxKey = mailbox.toLowerCase();
+
+  const inboxSyncState = await prisma.incomingMessageSyncState.findUnique({
+    where: { mailbox: mailboxKey },
   });
 
   let usedDeltaFallback = false;
-  let messages: GraphMailboxMessage[] = [];
-  let removedIds: string[] = [];
-  let deltaLink: string | null = syncState?.deltaLink ?? null;
+  let inboxMessages: GraphMailboxMessage[] = [];
+  let inboxRemovedIds: string[] = [];
+  let inboxDeltaLink: string | null = inboxSyncState?.deltaLink ?? null;
 
-  const delta = await syncInboxMessagesByDelta(syncState?.deltaLink ?? null);
-  if (delta.ok) {
-    messages = delta.result.messages;
-    removedIds = delta.result.removedIds;
-    deltaLink = delta.result.deltaLink;
-  } else if (syncState?.deltaLink) {
+  const inboxDelta = await syncInboxMessagesByDelta(inboxSyncState?.deltaLink ?? null);
+  if (inboxDelta.ok) {
+    inboxMessages = inboxDelta.result.messages;
+    inboxRemovedIds = inboxDelta.result.removedIds;
+    inboxDeltaLink = inboxDelta.result.deltaLink;
+  } else if (inboxSyncState?.deltaLink) {
     usedDeltaFallback = true;
     const full = await listInboxMessages(100);
-    if (!full.ok) return { ok: false, error: `${delta.error} Fallback failed: ${full.error}` };
-    messages = full.messages;
-    removedIds = [];
-    deltaLink = null;
+    if (!full.ok) return { ok: false, error: `${inboxDelta.error} Fallback failed: ${full.error}` };
+    inboxMessages = full.messages;
+    inboxRemovedIds = [];
+    inboxDeltaLink = null;
   } else {
-    return { ok: false, error: delta.error };
+    return { ok: false, error: inboxDelta.error };
   }
 
   const now = new Date();
   await prisma.$transaction([
-    ...messages.map((m) =>
+    ...inboxMessages.map((m) =>
       prisma.incomingMessage.upsert({
         where: { graphMessageId: m.id },
         create: {
@@ -91,33 +97,126 @@ export async function syncIncomingMessagesAction(_prevState: IncomingMessageActi
         },
       }),
     ),
-    ...(removedIds.length
+    ...(inboxRemovedIds.length
       ? [
           prisma.incomingMessage.updateMany({
-            where: { graphMessageId: { in: removedIds } },
+            where: { graphMessageId: { in: inboxRemovedIds } },
             data: { status: "ARCHIVED", lastSyncedAt: now },
           }),
         ]
       : []),
     prisma.incomingMessageSyncState.upsert({
-      where: { mailbox: mailbox.toLowerCase() },
+      where: { mailbox: mailboxKey },
       create: {
-        mailbox: mailbox.toLowerCase(),
-        deltaLink,
+        mailbox: mailboxKey,
+        deltaLink: inboxDeltaLink,
         lastSyncedAt: now,
       },
       update: {
-        deltaLink,
+        deltaLink: inboxDeltaLink,
+        lastSyncedAt: now,
+      },
+    }),
+  ]);
+
+  const sentSyncState = await prisma.sentMailboxSyncState.findUnique({
+    where: { mailbox: mailboxKey },
+  });
+
+  let sentUsedDeltaFallback = false;
+  let sentMessages: GraphSentMailboxMessage[] = [];
+  let sentRemovedIds: string[] = [];
+  let sentDeltaLink: string | null = sentSyncState?.deltaLink ?? null;
+
+  const sentDelta = await syncSentMessagesByDelta(sentSyncState?.deltaLink ?? null);
+  if (sentDelta.ok) {
+    sentMessages = sentDelta.result.messages;
+    sentRemovedIds = sentDelta.result.removedIds;
+    sentDeltaLink = sentDelta.result.deltaLink;
+  } else if (sentSyncState?.deltaLink) {
+    sentUsedDeltaFallback = true;
+    const fullSent = await listSentMessages(100);
+    if (!fullSent.ok) {
+      revalidatePath("/messages");
+      return {
+        ok: true,
+        message: `Inbox: ${inboxMessages.length} update(s)${inboxRemovedIds.length ? `, ${inboxRemovedIds.length} archived` : ""}${usedDeltaFallback ? " (inbox delta reset fallback)" : ""}. Sent folder could not sync: ${sentDelta.error} Fallback failed: ${fullSent.error}`,
+      };
+    }
+    sentMessages = fullSent.messages;
+    sentRemovedIds = [];
+    sentDeltaLink = null;
+  } else {
+    const fullSent = await listSentMessages(100);
+    if (!fullSent.ok) {
+      revalidatePath("/messages");
+      return {
+        ok: true,
+        message: `Inbox: ${inboxMessages.length} update(s)${inboxRemovedIds.length ? `, ${inboxRemovedIds.length} archived` : ""}${usedDeltaFallback ? " (inbox delta reset fallback)" : ""}. Sent folder unavailable (${sentDelta.error}).`,
+      };
+    }
+    sentMessages = fullSent.messages;
+    sentRemovedIds = [];
+    sentDeltaLink = null;
+  }
+
+  await prisma.$transaction([
+    ...sentMessages.map((m) =>
+      prisma.sentMailboxMessage.upsert({
+        where: { graphMessageId: m.id },
+        create: {
+          graphMessageId: m.id,
+          conversationId: m.conversationId,
+          internetMessageId: m.internetMessageId,
+          subject: m.subject,
+          toDisplay: m.toDisplay,
+          toAddressesNormalized: m.toAddressesNormalized,
+          sentAt: m.sentAt,
+          bodyPreview: m.bodyPreview,
+          bodyText: m.bodyContent?.slice(0, 20_000) ?? null,
+          bodyContentType: m.bodyContentType,
+          rawJson: m,
+          lastSyncedAt: now,
+        },
+        update: {
+          conversationId: m.conversationId,
+          internetMessageId: m.internetMessageId,
+          subject: m.subject,
+          toDisplay: m.toDisplay,
+          toAddressesNormalized: m.toAddressesNormalized,
+          sentAt: m.sentAt,
+          bodyPreview: m.bodyPreview,
+          bodyText: m.bodyContent?.slice(0, 20_000) ?? null,
+          bodyContentType: m.bodyContentType,
+          rawJson: m,
+          lastSyncedAt: now,
+        },
+      }),
+    ),
+    ...(sentRemovedIds.length
+      ? [prisma.sentMailboxMessage.deleteMany({ where: { graphMessageId: { in: sentRemovedIds } } })]
+      : []),
+    prisma.sentMailboxSyncState.upsert({
+      where: { mailbox: mailboxKey },
+      create: {
+        mailbox: mailboxKey,
+        deltaLink: sentDeltaLink,
+        lastSyncedAt: now,
+      },
+      update: {
+        deltaLink: sentDeltaLink,
         lastSyncedAt: now,
       },
     }),
   ]);
 
   revalidatePath("/messages");
-  const fallbackSuffix = usedDeltaFallback ? " (delta reset fallback used)" : "";
+  revalidatePath("/messages/sent");
+  const inboxSuffix = usedDeltaFallback ? " (inbox delta reset fallback)" : "";
+  const sentSuffix = sentUsedDeltaFallback ? " (sent delta reset fallback)" : "";
   return {
     ok: true,
-    message: `Synced ${messages.length} updates${removedIds.length ? `, archived ${removedIds.length} removed` : ""}${fallbackSuffix}.`,
+    message: `Inbox: ${inboxMessages.length} update(s)${inboxRemovedIds.length ? `, ${inboxRemovedIds.length} archived` : ""}${inboxSuffix}. Sent: ${sentMessages.length} update(s)${sentRemovedIds.length ? `, ${sentRemovedIds.length} removed locally` : ""}${sentSuffix}.`,
   };
 }
 
@@ -264,4 +363,58 @@ export async function bulkUpdateIncomingMessagesAction(
 
   revalidatePath("/messages");
   return { ok: true, message: `Updated ${result.count} message(s).` };
+}
+
+function escapeHtmlEmailBody(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+const COMPOSE_TO_EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+export async function sendComposedEmailAction(
+  _prevState: IncomingMessageActionState,
+  formData: FormData,
+): Promise<IncomingMessageActionState> {
+  void _prevState;
+  const session = await auth();
+  if (!session?.user?.role || !canManageDirectory(session.user.role)) {
+    return { ok: false, error: "You do not have permission to send email." };
+  }
+
+  const toRaw = String(formData.get("toAddresses") ?? "").trim();
+  const subject = String(formData.get("subject") ?? "").trim();
+  const body = String(formData.get("body") ?? "").trim();
+
+  if (!toRaw) return { ok: false, error: "Add at least one recipient email." };
+  if (!subject) return { ok: false, error: "Subject is required." };
+  if (!body) return { ok: false, error: "Message body cannot be empty." };
+
+  const addresses = toRaw
+    .split(/[,;\n]+/)
+    .map((a) => a.trim())
+    .filter(Boolean);
+  const invalid = addresses.filter((a) => !COMPOSE_TO_EMAIL_RE.test(a));
+  if (invalid.length) return { ok: false, error: `Invalid email address(es): ${invalid.join(", ")}` };
+  if (addresses.length > 25) return { ok: false, error: "Too many recipients (max 25)." };
+
+  const [primary, ...additionalToAddresses] = addresses;
+  const htmlBody = `<div style="font-family:system-ui,-apple-system,Segoe UI,sans-serif;font-size:15px;line-height:1.55;color:#0f172a">${escapeHtmlEmailBody(body).replace(/\r?\n/g, "<br/>")}</div>`;
+
+  const result = await sendMailViaMicrosoftGraph({
+    toAddress: primary,
+    additionalToAddresses,
+    subject,
+    htmlBody,
+  });
+  if (!result.ok) return { ok: false, error: result.error };
+
+  revalidatePath("/messages");
+  revalidatePath("/messages/sent");
+  revalidatePath("/messages/compose");
+  return { ok: true, message: "Email sent." };
 }

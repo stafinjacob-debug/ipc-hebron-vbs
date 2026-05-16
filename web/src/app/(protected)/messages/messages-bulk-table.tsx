@@ -129,7 +129,7 @@ export function MessagesBulkTable({
             {rows.length === 0 ? (
               <tr>
                 <td colSpan={7} className="px-4 py-8 text-center text-sm text-muted">
-                  No messages yet. Click Sync inbox to pull messages from Microsoft 365.
+                  No messages yet. Click Sync mailbox to pull inbox and sent mail from Microsoft 365.
                 </td>
               </tr>
             ) : (
