@@ -544,8 +544,10 @@ function buildRegistrationCancelledEmailInner(args: {
       ${args.childListHtml}
     </p>
     <p style="margin:0 0 12px;font-size:15px;line-height:1.55;color:#334155;">
-      This may be because payment was not completed. If you still plan to attend, please
-      <strong>submit a new registration</strong> and complete the card payment step when prompted.
+      This is often because <strong>payment was not completed</strong> on this submission, or because we found a
+      <strong>duplicate or overlapping registration</strong> for the same child and payment was already received on
+      another submission. If you still need to register and pay, please <strong>submit a new registration</strong> and
+      complete the card payment step when prompted.
     </p>
     <p style="margin:0 0 16px;">
       <a href="${registerUrl}" style="display:inline-block;background:#0f766e;color:#ffffff;padding:12px 18px;border-radius:999px;text-decoration:none;font-size:14px;line-height:1.1;font-weight:700;border:1px solid #0b5f58;">Register again</a>
