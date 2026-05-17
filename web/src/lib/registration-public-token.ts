@@ -1,6 +1,6 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 
-export type SubmissionPublicAction = "cancel";
+export type SubmissionPublicAction = "cancel" | "pay";
 
 function signingSecret(): string | null {
   const s =
@@ -51,4 +51,8 @@ export function verifySubmissionPublicToken(
 
 export function submissionCancelUrl(token: string, baseUrl: string): string {
   return `${baseUrl.replace(/\/$/, "")}/register/cancel?token=${encodeURIComponent(token)}`;
+}
+
+export function submissionPayUrl(token: string, baseUrl: string): string {
+  return `${baseUrl.replace(/\/$/, "")}/register/pay?token=${encodeURIComponent(token)}`;
 }

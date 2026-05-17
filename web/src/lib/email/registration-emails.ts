@@ -1,10 +1,17 @@
 import { prisma } from "@/lib/prisma";
 import { getPublicAppBaseUrl } from "@/lib/public-app-url";
-import { qrPngBase64ForTicketUrl, registrationTicketUrl } from "@/lib/registration-identity";
+import {
+  makeCheckInToken,
+  makeUniqueRegistrationNumber,
+  qrPngBase64ForTicketUrl,
+  registrationTicketUrl,
+} from "@/lib/registration-identity";
 import {
   signSubmissionPublicToken,
   submissionCancelUrl,
+  submissionPayUrl,
 } from "@/lib/registration-public-token";
+import { formatVbsFirstDayLabel } from "@/lib/pay-later";
 import { isCheckoutPendingRegistration } from "@/lib/registration-list-payment";
 import { resolveCheckoutResumeUrlForSubmission } from "@/lib/stripe-registration-payment";
 import { isMicrosoftGraphEmailConfigured, sendMailViaMicrosoftGraph } from "@/lib/email/microsoft-graph";
@@ -264,13 +271,85 @@ export async function sendSubmissionPendingReviewEmail(submissionId: string): Pr
 }
 
 /** After public form submit — guardian receives summary (pending review). */
+/** Ensure every child on a submission has a registration # and check-in token before emailing tickets. */
+async function ensureRegistrationIdentitiesForSubmission(submissionId: string): Promise<void> {
+  const regs = await prisma.registration.findMany({
+    where: {
+      formSubmissionId: submissionId,
+      OR: [{ registrationNumber: null }, { checkInToken: null }],
+    },
+    select: {
+      id: true,
+      seasonId: true,
+      registrationNumber: true,
+      checkInToken: true,
+      season: { select: { year: true } },
+    },
+  });
+  for (const r of regs) {
+    const registrationNumber =
+      r.registrationNumber ??
+      (await makeUniqueRegistrationNumber({ seasonId: r.seasonId, seasonYear: r.season.year }));
+    const checkInToken = r.checkInToken ?? makeCheckInToken();
+    await prisma.registration.update({
+      where: { id: r.id },
+      data: {
+        registrationNumber,
+        checkInToken,
+      },
+    });
+  }
+}
+
+function buildSubmissionReferenceCodeHtml(registrationCode: string): string {
+  const code = escapeHtml(registrationCode);
+  return `<p style="margin:0 0 16px;padding:12px 14px;border-radius:12px;background:#f0f9ff;border:1px solid #bae6fd;color:#0c4a6e;font-size:14px;line-height:1.5;">
+      <span style="display:block;font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#0369a1;">Family reference code</span>
+      <span style="display:block;margin-top:6px;font-family:ui-monospace,Consolas,monospace;font-size:20px;font-weight:800;letter-spacing:0.04em;">${code}</span>
+      <span style="display:block;margin-top:6px;font-size:13px;color:#475569;">Use this code if you contact the VBS team about your registration.</span>
+    </p>`;
+}
+
+function buildPayLaterPaymentInstructionsHtml(args: {
+  dayOneLabel: string;
+  seasonName: string;
+  cardPayUrl: string | null;
+}): string {
+  const dayOne = escapeHtml(args.dayOneLabel);
+  const season = escapeHtml(args.seasonName);
+  const cardLink = args.cardPayUrl
+    ? `<a href="${escapeHtml(args.cardPayUrl)}" style="display:inline-block;margin-top:8px;background:#0f766e;color:#ffffff;padding:10px 16px;border-radius:999px;text-decoration:none;font-size:14px;font-weight:700;">Pay by card online</a>`
+    : "";
+
+  return `
+    <div style="margin:0 0 16px;padding:12px 14px;border-radius:12px;background:#fffbeb;border:1px solid #fde68a;color:#92400e;font-size:14px;line-height:1.55;">
+      <p style="margin:0 0 10px;font-weight:700;color:#78350f;">Payment still due</p>
+      <p style="margin:0 0 10px;">You chose to pay later for <strong>${season}</strong>. Please complete payment before the first day of VBS (<strong>${dayOne}</strong>).</p>
+      <p style="margin:0 0 8px;font-weight:600;">Before the first day (online)</p>
+      <ul style="margin:0 0 12px;padding-left:20px;">
+        <li style="margin:0 0 6px;"><strong>Card</strong> — secure online checkout${cardLink ? ` (use the button below)` : ""}</li>
+      </ul>
+      ${cardLink}
+      <p style="margin:12px 0 8px;font-weight:600;">On site (Day 1 — ${dayOne})</p>
+      <ul style="margin:0;padding-left:20px;">
+        <li style="margin:0 0 6px;"><strong>Zelle</strong> or <strong>card</strong></li>
+        <li style="margin:0;">Cash and checks are <strong>not</strong> accepted on site.</li>
+      </ul>
+    </div>`;
+}
+
 export async function sendSubmissionReceivedEmail(submissionId: string): Promise<EmailSendResult> {
+  await ensureRegistrationIdentitiesForSubmission(submissionId);
+
   const submission = await prisma.formSubmission.findUnique({
     where: { id: submissionId },
     include: {
       guardian: true,
       season: true,
-      registrations: { include: { child: true, classroom: true } },
+      registrations: {
+        where: { status: { not: "CANCELLED" } },
+        include: { child: true, classroom: true },
+      },
     },
   });
   if (!submission?.guardian.email?.trim()) return "skipped_no_email";
@@ -281,10 +360,11 @@ export async function sendSubmissionReceivedEmail(submissionId: string): Promise
   const base = getPublicAppBaseUrl();
   const attachments: NonNullable<Parameters<typeof sendMailViaMicrosoftGraph>[0]["attachments"]> = [];
   let blocks = "";
-  for (let i = 0; i < submission.registrations.length; i++) {
-    const r = submission.registrations[i];
+  let ticketIndex = 0;
+  for (const r of submission.registrations) {
     if (!r.registrationNumber || !r.checkInToken) continue;
-    const cid = `submitqr${i}`;
+    const cid = `submitqr${ticketIndex}`;
+    ticketIndex += 1;
     const ticketUrl = registrationTicketUrl(r.checkInToken, base);
     const qrB64 = await qrPngBase64ForTicketUrl(ticketUrl);
     attachments.push({
@@ -304,23 +384,56 @@ export async function sendSubmissionReceivedEmail(submissionId: string): Promise
   }
   if (!blocks) return "skipped_ineligible";
 
+  const isPayLater = submission.payLaterChosen && !submission.stripePaidAt;
+  const referenceBlock = buildSubmissionReferenceCodeHtml(submission.registrationCode);
+
   const paidNote = submission.stripePaidAt
     ? `<p style="margin:0 0 16px;padding:12px 14px;border-radius:12px;background:#ecfdf5;border:1px solid #a7f3d0;color:#065f46;font-size:14px;">Your online payment was received — thank you.</p>`
     : "";
 
-  const inner = `
+  let payLaterBlock = "";
+  if (isPayLater) {
+    const payToken = signSubmissionPublicToken(submissionId, "pay");
+    const cardPayUrl = payToken ? submissionPayUrl(payToken, base) : null;
+    payLaterBlock = buildPayLaterPaymentInstructionsHtml({
+      dayOneLabel: formatVbsFirstDayLabel(submission.season.startDate),
+      seasonName: submission.season.name,
+      cardPayUrl,
+    });
+  }
+
+  const cardsIntro = isPayLater
+    ? `<p style="margin:0 0 14px;">Thanks for registering for <strong>${season}</strong>. Each child has a registration number and digital check-in card below — save this email for check-in day. Payment is still due; see options after your cards.</p>`
+    : `<p style="margin:0 0 14px;">Thanks for registering for <strong>${season}</strong>. Each child now has a registration number and digital check-in card:</p>`;
+
+  const inner = isPayLater
+    ? `
+    <p style="margin:0 0 12px;">Hi ${escapeHtml(gname)},</p>
+    ${referenceBlock}
+    ${cardsIntro}
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0">${blocks}</table>
+    ${payLaterBlock}
+    <p style="margin:10px 0 0;font-size:13px;color:#64748b;">Show each child&apos;s digital card (QR code) at check-in. Staff may still follow up if details need review.</p>
+    <p style="margin:8px 0 0;font-size:13px;color:#475569;">Questions? Email <a href="mailto:${escapeHtml(helpEmailAddress())}" style="color:#2563eb;">${escapeHtml(helpEmailAddress())}</a>.</p>
+  `
+    : `
     <p style="margin:0 0 12px;">Hi ${escapeHtml(gname)},</p>
     ${paidNote}
-    <p style="margin:0 0 14px;">Thanks for registering for <strong>${season}</strong>. Each child now has a registration number and digital check-in card:</p>
+    ${referenceBlock}
+    ${cardsIntro}
     <table role="presentation" width="100%" cellspacing="0" cellpadding="0">${blocks}</table>
     <p style="margin:10px 0 0;font-size:13px;color:#64748b;">Save this email for check-in day. Staff may still follow up if details need review.</p>
     <p style="margin:8px 0 0;font-size:13px;color:#475569;">Questions? Email <a href="mailto:${escapeHtml(helpEmailAddress())}" style="color:#2563eb;">${escapeHtml(helpEmailAddress())}</a>.</p>
   `;
 
+  const subject = isPayLater
+    ? `${brandName()} — Your registration & check-in cards (payment due)`
+    : `${brandName()} — Your family registration details`;
+
   const { result, error } = await sendHtml(
     to,
     gname,
-    `${brandName()} — Your family registration details`,
+    subject,
     emailShell(inner),
     attachments,
   );

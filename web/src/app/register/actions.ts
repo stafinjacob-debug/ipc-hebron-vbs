@@ -43,6 +43,7 @@ import {
   type WaiverPerChildSubmit,
 } from "@/lib/waiver-merge-fields";
 import { renderWaiverPdfBuffer, storeWaiverPdf } from "@/lib/waiver-pdf";
+import { resolvePayLaterNotice } from "@/lib/pay-later";
 
 export type PublicRegisterState = {
   ok: boolean;
@@ -56,6 +57,9 @@ export type PublicRegisterState = {
    * the client may show team-review follow-up copy on the thank-you screen.
    */
   paymentSkippedAwaitingTeamReview?: boolean;
+  /** Family chose pay later; show {@link payLaterNotice} on the thank-you screen. */
+  payLaterSubmitted?: boolean;
+  payLaterNotice?: string;
 };
 
 function fdGet(k: string, formData: FormData): string {
@@ -294,7 +298,19 @@ async function submitPublicRegistrationCore(
     guardianCustom: data.guardianCustom,
     children: data.children,
   });
-  const stripeCheckoutRequired = stripeConfigActive && !stripePaymentSkippedByRule;
+  const payLaterAllowed =
+    stripeConfigActive && !stripePaymentSkippedByRule && formRow.stripePayLaterEnabled;
+  const paymentChoice = fdGet("paymentChoice", formData).trim();
+  const payLaterChosen = payLaterAllowed && paymentChoice === "pay_later";
+  if (payLaterAllowed && paymentChoice && paymentChoice !== "card" && paymentChoice !== "pay_later") {
+    return { ok: false, message: "Invalid payment choice. Please try again." };
+  }
+  if (paymentChoice === "pay_later" && !payLaterAllowed) {
+    return { ok: false, message: "Pay later is not available for this form." };
+  }
+
+  const stripeCheckoutRequired =
+    stripeConfigActive && !stripePaymentSkippedByRule && !payLaterChosen;
   if (stripeCheckoutRequired && !process.env.STRIPE_SECRET_KEY?.trim()) {
     return {
       ok: false,
@@ -331,6 +347,7 @@ async function submitPublicRegistrationCore(
         waitlist: boolean;
         childCount: number;
         stripePaymentSkippedByRule: boolean;
+        payLaterChosen: boolean;
         registrationIds: string[];
       };
 
@@ -394,6 +411,7 @@ async function submitPublicRegistrationCore(
           formId: formRow.id,
           guardianId: guardian.id,
           clientSubmitKey,
+          payLaterChosen,
           guardianResponses: {
             ...(data.guardianCustom as Record<string, unknown>),
             smsConsentForEventUpdates: smsConsent,
@@ -433,7 +451,7 @@ async function submitPublicRegistrationCore(
           formSubmissionId: submission.id,
           customResponses: Object.keys(c.custom).length ? (c.custom as object) : undefined,
           notes: baseNotes,
-          expectsPayment: stripeCheckoutRequired,
+          expectsPayment: stripeConfigActive && !stripePaymentSkippedByRule,
         });
         registrationIds.push(reg.id);
 
@@ -466,6 +484,7 @@ async function submitPublicRegistrationCore(
         waitlist,
         childCount: data.children.length,
         stripePaymentSkippedByRule,
+        payLaterChosen,
         registrationIds,
       };
     },
@@ -574,12 +593,17 @@ async function submitPublicRegistrationCore(
         void sendSubmissionPendingReviewEmail(outcome.submissionId).catch((err) => {
           console.error("[sendSubmissionPendingReviewEmail]", err);
         });
-      } else {
+      } else if (outcome.payLaterChosen || !stripeCheckoutRequired) {
         void sendSubmissionReceivedEmail(outcome.submissionId).catch((err) => {
           console.error("[sendSubmissionReceivedEmail]", err);
         });
       }
     }
+
+    const payLaterNotice =
+      outcome.kind === "new" && outcome.payLaterChosen
+        ? resolvePayLaterNotice(season, formRow.stripePayLaterMessage)
+        : undefined;
 
     const count = outcome.childCount;
     const base =
@@ -598,6 +622,8 @@ async function submitPublicRegistrationCore(
       registrationCode: outcome.registrationCode,
       paymentSkippedAwaitingTeamReview:
         stripeConfigActive && stripePaymentSkippedByRule ? true : undefined,
+      payLaterSubmitted: outcome.kind === "new" && outcome.payLaterChosen ? true : undefined,
+      payLaterNotice,
     };
   } catch (e: unknown) {
     if (e && typeof e === "object" && "code" in e && (e as { code: string }).code === "CAPACITY_FULL") {

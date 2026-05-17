@@ -64,6 +64,8 @@ export function FormSettingsForm({
     stripeAmountCents: number | null;
     stripePricingUnit: "PER_SUBMISSION" | "PER_CHILD";
     stripeCapPaidChildrenAtThree: boolean;
+    stripePayLaterEnabled: boolean;
+    stripePayLaterMessage: string | null;
     stripeProcessingFeeMode: "OPTIONAL" | "REQUIRED";
     stripeProductLabel: string | null;
     stripeSkipWhenFieldKey: string | null;
@@ -180,6 +182,8 @@ export function FormSettingsForm({
         const stripePricingUnit =
           String(fd.get("stripePricingUnit") ?? "") === "PER_CHILD" ? "PER_CHILD" : "PER_SUBMISSION";
         const stripeCapPaidChildrenAtThree = fd.get("stripeCapPaidChildrenAtThree") === "on";
+        const stripePayLaterEnabled = fd.get("stripePayLaterEnabled") === "on";
+        const stripePayLaterMessage = String(fd.get("stripePayLaterMessage") ?? "").trim() || null;
         const stripeProcessingFeeMode =
           String(fd.get("stripeProcessingFeeMode") ?? "") === "REQUIRED" ? "REQUIRED" : "OPTIONAL";
         const stripeProductLabel = String(fd.get("stripeProductLabel") ?? "").trim() || null;
@@ -237,6 +241,8 @@ export function FormSettingsForm({
             stripeAmountCents,
             stripePricingUnit,
             stripeCapPaidChildrenAtThree,
+            stripePayLaterEnabled,
+            stripePayLaterMessage,
             stripeProcessingFeeMode,
             stripeProductLabel,
             stripeSkipWhenFieldKey,
@@ -516,6 +522,35 @@ export function FormSettingsForm({
             “Fee applies to” is <strong>Per child</strong>; Stripe totals and the public review step use the same math.
           </span>
         </label>
+        <label className="flex items-start gap-2 text-sm font-medium">
+          <input
+            type="checkbox"
+            name="stripePayLaterEnabled"
+            defaultChecked={initial.stripePayLaterEnabled}
+            className="mt-0.5 size-4 rounded border-foreground/30"
+          />
+          <span>
+            Allow <strong>pay later</strong> on the review step (families can skip card checkout now and pay online or
+            on site before Day 1 of VBS).
+          </span>
+        </label>
+        <div>
+          <label htmlFor="stripePayLaterMessage" className="block text-xs font-medium text-foreground/70">
+            Pay-later notice (optional)
+          </label>
+          <textarea
+            id="stripePayLaterMessage"
+            name="stripePayLaterMessage"
+            rows={5}
+            placeholder="Leave blank to use the default message (card online, pay on site by first VBS day, Zelle/card on site — no cash or checks)."
+            defaultValue={initial.stripePayLaterMessage ?? ""}
+            className="mt-1 w-full rounded-md border border-foreground/15 bg-background px-3 py-2 text-sm"
+          />
+          <p className="mt-1 text-xs text-foreground/60">
+            Shown when a family selects pay later. The first day of VBS is taken from the season start date in event
+            details.
+          </p>
+        </div>
         <div>
           <span className="block text-xs font-medium text-foreground/70">Card processing fee</span>
           <p className="mt-1 text-xs text-foreground/60">

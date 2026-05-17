@@ -3,6 +3,11 @@
  */
 import { prisma } from "@/lib/prisma";
 import { getPublicAppBaseUrl } from "@/lib/public-app-url";
+import {
+  computeProcessingGrossUp,
+  computeRegistrationBaseCents,
+  includeProcessingFeeForMode,
+} from "@/lib/stripe-fee-math";
 import Stripe from "stripe";
 
 export function getStripeClient(): Stripe | null {
@@ -99,8 +104,13 @@ export async function resolveCheckoutResumeUrlForSubmission(
       form: {
         select: {
           stripeProductLabel: true,
+          stripeAmountCents: true,
+          stripePricingUnit: true,
+          stripeCapPaidChildrenAtThree: true,
+          stripeProcessingFeeMode: true,
         },
       },
+      _count: { select: { registrations: true } },
     },
   });
   if (!submission) return { error: "Registration submission not found." };
@@ -145,6 +155,23 @@ export async function resolveCheckoutResumeUrlForSubmission(
     } catch (err) {
       console.error("[resolveCheckoutResumeUrl] read prior session metadata", err);
     }
+  }
+
+  if (totalCents < 50 && submission.form?.stripeAmountCents) {
+    const childCount = Math.max(1, submission._count.registrations);
+    baseCents = computeRegistrationBaseCents(
+      submission.form.stripePricingUnit,
+      submission.form.stripeAmountCents,
+      childCount,
+      submission.form.stripeCapPaidChildrenAtThree,
+    );
+    coverProcessingFee = includeProcessingFeeForMode(
+      submission.form.stripeProcessingFeeMode,
+      false,
+    );
+    const computed = computeProcessingGrossUp(baseCents, coverProcessingFee);
+    totalCents = computed.totalCents;
+    processingCents = computed.processingCents;
   }
 
   if (totalCents < 50) {

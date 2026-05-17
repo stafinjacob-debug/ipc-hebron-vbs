@@ -46,6 +46,7 @@ import { shouldSkipStripeForSubmission } from "@/lib/stripe-skip-rule";
 import type { PublicRegistrationLayout } from "@/generated/prisma";
 import { RegistrationBackgroundMedia } from "./registration-background-media";
 import { RegistrationHeroBrand } from "./registration-hero-brand";
+import { payLaterNoticeParagraphs, resolvePayLaterNotice } from "@/lib/pay-later";
 import { submitPublicRegistration, type PublicRegisterState } from "./actions";
 
 /** Shown on the thank-you screen when card checkout was skipped by the form’s payment-skip rule. */
@@ -86,6 +87,8 @@ export type PublicSeasonOption = {
   stripePricingUnit: "PER_SUBMISSION" | "PER_CHILD";
   /** With per-child pricing: bill at most three children per submission (fourth+ free). */
   stripeCapPaidChildrenAtThree: boolean;
+  stripePayLaterEnabled: boolean;
+  stripePayLaterMessage: string | null;
   stripeProcessingFeeMode: "OPTIONAL" | "REQUIRED";
   stripeProductLabel: string | null;
   /** When set with {@link stripeSkipWhenFieldValue}, card checkout is skipped if any matching field equals (case-insensitive). */
@@ -661,6 +664,7 @@ export function DynamicRegistrationWizard({
   /** Live age messages keyed by child index (set on DOB change/blur when date is complete). */
   const [liveDobAgeByChild, setLiveDobAgeByChild] = useState<Record<number, string>>({});
   const [coverProcessingFee, setCoverProcessingFee] = useState(false);
+  const [paymentChoice, setPaymentChoice] = useState<"card" | "pay_later">("card");
   /** Single native submit control so Enter / mobile browsers cannot activate a hidden duplicate submit. */
   const nativeSubmitRef = useRef<HTMLButtonElement>(null);
 
@@ -716,11 +720,35 @@ export function DynamicRegistrationWizard({
     });
   }, [current, def, stripeFeeConfigured, guardian, children]);
 
+  const payLaterAvailable = useMemo(() => {
+    if (!current) return false;
+    return (
+      current.stripeCheckoutEnabled &&
+      (current.stripeAmountCents ?? 0) >= 50 &&
+      current.stripePayLaterEnabled &&
+      !stripeSkippedByRule
+    );
+  }, [current, stripeSkippedByRule]);
+
+  const payLaterNoticeText = useMemo(() => {
+    if (!current || !payLaterAvailable) return "";
+    return resolvePayLaterNotice(
+      { name: current.name, startDate: new Date(current.startDate) },
+      current.stripePayLaterMessage,
+    );
+  }, [current, payLaterAvailable]);
+
+  const payLaterParagraphs = useMemo(
+    () => payLaterNoticeParagraphs(payLaterNoticeText),
+    [payLaterNoticeText],
+  );
+
   const stripePayment = useMemo(() => {
     if (!current) return { active: false as const };
     const active = current.stripeCheckoutEnabled && (current.stripeAmountCents ?? 0) >= 50;
     if (!active) return { active: false as const };
     if (stripeSkippedByRule) return { active: false as const };
+    if (payLaterAvailable && paymentChoice === "pay_later") return { active: false as const };
     const baseCents = computeRegistrationBaseCents(
       current.stripePricingUnit,
       current.stripeAmountCents,
@@ -747,7 +775,7 @@ export function DynamicRegistrationWizard({
       childCount,
       label: current.stripeProductLabel?.trim() || "VBS registration",
     };
-  }, [current, children.length, coverProcessingFee, stripeSkippedByRule]);
+  }, [current, children.length, coverProcessingFee, stripeSkippedByRule, payLaterAvailable, paymentChoice]);
 
   /** When true, waiver signatures live on their own step so Privacy → Review cannot skip them. */
   const waiverStepActive = waiverSnap?.enabled === true;
@@ -1013,6 +1041,12 @@ export function DynamicRegistrationWizard({
         }
         return null;
       }
+      if (s === reviewStepIndex) {
+        if (payLaterAvailable && paymentChoice !== "card" && paymentChoice !== "pay_later") {
+          return "Choose how you would like to pay.";
+        }
+        return null;
+      }
       return null;
     },
     [
@@ -1029,8 +1063,26 @@ export function DynamicRegistrationWizard({
       waiverStepActive,
       waiverSupplementalSig,
       waiverSnap,
+      reviewStepIndex,
+      payLaterAvailable,
+      paymentChoice,
     ],
   );
+
+  const primarySubmitLabel = useMemo(() => {
+    if (pending) return "Submitting…";
+    if (payLaterAvailable && paymentChoice === "pay_later") return "Submit registration";
+    if (stripePayment.active) return "Submit & pay with card";
+    if (stripeFeeConfigured && stripeSkippedByRule) return "Submit";
+    return "Submit registration";
+  }, [pending, payLaterAvailable, paymentChoice, stripePayment.active, stripeFeeConfigured, stripeSkippedByRule]);
+
+  const mobileSubmitLabel = useMemo(() => {
+    if (pending) return "Submitting…";
+    if (payLaterAvailable && paymentChoice === "pay_later") return "Submit";
+    if (stripePayment.active) return "Pay with card";
+    return "Submit";
+  }, [pending, payLaterAvailable, paymentChoice, stripePayment.active]);
 
   const goNext = () => {
     const err = validateStep(step);
@@ -1089,6 +1141,17 @@ export function DynamicRegistrationWizard({
             <p className="mt-4 rounded-xl border border-emerald-500/30 bg-emerald-50 px-4 py-3 text-left text-sm leading-relaxed text-emerald-950 dark:border-emerald-500/25 dark:bg-emerald-950/40 dark:text-emerald-50/95">
               {PAYMENT_SKIP_TEAM_REVIEW_NOTE}
             </p>
+          ) : null}
+          {state?.payLaterSubmitted && state.payLaterNotice ? (
+            <div className="mt-4 space-y-3 rounded-xl border border-amber-500/35 bg-amber-50 px-4 py-3 text-left text-sm leading-relaxed text-amber-950 dark:border-amber-500/25 dark:bg-amber-950/40 dark:text-amber-100">
+              <p className="font-semibold">Pay later — what to know</p>
+              {payLaterNoticeParagraphs(state.payLaterNotice).map((para) => (
+                <p key={para.slice(0, 48)}>{para}</p>
+              ))}
+              <p className="text-xs text-amber-900/80 dark:text-amber-200/80">
+                Payment details are also in the confirmation email we sent you.
+              </p>
+            </div>
           ) : null}
           <p className="mt-6 text-xs text-neutral-500">
             Questions?{" "}
@@ -1216,6 +1279,14 @@ export function DynamicRegistrationWizard({
             )}
             readOnly
           />
+          {payLaterAvailable || stripeFeeConfigured ? (
+            <input
+              type="hidden"
+              name="paymentChoice"
+              value={payLaterAvailable ? paymentChoice : "card"}
+              readOnly
+            />
+          ) : null}
           {stripePayment.active && stripePayment.mode === "REQUIRED" ? (
             <input type="hidden" name="stripeCoverProcessingFee" value="true" readOnly />
           ) : null}
@@ -1818,8 +1889,54 @@ export function DynamicRegistrationWizard({
                     </p>
                   </div>
                 ) : null}
-                {stripePayment.active ? (
-                  <div className="mt-5 rounded-xl border border-neutral-200 bg-neutral-50 p-4 dark:border-neutral-600 dark:bg-neutral-900/60">
+                {payLaterAvailable || stripePayment.active ? (
+                  <div className="mt-5 space-y-4">
+                    <p className="text-xs font-bold uppercase text-neutral-400">Payment</p>
+                    {payLaterAvailable ? (
+                      <div className="space-y-2 rounded-xl border border-white/15 bg-white/8 p-3">
+                        <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-white/10 bg-black/20 px-3 py-3">
+                          <input
+                            type="radio"
+                            name="paymentChoiceUi"
+                            className="mt-1 size-4 accent-brand"
+                            checked={paymentChoice === "card"}
+                            onChange={() => setPaymentChoice("card")}
+                          />
+                          <span className="text-sm text-neutral-100">
+                            <strong className="font-semibold">Pay with card now</strong>
+                            <span className="mt-1 block text-neutral-300/90">
+                              Continue to secure Stripe checkout after you submit.
+                            </span>
+                          </span>
+                        </label>
+                        <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-white/10 bg-black/20 px-3 py-3">
+                          <input
+                            type="radio"
+                            name="paymentChoiceUi"
+                            className="mt-1 size-4 accent-brand"
+                            checked={paymentChoice === "pay_later"}
+                            onChange={() => setPaymentChoice("pay_later")}
+                          />
+                          <span className="text-sm text-neutral-100">
+                            <strong className="font-semibold">Pay later</strong>
+                            <span className="mt-1 block text-neutral-300/90">
+                              Register now and pay online or on site before the first day of VBS.
+                            </span>
+                          </span>
+                        </label>
+                      </div>
+                    ) : null}
+                    {payLaterAvailable && paymentChoice === "pay_later" ? (
+                      <div className="rounded-xl border border-amber-500/35 bg-amber-500/10 px-4 py-3 text-sm leading-relaxed text-amber-100">
+                        {payLaterParagraphs.map((para) => (
+                          <p key={para.slice(0, 48)} className="mt-2 first:mt-0">
+                            {para}
+                          </p>
+                        ))}
+                      </div>
+                    ) : null}
+                    {stripePayment.active ? (
+                  <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-4 dark:border-neutral-600 dark:bg-neutral-900/60">
                     <p className="text-xs font-bold uppercase text-neutral-500">Card payment</p>
                     <p className="mt-1 text-sm text-neutral-700 dark:text-neutral-300">{stripePayment.label}</p>
                     <dl className="mt-3 space-y-1 text-sm">
@@ -1881,6 +1998,8 @@ export function DynamicRegistrationWizard({
                       </p>
                     )}
                   </div>
+                    ) : null}
+                  </div>
                 ) : null}
               </div>
             </div>
@@ -1915,22 +2034,14 @@ export function DynamicRegistrationWizard({
                 <button
                   type="button"
                   disabled={pending}
-                  aria-label={
-                    stripePayment.active ? "Submit registration and continue to card payment" : "Submit registration"
-                  }
+                  aria-label={primarySubmitLabel}
                   onClick={() => {
                     if (step !== reviewStepIndex) return;
                     nativeSubmitRef.current?.click();
                   }}
                   className="inline-flex min-h-11 rounded-xl bg-brand px-6 py-2.5 text-sm font-semibold text-brand-foreground disabled:opacity-50"
                 >
-                  {pending
-                    ? "Submitting…"
-                    : stripePayment.active
-                      ? "Submit & pay with card"
-                      : stripeFeeConfigured && stripeSkippedByRule
-                        ? "Submit"
-                        : "Submit registration"}
+                  {pending ? "Submitting…" : primarySubmitLabel}
                 </button>
               )}
             </div>
@@ -1963,16 +2074,14 @@ export function DynamicRegistrationWizard({
                 <button
                   type="button"
                   disabled={pending}
-                  aria-label={
-                    stripePayment.active ? "Submit registration and continue to card payment" : "Submit registration"
-                  }
+                  aria-label={primarySubmitLabel}
                   onClick={() => {
                     if (step !== reviewStepIndex) return;
                     nativeSubmitRef.current?.click();
                   }}
                   className="inline-flex min-h-12 flex-[2] items-center justify-center rounded-xl bg-brand text-sm font-semibold text-brand-foreground disabled:opacity-50"
                 >
-                  {pending ? "Submitting…" : stripePayment.active ? "Pay with card" : "Submit"}
+                  {pending ? "Submitting…" : mobileSubmitLabel}
                 </button>
               )}
             </div>

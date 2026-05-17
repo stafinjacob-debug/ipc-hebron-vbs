@@ -320,6 +320,10 @@ model RegistrationForm {
   stripePricingUnit           StripePricingUnit    @default(PER_SUBMISSION)
   /// With PER_CHILD pricing: when true, at most three children are billed per submission (fourth and beyond no charge).
   stripeCapPaidChildrenAtThree Boolean             @default(false)
+  /// When true with Stripe checkout, families may defer card payment until on-site (see pay-later message).
+  stripePayLaterEnabled       Boolean               @default(false)
+  /// Optional override for the pay-later notice on the review step (plain text / light HTML).
+  stripePayLaterMessage       String?               @db.Text
   stripeProcessingFeeMode     StripeProcessingFeeMode @default(OPTIONAL)
   /// Shown on Stripe Checkout line item (e.g. "Summer VBS 2026 registration").
   stripeProductLabel          String?
@@ -389,6 +393,8 @@ model FormSubmission {
   stripeCoverProcessingFee  Boolean?
   /// When staff last sent a “complete checkout” reminder for this open Stripe session.
   stripeCheckoutReminderSentAt DateTime?
+  /// Guardian chose pay later instead of immediate Stripe checkout.
+  payLaterChosen              Boolean   @default(false)
 
   registrations Registration[]
 

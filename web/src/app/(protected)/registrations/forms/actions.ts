@@ -187,6 +187,8 @@ export async function updateRegistrationFormSettings(
     stripeAmountCents: number | null;
     stripePricingUnit: "PER_SUBMISSION" | "PER_CHILD";
     stripeCapPaidChildrenAtThree: boolean;
+    stripePayLaterEnabled: boolean;
+    stripePayLaterMessage: string | null;
     stripeProcessingFeeMode: "OPTIONAL" | "REQUIRED";
     stripeProductLabel: string | null;
     stripeSkipWhenFieldKey: string | null;
@@ -331,6 +333,11 @@ export async function updateRegistrationFormSettings(
         stripeAmountCents: data.stripeCheckoutEnabled ? stripeAmountCents : null,
         stripePricingUnit: data.stripePricingUnit,
         stripeCapPaidChildrenAtThree: data.stripeCapPaidChildrenAtThree,
+        stripePayLaterEnabled: data.stripeCheckoutEnabled ? data.stripePayLaterEnabled : false,
+        stripePayLaterMessage:
+          data.stripeCheckoutEnabled && data.stripePayLaterEnabled
+            ? data.stripePayLaterMessage?.trim() || null
+            : null,
         stripeProcessingFeeMode: data.stripeProcessingFeeMode,
         stripeProductLabel: data.stripeProductLabel?.trim() ? data.stripeProductLabel.trim() : null,
         stripeSkipWhenFieldKey: data.stripeCheckoutEnabled ? stripeSkipWhenFieldKey : null,
@@ -410,6 +417,8 @@ export async function cloneRegistrationFormFromSeason(
       stripeAmountCents: srcForm.stripeAmountCents,
       stripePricingUnit: srcForm.stripePricingUnit,
       stripeCapPaidChildrenAtThree: srcForm.stripeCapPaidChildrenAtThree,
+      stripePayLaterEnabled: srcForm.stripePayLaterEnabled,
+      stripePayLaterMessage: srcForm.stripePayLaterMessage,
       stripeProcessingFeeMode: srcForm.stripeProcessingFeeMode,
       stripeProductLabel: srcForm.stripeProductLabel,
       stripeSkipWhenFieldKey: srcForm.stripeSkipWhenFieldKey,
@@ -723,6 +732,8 @@ export type FormWorkspacePayload = {
     stripeAmountCents: number | null;
     stripePricingUnit: "PER_SUBMISSION" | "PER_CHILD";
     stripeCapPaidChildrenAtThree: boolean;
+    stripePayLaterEnabled: boolean;
+    stripePayLaterMessage: string | null;
     stripeProcessingFeeMode: "OPTIONAL" | "REQUIRED";
     stripeProductLabel: string | null;
     stripeSkipWhenFieldKey: string | null;
@@ -868,6 +879,8 @@ export async function loadFormWorkspacePayload(
         stripeAmountCents: form.stripeAmountCents,
         stripePricingUnit: form.stripePricingUnit,
         stripeCapPaidChildrenAtThree: form.stripeCapPaidChildrenAtThree,
+        stripePayLaterEnabled: form.stripePayLaterEnabled,
+        stripePayLaterMessage: form.stripePayLaterMessage,
         stripeProcessingFeeMode: form.stripeProcessingFeeMode,
         stripeProductLabel: form.stripeProductLabel,
         stripeSkipWhenFieldKey: form.stripeSkipWhenFieldKey,
