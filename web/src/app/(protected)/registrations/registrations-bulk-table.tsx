@@ -3,7 +3,12 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
-import { approveRegistration, deleteRegistrationRecord } from "./registration-actions";
+import {
+  approveRegistration,
+  bulkSendCheckoutRemindersAction,
+  deleteRegistrationRecord,
+  sendCheckoutReminderEmailAction,
+} from "./registration-actions";
 
 export type RegistrationBulkTableRow = {
   id: string;
@@ -17,6 +22,8 @@ export type RegistrationBulkTableRow = {
   registeredAtIso: string;
   paymentBadgeLabel: string;
   paymentBadgeClassName: string;
+  checkoutPending: boolean;
+  checkoutReminderSentAtIso: string | null;
 };
 
 function linkForPage(baseQs: string, p: number) {
@@ -200,6 +207,26 @@ export function RegistrationsBulkTable({
     });
   }, [selected, rowById, router]);
 
+  const runBulkCheckoutReminder = useCallback(() => {
+    const ids = [...selected];
+    if (ids.length === 0) return;
+    if (
+      !confirm(
+        `Send a “complete checkout” email to guardians for up to ${ids.length} selected row(s)? Families with multiple children on one submission receive one email per family.`,
+      )
+    ) {
+      return;
+    }
+    startTransition(async () => {
+      const r = await bulkSendCheckoutRemindersAction(ids);
+      alert(r.message);
+      if (r.ok) {
+        setSelected(new Set());
+        router.refresh();
+      }
+    });
+  }, [selected, router]);
+
   const runBulkDelete = useCallback(() => {
     if (selected.size === 0) {
       window.alert("Select at least one registration.");
@@ -258,6 +285,15 @@ export function RegistrationsBulkTable({
             <button
               type="button"
               disabled={pending || selected.size === 0}
+              title="Email guardians to finish Stripe checkout (checkout-pending only; one email per family)"
+              className="rounded-md border border-sky-500/40 bg-sky-500/10 px-3 py-2 text-sm font-semibold text-sky-950 hover:bg-sky-500/20 disabled:opacity-50 dark:text-sky-100"
+              onClick={runBulkCheckoutReminder}
+            >
+              Send checkout reminder
+            </button>
+            <button
+              type="button"
+              disabled={pending || selected.size === 0}
               title="Confirm selected rows, assign tickets if needed, send confirmation emails"
               className="rounded-md bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50 dark:bg-emerald-700"
               onClick={runBulkApprove}
@@ -310,6 +346,7 @@ export function RegistrationsBulkTable({
             <th className="px-4 py-3 font-medium">Class</th>
             <th className="px-4 py-3 font-medium">Class assignment status</th>
             <th className="px-4 py-3 font-medium">Payment</th>
+            <th className="px-4 py-3 font-medium">Checkout reminder</th>
             <th className="px-4 py-3 font-medium">Registered</th>
             <th className="px-4 py-3 font-medium text-right">Actions</th>
           </tr>
@@ -317,6 +354,9 @@ export function RegistrationsBulkTable({
         <tbody>
           {rows.map((r) => {
             const registeredLabel = new Date(r.registeredAtIso).toLocaleString();
+            const reminderLabel = r.checkoutReminderSentAtIso
+              ? new Date(r.checkoutReminderSentAtIso).toLocaleString()
+              : null;
             return (
               <tr key={r.id} className="border-t border-foreground/10">
                 {canBulkAct ? (
@@ -346,14 +386,45 @@ export function RegistrationsBulkTable({
                 <td className="px-4 py-3">
                   <span className={r.paymentBadgeClassName}>{r.paymentBadgeLabel}</span>
                 </td>
+                <td className="px-4 py-3 text-xs text-foreground/70">
+                  {r.checkoutPending ? (
+                    reminderLabel ? (
+                      <span title="Last checkout reminder emailed for this family">
+                        {reminderLabel}
+                      </span>
+                    ) : (
+                      <span className="font-medium text-amber-800 dark:text-amber-200">Not sent</span>
+                    )
+                  ) : (
+                    <span className="text-foreground/40">—</span>
+                  )}
+                </td>
                 <td className="px-4 py-3 text-foreground/70">{registeredLabel}</td>
                 <td className="px-4 py-3 text-right">
-                  <Link
-                    href={`/registrations/${r.id}`}
-                    className="font-medium text-brand underline hover:no-underline"
-                  >
-                    View
-                  </Link>
+                  <div className="flex flex-col items-end gap-1">
+                    <Link
+                      href={`/registrations/${r.id}`}
+                      className="font-medium text-brand underline hover:no-underline"
+                    >
+                      View
+                    </Link>
+                    {r.checkoutPending && r.guardianEmail ? (
+                      <button
+                        type="button"
+                        disabled={pending}
+                        className="text-xs font-medium text-sky-800 underline hover:no-underline disabled:opacity-50 dark:text-sky-200"
+                        onClick={() => {
+                          startTransition(async () => {
+                            const res = await sendCheckoutReminderEmailAction(r.id);
+                            alert(res.message);
+                            if (res.ok) router.refresh();
+                          });
+                        }}
+                      >
+                        Send checkout reminder
+                      </button>
+                    ) : null}
+                  </div>
                 </td>
               </tr>
             );

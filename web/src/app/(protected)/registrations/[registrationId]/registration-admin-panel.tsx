@@ -11,6 +11,7 @@ import {
   sendRegistrationConfirmationSmsAction,
   resendPaymentReminderEmailAction,
   resendRegistrationConfirmationEmailAction,
+  sendCheckoutReminderEmailAction,
   setRegistrationExpectsPayment,
 } from "../registration-actions";
 
@@ -21,6 +22,8 @@ export function RegistrationAdminPanel({
   paymentReceivedAt,
   guardianHasEmail,
   guardianHasPhone,
+  checkoutPending,
+  checkoutReminderSentAt,
   smsSetupHint,
 }: {
   registrationId: string;
@@ -29,6 +32,8 @@ export function RegistrationAdminPanel({
   paymentReceivedAt: string | null;
   guardianHasEmail: boolean;
   guardianHasPhone: boolean;
+  checkoutPending: boolean;
+  checkoutReminderSentAt: string | null;
   /** Shown when SMS env is incomplete (e.g. Sent.dm key without template ID). */
   smsSetupHint?: string | null;
 }) {
@@ -142,7 +147,35 @@ export function RegistrationAdminPanel({
           >
             Resend payment reminder
           </button>
+          <button
+            type="button"
+            disabled={pending || !checkoutPending || !guardianHasEmail}
+            className="rounded-lg border border-sky-500/35 bg-sky-500/10 px-3 py-2 text-sm font-medium text-sky-950 hover:bg-sky-500/15 disabled:opacity-40 dark:text-sky-100"
+            title={
+              checkoutPending
+                ? "Email a link to finish Stripe checkout and optionally cancel"
+                : "Only for checkout-pending registrations"
+            }
+            onClick={() => {
+              setMsg(null);
+              startTransition(async () => {
+                const r = await sendCheckoutReminderEmailAction(registrationId);
+                setMsg(r.message);
+                if (r.ok) router.refresh();
+              });
+            }}
+          >
+            Send checkout reminder
+          </button>
         </div>
+        {checkoutPending ? (
+          <p className="mt-2 text-xs text-foreground/60">
+            Last checkout reminder:{" "}
+            {checkoutReminderSentAt
+              ? new Date(checkoutReminderSentAt).toLocaleString()
+              : "Not sent yet"}
+          </p>
+        ) : null}
       </div>
 
       <div className="border-t border-foreground/10 pt-4">

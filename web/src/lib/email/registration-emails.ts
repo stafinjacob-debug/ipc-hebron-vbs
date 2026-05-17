@@ -1,6 +1,12 @@
 import { prisma } from "@/lib/prisma";
 import { getPublicAppBaseUrl } from "@/lib/public-app-url";
 import { qrPngBase64ForTicketUrl, registrationTicketUrl } from "@/lib/registration-identity";
+import {
+  signSubmissionPublicToken,
+  submissionCancelUrl,
+} from "@/lib/registration-public-token";
+import { isCheckoutPendingRegistration } from "@/lib/registration-list-payment";
+import { resolveCheckoutResumeUrlForSubmission } from "@/lib/stripe-registration-payment";
 import { isMicrosoftGraphEmailConfigured, sendMailViaMicrosoftGraph } from "@/lib/email/microsoft-graph";
 import { promises as fs } from "fs";
 import path from "path";
@@ -667,6 +673,117 @@ export function formatCancellationEmailHint(result: EmailSendResult): string {
   if (result === "skipped_no_email") return " (No guardian email — could not send cancellation notice.)";
   if (result === "skipped_ineligible") return "";
   return " (Cancellation email failed — check server logs.)";
+}
+
+export function formatCheckoutReminderEmailHint(result: EmailSendResult): string {
+  if (result === "sent") return " Checkout reminder emailed.";
+  if (result === "skipped_no_graph") return " (Email not configured.)";
+  if (result === "skipped_no_email") return " (No guardian email.)";
+  if (result === "skipped_ineligible") return " (Not checkout pending or already paid.)";
+  return " (Checkout reminder email failed — check server logs.)";
+}
+
+/** Remind guardian to finish an open Stripe Checkout session (resume link + self-cancel). */
+export async function sendCheckoutReminderEmail(formSubmissionId: string): Promise<EmailSendResult> {
+  const submission = await prisma.formSubmission.findUnique({
+    where: { id: formSubmissionId },
+    include: {
+      guardian: true,
+      season: true,
+      registrations: {
+        where: { status: { not: "CANCELLED" } },
+        include: { child: true },
+      },
+    },
+  });
+  if (!submission?.guardian.email?.trim()) return "skipped_no_email";
+
+  const sampleReg = submission.registrations[0];
+  if (!sampleReg) return "skipped_ineligible";
+
+  const pending = isCheckoutPendingRegistration({
+    paymentReceivedAt: sampleReg.paymentReceivedAt,
+    expectsPayment: sampleReg.expectsPayment,
+    formSubmission: {
+      stripePaymentStatus: submission.stripePaymentStatus,
+      stripeCheckoutSessionId: submission.stripeCheckoutSessionId,
+    },
+  });
+  if (!pending) return "skipped_ineligible";
+
+  const resume = await resolveCheckoutResumeUrlForSubmission(formSubmissionId);
+  if ("error" in resume) {
+    console.error("[checkout reminder] resume url", resume.error);
+    return "failed";
+  }
+
+  const cancelToken = signSubmissionPublicToken(formSubmissionId, "cancel");
+  if (!cancelToken) {
+    console.error("[checkout reminder] missing AUTH_SECRET for cancel link");
+    return "failed";
+  }
+
+  const base = getPublicAppBaseUrl();
+  const checkoutUrl = escapeHtml(resume.url);
+  const cancelUrl = escapeHtml(submissionCancelUrl(cancelToken, base));
+  const contact = helpEmailAddress();
+  const gname = `${submission.guardian.firstName} ${submission.guardian.lastName}`.trim();
+  const season = escapeHtml(submission.season.name);
+  const code = escapeHtml(submission.registrationCode);
+
+  const childLines = submission.registrations
+    .map((r) => {
+      const n = `${r.child.firstName} ${r.child.lastName}`.trim();
+      return n
+        ? `<li style="margin:0 0 6px;"><strong>${escapeHtml(n)}</strong></li>`
+        : `<li style="margin:0 0 6px;">Child registration</li>`;
+    })
+    .join("");
+
+  const inner = `
+    <p style="margin:0 0 12px;">Hi ${escapeHtml(gname)},</p>
+    <p style="margin:0 0 16px;padding:12px 14px;border-radius:12px;background:#eff6ff;border:1px solid #bfdbfe;color:#1e3a8a;font-size:14px;line-height:1.55;">
+      Your VBS registration for <strong>${season}</strong> (reference <strong>${code}</strong>) is saved, but
+      <strong>card payment is not finished yet</strong>. Use the button below to return to secure checkout and pay where you left off.
+    </p>
+    <p style="margin:0 0 8px;font-size:14px;font-weight:600;color:#0f172a;">Children on this registration</p>
+    <ul style="margin:0 0 16px;padding-left:20px;color:#334155;font-size:15px;line-height:1.5;">
+      ${childLines || `<li>Your registered children</li>`}
+    </ul>
+    <p style="margin:0 0 12px;">
+      <a href="${checkoutUrl}" style="display:inline-block;background:#0f766e;color:#ffffff;padding:12px 18px;border-radius:999px;text-decoration:none;font-size:14px;line-height:1.1;font-weight:700;border:1px solid #0b5f58;">Complete payment</a>
+    </p>
+    <p style="margin:0 0 16px;font-size:13px;line-height:1.5;color:#64748b;">
+      If the button does not open, copy this link into your browser:<br/>
+      <a href="${checkoutUrl}" style="color:#0369a1;word-break:break-all;">${checkoutUrl}</a>
+    </p>
+    <p style="margin:0 0 12px;font-size:14px;line-height:1.55;color:#475569;">
+      No longer planning to attend? You may
+      <a href="${cancelUrl}" style="color:#b45309;font-weight:600;">cancel this registration</a>
+      and we will mark it withdrawn.
+    </p>
+    <p style="margin:0;font-size:14px;color:#475569;">
+      Questions? Email <a href="mailto:${escapeHtml(contact)}" style="color:#2563eb;">${escapeHtml(contact)}</a>.
+    </p>
+  `;
+
+  const { result, error } = await sendHtml(
+    submission.guardian.email.trim(),
+    gname,
+    `${brandName()} — Complete your VBS payment`,
+    emailShell(inner),
+  );
+
+  if (result === "failed") console.error("[registration email checkout reminder]", error);
+  if (result === "sent") {
+    await prisma.formSubmission.update({
+      where: { id: formSubmissionId },
+      data: { stripeCheckoutReminderSentAt: new Date() },
+    });
+  }
+  if (result === "sent") return "sent";
+  if (result === "skipped_no_graph") return "skipped_no_graph";
+  return "failed";
 }
 
 export async function sendPaymentReminderEmail(registrationId: string): Promise<EmailSendResult> {

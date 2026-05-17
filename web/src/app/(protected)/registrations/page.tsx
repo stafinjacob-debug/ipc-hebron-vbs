@@ -11,6 +11,7 @@ import type { Prisma, RegistrationStatus } from "@/generated/prisma";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import {
+  isCheckoutPendingRegistration,
   mergeRegistrationPaymentStatusFilter,
   registrationListPaymentBadge,
 } from "@/lib/registration-list-payment";
@@ -263,6 +264,7 @@ export default async function RegistrationsPage({
         guardianResponses: true,
         stripePaymentStatus: true,
         stripeCheckoutSessionId: true,
+        stripeCheckoutReminderSentAt: true,
       },
     },
   } as const;
@@ -418,6 +420,7 @@ export default async function RegistrationsPage({
 
   const bulkRows: RegistrationBulkTableRow[] = rows.map((r) => {
     const badge = registrationListPaymentBadge(r);
+    const checkoutPending = isCheckoutPendingRegistration(r);
     return {
       id: r.id,
       status: r.status,
@@ -430,6 +433,8 @@ export default async function RegistrationsPage({
       registeredAtIso: r.registeredAt.toISOString(),
       paymentBadgeLabel: badge.label,
       paymentBadgeClassName: badge.className,
+      checkoutPending,
+      checkoutReminderSentAtIso: r.formSubmission?.stripeCheckoutReminderSentAt?.toISOString() ?? null,
     };
   });
 

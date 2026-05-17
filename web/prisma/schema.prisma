@@ -387,6 +387,8 @@ model FormSubmission {
   stripeAmountChargedCents  Int?
   /// Whether the payer opted into (or was required to use) processing fee gross-up.
   stripeCoverProcessingFee  Boolean?
+  /// When staff last sent a “complete checkout” reminder for this open Stripe session.
+  stripeCheckoutReminderSentAt DateTime?
 
   registrations Registration[]
 

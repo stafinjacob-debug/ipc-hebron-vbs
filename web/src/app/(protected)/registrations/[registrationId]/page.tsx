@@ -4,6 +4,7 @@ import { parseFormDefinitionJson } from "@/lib/registration-form-definition";
 import { canManageDirectory, canViewOperations } from "@/lib/roles";
 import { registrationTicketUrl } from "@/lib/registration-identity";
 import { getPublicAppBaseUrl } from "@/lib/public-app-url";
+import { isCheckoutPendingRegistration } from "@/lib/registration-list-payment";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import QRCode from "qrcode";
@@ -59,6 +60,9 @@ export default async function RegistrationDetailPage({
           id: true,
           registrationCode: true,
           guardianResponses: true,
+          stripePaymentStatus: true,
+          stripeCheckoutSessionId: true,
+          stripeCheckoutReminderSentAt: true,
           form: { select: { publishedDefinitionJson: true, draftDefinitionJson: true } },
         },
       },
@@ -84,6 +88,11 @@ export default async function RegistrationDetailPage({
   if (!reg) notFound();
 
   const canEdit = canManageDirectory(session.user.role);
+  const checkoutPending = isCheckoutPendingRegistration({
+    expectsPayment: reg.expectsPayment,
+    paymentReceivedAt: reg.paymentReceivedAt,
+    formSubmission: reg.formSubmission,
+  });
   const hasTicket = Boolean(reg.checkInToken);
   const base = getPublicAppBaseUrl();
   const ticketUrl = hasTicket ? registrationTicketUrl(reg.checkInToken!, base) : null;
@@ -287,6 +296,10 @@ export default async function RegistrationDetailPage({
               paymentReceivedAt={reg.paymentReceivedAt?.toISOString() ?? null}
               guardianHasEmail={Boolean(g.email?.trim())}
               guardianHasPhone={Boolean(g.phone?.trim())}
+              checkoutPending={checkoutPending}
+              checkoutReminderSentAt={
+                reg.formSubmission?.stripeCheckoutReminderSentAt?.toISOString() ?? null
+              }
               smsSetupHint={smsGatewaySetupHint()}
             />
           ) : null}

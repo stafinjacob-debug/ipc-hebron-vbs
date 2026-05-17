@@ -16,6 +16,13 @@ export type RegistrationPaymentBadgeInput = {
   } | null;
 };
 
+export function isCheckoutPendingRegistration(r: RegistrationPaymentBadgeInput): boolean {
+  if (r.paymentReceivedAt) return false;
+  if (!r.expectsPayment) return false;
+  const stripeStatus = (r.formSubmission?.stripePaymentStatus ?? "").toLowerCase();
+  return stripeStatus === "pending" && Boolean(r.formSubmission?.stripeCheckoutSessionId);
+}
+
 export function registrationListPaymentBadge(r: RegistrationPaymentBadgeInput): {
   label: string;
   className: string;

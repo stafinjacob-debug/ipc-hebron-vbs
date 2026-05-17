@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
+import { sendCheckoutReminderForSubmissionAction } from "@/app/(protected)/registrations/registration-actions";
 import {
   bulkCancelSubmission,
   bulkMoveSubmissionToWaitlist,
@@ -20,10 +21,13 @@ export function SubmissionDetailForms({
   guardian,
   responsesJson,
   registrations,
+  checkoutPending = false,
 }: {
   seasonId: string;
   submissionId: string;
   canEdit: boolean;
+  /** Family still has an open Stripe Checkout session. */
+  checkoutPending?: boolean;
   guardian: {
     firstName: string;
     lastName: string;
@@ -108,6 +112,23 @@ export function SubmissionDetailForms({
         >
           Waitlist all
         </button>
+        {checkoutPending ? (
+          <button
+            type="button"
+            disabled={pending}
+            className="rounded-md border border-sky-500/35 bg-sky-500/10 px-3 py-2 text-sm font-medium text-sky-900 disabled:opacity-50 dark:text-sky-100"
+            onClick={() => {
+              setMsg(null);
+              startTransition(async () => {
+                const r = await sendCheckoutReminderForSubmissionAction(submissionId);
+                setMsg(r.message);
+                if (r.ok) router.refresh();
+              });
+            }}
+          >
+            Send checkout reminder
+          </button>
+        ) : null}
         <button
           type="button"
           disabled={pending}

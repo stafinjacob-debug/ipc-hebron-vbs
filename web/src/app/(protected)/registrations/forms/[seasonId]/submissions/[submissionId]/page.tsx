@@ -1,5 +1,6 @@
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { isCheckoutPendingRegistration } from "@/lib/registration-list-payment";
 import { canManageDirectory, canViewOperations } from "@/lib/roles";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
@@ -25,6 +26,18 @@ export default async function FormSubmissionDetailPage({
     },
   });
   if (!submission) notFound();
+
+  const sampleReg = submission.registrations.find((r) => r.status !== "CANCELLED");
+  const checkoutPending = sampleReg
+    ? isCheckoutPendingRegistration({
+        expectsPayment: sampleReg.expectsPayment,
+        paymentReceivedAt: sampleReg.paymentReceivedAt,
+        formSubmission: {
+          stripePaymentStatus: submission.stripePaymentStatus,
+          stripeCheckoutSessionId: submission.stripeCheckoutSessionId,
+        },
+      })
+    : false;
 
   const responsesJson = JSON.stringify(submission.guardianResponses ?? {}, null, 2);
 
@@ -66,6 +79,7 @@ export default async function FormSubmissionDetailPage({
             allergiesNotes: r.child.allergiesNotes,
           },
         }))}
+        checkoutPending={checkoutPending}
       />
     </div>
   );

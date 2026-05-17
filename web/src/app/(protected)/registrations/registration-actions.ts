@@ -4,10 +4,12 @@ import { auth } from "@/auth";
 import {
   formatCancellationEmailHint,
   sendAllApprovedRegistrationsEmailForSubmission,
+  sendCheckoutReminderEmail,
   sendPaymentReminderEmail,
   sendRegistrationApprovedEmail,
   sendRegistrationCancelledEmail,
 } from "@/lib/email/registration-emails";
+import { isCheckoutPendingRegistration } from "@/lib/registration-list-payment";
 import { tryAutoAssignRegistration } from "@/lib/class-assignment";
 import { makeCheckInToken, makeUniqueRegistrationNumber } from "@/lib/registration-identity";
 import { prisma } from "@/lib/prisma";
@@ -182,6 +184,178 @@ export async function resendRegistrationConfirmationEmailAction(registrationId: 
     return { ok: false, message: "Guardian has no email on file." };
   }
   return { ok: false, message: "Email failed to send. Check server logs." };
+}
+
+export async function sendCheckoutReminderEmailAction(registrationId: string): Promise<RegActionState> {
+  const session = await auth();
+  if (!session?.user?.role || !canManageDirectory(session.user.role)) {
+    return { ok: false, message: "You do not have permission." };
+  }
+
+  const reg = await prisma.registration.findUnique({
+    where: { id: registrationId },
+    select: {
+      formSubmissionId: true,
+      expectsPayment: true,
+      paymentReceivedAt: true,
+      formSubmission: {
+        select: {
+          stripePaymentStatus: true,
+          stripeCheckoutSessionId: true,
+        },
+      },
+    },
+  });
+  if (!reg) return { ok: false, message: "Registration not found." };
+  if (!reg.formSubmissionId) {
+    return { ok: false, message: "This registration is not linked to an online form submission." };
+  }
+  if (
+    !isCheckoutPendingRegistration({
+      expectsPayment: reg.expectsPayment,
+      paymentReceivedAt: reg.paymentReceivedAt,
+      formSubmission: reg.formSubmission,
+    })
+  ) {
+    return {
+      ok: false,
+      message: "Checkout reminder only applies when Stripe checkout is still pending for this family.",
+    };
+  }
+
+  const r = await sendCheckoutReminderEmail(reg.formSubmissionId);
+  if (r === "sent") return { ok: true, message: "Checkout reminder sent." };
+  if (r === "skipped_no_graph") {
+    return { ok: false, message: "Microsoft Graph email is not configured." };
+  }
+  if (r === "skipped_no_email") {
+    return { ok: false, message: "Guardian has no email on file." };
+  }
+  if (r === "skipped_ineligible") {
+    return { ok: false, message: "This family is no longer in checkout-pending status." };
+  }
+  return { ok: false, message: "Could not send checkout reminder." };
+}
+
+export async function sendCheckoutReminderForSubmissionAction(
+  submissionId: string,
+): Promise<RegActionState> {
+  const session = await auth();
+  if (!session?.user?.role || !canManageDirectory(session.user.role)) {
+    return { ok: false, message: "You do not have permission." };
+  }
+
+  const submission = await prisma.formSubmission.findUnique({
+    where: { id: submissionId },
+    include: {
+      registrations: {
+        where: { status: { not: "CANCELLED" } },
+        take: 1,
+        select: {
+          expectsPayment: true,
+          paymentReceivedAt: true,
+        },
+      },
+    },
+  });
+  if (!submission) return { ok: false, message: "Submission not found." };
+  const sample = submission.registrations[0];
+  if (!sample) {
+    return { ok: false, message: "No active registrations on this submission." };
+  }
+  if (
+    !isCheckoutPendingRegistration({
+      expectsPayment: sample.expectsPayment,
+      paymentReceivedAt: sample.paymentReceivedAt,
+      formSubmission: {
+        stripePaymentStatus: submission.stripePaymentStatus,
+        stripeCheckoutSessionId: submission.stripeCheckoutSessionId,
+      },
+    })
+  ) {
+    return { ok: false, message: "This submission is not in checkout-pending status." };
+  }
+
+  const r = await sendCheckoutReminderEmail(submissionId);
+  if (r === "sent") {
+    return { ok: true, message: "Checkout reminder sent to the guardian." };
+  }
+  if (r === "skipped_no_graph") {
+    return { ok: false, message: "Microsoft Graph email is not configured." };
+  }
+  if (r === "skipped_no_email") {
+    return { ok: false, message: "Guardian has no email on file." };
+  }
+  return { ok: false, message: "Could not send checkout reminder." };
+}
+
+export async function bulkSendCheckoutRemindersAction(
+  registrationIds: string[],
+): Promise<RegActionState> {
+  const session = await auth();
+  if (!session?.user?.role || !canManageDirectory(session.user.role)) {
+    return { ok: false, message: "You do not have permission." };
+  }
+
+  const uniqueIds = [...new Set(registrationIds.filter(Boolean))];
+  if (uniqueIds.length === 0) {
+    return { ok: false, message: "Select at least one registration." };
+  }
+
+  const regs = await prisma.registration.findMany({
+    where: { id: { in: uniqueIds } },
+    select: {
+      formSubmissionId: true,
+      expectsPayment: true,
+      paymentReceivedAt: true,
+      formSubmission: {
+        select: {
+          stripePaymentStatus: true,
+          stripeCheckoutSessionId: true,
+        },
+      },
+    },
+  });
+
+  const submissionIds = new Set<string>();
+  for (const reg of regs) {
+    if (!reg.formSubmissionId) continue;
+    if (
+      !isCheckoutPendingRegistration({
+        expectsPayment: reg.expectsPayment,
+        paymentReceivedAt: reg.paymentReceivedAt,
+        formSubmission: reg.formSubmission,
+      })
+    ) {
+      continue;
+    }
+    submissionIds.add(reg.formSubmissionId);
+  }
+
+  if (submissionIds.size === 0) {
+    return {
+      ok: false,
+      message: "None of the selected rows are in checkout-pending status with an email on file.",
+    };
+  }
+
+  let sent = 0;
+  let failed = 0;
+  for (const submissionId of submissionIds) {
+    const r = await sendCheckoutReminderEmail(submissionId);
+    if (r === "sent") sent += 1;
+    else failed += 1;
+  }
+
+  revalidatePath("/registrations");
+  if (sent === 0) {
+    return { ok: false, message: "Could not send any checkout reminders. Check email config and status." };
+  }
+  const failNote = failed > 0 ? ` ${failed} could not be sent.` : "";
+  return {
+    ok: true,
+    message: `Checkout reminder sent for ${sent} famil${sent === 1 ? "y" : "ies"}.${failNote}`,
+  };
 }
 
 export async function resendPaymentReminderEmailAction(registrationId: string): Promise<RegActionState> {
