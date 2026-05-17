@@ -1920,7 +1920,7 @@ export function DynamicRegistrationWizard({
                           <span className="text-sm text-neutral-100">
                             <strong className="font-semibold">Pay later</strong>
                             <span className="mt-1 block text-neutral-300/90">
-                              Register now and pay online or on site before the first day of VBS.
+                              Register now; pay by card online before VBS, or pay on site on Day 1.
                             </span>
                           </span>
                         </label>

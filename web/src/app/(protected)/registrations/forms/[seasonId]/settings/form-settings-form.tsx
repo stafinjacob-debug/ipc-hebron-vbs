@@ -530,8 +530,8 @@ export function FormSettingsForm({
             className="mt-0.5 size-4 rounded border-foreground/30"
           />
           <span>
-            Allow <strong>pay later</strong> on the review step (families can skip card checkout now and pay online or
-            on site before Day 1 of VBS).
+            Allow <strong>pay later</strong> on the review step (families can skip card checkout now and pay by card
+            online earlier, or pay on site on Day 1 of VBS).
           </span>
         </label>
         <div>
@@ -542,7 +542,7 @@ export function FormSettingsForm({
             id="stripePayLaterMessage"
             name="stripePayLaterMessage"
             rows={5}
-            placeholder="Leave blank to use the default message (card online, pay on site by first VBS day, Zelle/card on site — no cash or checks)."
+            placeholder="Leave blank to use the default message (card online before VBS, or Zelle/card on site on Day 1 — no cash or checks)."
             defaultValue={initial.stripePayLaterMessage ?? ""}
             className="mt-1 w-full rounded-md border border-foreground/15 bg-background px-3 py-2 text-sm"
           />

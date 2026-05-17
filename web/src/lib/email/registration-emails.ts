@@ -324,13 +324,13 @@ function buildPayLaterPaymentInstructionsHtml(args: {
   return `
     <div style="margin:0 0 16px;padding:12px 14px;border-radius:12px;background:#fffbeb;border:1px solid #fde68a;color:#92400e;font-size:14px;line-height:1.55;">
       <p style="margin:0 0 10px;font-weight:700;color:#78350f;">Payment still due</p>
-      <p style="margin:0 0 10px;">You chose to pay later for <strong>${season}</strong>. Please complete payment before the first day of VBS (<strong>${dayOne}</strong>).</p>
-      <p style="margin:0 0 8px;font-weight:600;">Before the first day (online)</p>
+      <p style="margin:0 0 10px;">You chose to pay later for <strong>${season}</strong>. Pay by card online anytime before VBS, or pay on site on Day 1 (<strong>${dayOne}</strong>).</p>
+      <p style="margin:0 0 8px;font-weight:600;">Pay earlier (card online)</p>
       <ul style="margin:0 0 12px;padding-left:20px;">
         <li style="margin:0 0 6px;"><strong>Card</strong> — secure online checkout${cardLink ? ` (use the button below)` : ""}</li>
       </ul>
       ${cardLink}
-      <p style="margin:12px 0 8px;font-weight:600;">On site (Day 1 — ${dayOne})</p>
+      <p style="margin:12px 0 8px;font-weight:600;">Pay on site — Day 1 (${dayOne})</p>
       <ul style="margin:0;padding-left:20px;">
         <li style="margin:0 0 6px;"><strong>Zelle</strong> or <strong>card</strong></li>
         <li style="margin:0;">Cash and checks are <strong>not</strong> accepted on site.</li>
@@ -403,7 +403,7 @@ export async function sendSubmissionReceivedEmail(submissionId: string): Promise
   }
 
   const cardsIntro = isPayLater
-    ? `<p style="margin:0 0 14px;">Thanks for registering for <strong>${season}</strong>. Each child has a registration number and digital check-in card below — save this email for check-in day. Payment is still due; see options after your cards.</p>`
+    ? `<p style="margin:0 0 14px;">Thanks for registering for <strong>${season}</strong>. Each child has a registration number and digital check-in card below — save this email for check-in day. Payment is still due (card online before VBS, or on site on Day 1); see options after your cards.</p>`
     : `<p style="margin:0 0 14px;">Thanks for registering for <strong>${season}</strong>. Each child now has a registration number and digital check-in card:</p>`;
 
   const inner = isPayLater

@@ -15,9 +15,9 @@ export function buildDefaultPayLaterNotice(season: {
 }): string {
   const dayOne = formatVbsFirstDayLabel(season.startDate);
   return [
-    "You chose to pay later. Acceptable payment methods are card (online before VBS) or digital payment on site.",
-    `The last day to complete payment is ${dayOne} — the first day of ${season.name} (on-site check-in).`,
-    "For on-site payment: cash and checks are not accepted. Digital options available on site are Zelle and card.",
+    "You chose to pay later. You can pay by card online anytime before VBS, or pay on site on Day 1 of VBS.",
+    `On-site payment is on ${dayOne} — the first day of ${season.name} (check-in day). Acceptable methods on site are Zelle and card.`,
+    "Cash and checks are not accepted on site.",
   ].join("\n\n");
 }
 
