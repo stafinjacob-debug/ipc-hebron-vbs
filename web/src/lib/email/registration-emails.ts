@@ -527,6 +527,146 @@ export async function sendAllApprovedRegistrationsEmailForSubmission(submissionI
   return "failed";
 }
 
+function buildRegistrationCancelledEmailInner(args: {
+  guardianName: string;
+  seasonName: string;
+  childListHtml: string;
+  registerUrl: string;
+}): string {
+  const contact = helpEmailAddress();
+  const season = escapeHtml(args.seasonName);
+  const registerUrl = escapeHtml(args.registerUrl);
+
+  return `
+    <p style="margin:0 0 12px;">Hi ${escapeHtml(args.guardianName)},</p>
+    <p style="margin:0 0 16px;padding:12px 14px;border-radius:12px;background:#fef2f2;border:1px solid #fecaca;color:#991b1b;font-size:14px;line-height:1.55;">
+      Your VBS registration for <strong>${season}</strong> has been <strong>cancelled</strong> by our team.
+      ${args.childListHtml}
+    </p>
+    <p style="margin:0 0 12px;font-size:15px;line-height:1.55;color:#334155;">
+      This may be because payment was not completed. If you still plan to attend, please
+      <strong>submit a new registration</strong> and complete the card payment step when prompted.
+    </p>
+    <p style="margin:0 0 16px;">
+      <a href="${registerUrl}" style="display:inline-block;background:#0f766e;color:#ffffff;padding:12px 18px;border-radius:999px;text-decoration:none;font-size:14px;line-height:1.1;font-weight:700;border:1px solid #0b5f58;">Register again</a>
+    </p>
+    <p style="margin:0 0 12px;font-size:14px;line-height:1.55;color:#475569;">
+      If you believe this cancellation was made in error, please contact us immediately at
+      <a href="mailto:${escapeHtml(contact)}" style="color:#2563eb;font-weight:600;">${escapeHtml(contact)}</a>.
+    </p>
+  `;
+}
+
+function childListBlockHtml(
+  registrations: Array<{ child: { firstName: string; lastName: string } }>,
+): string {
+  if (registrations.length === 0) return "";
+  const items = registrations
+    .map((r) => {
+      const n = `${r.child.firstName} ${r.child.lastName}`.trim();
+      return n
+        ? `<li style="margin:0 0 6px;"><strong>${escapeHtml(n)}</strong></li>`
+        : `<li style="margin:0 0 6px;">Child registration</li>`;
+    })
+    .join("");
+  return `
+    <p style="margin:12px 0 6px;font-size:14px;font-weight:600;color:#7f1d1d;">Affected registration(s)</p>
+    <ul style="margin:0;padding-left:20px;color:#991b1b;font-size:14px;line-height:1.5;">
+      ${items}
+    </ul>`;
+}
+
+/** After admin declines or cancels a single registration. */
+export async function sendRegistrationCancelledEmail(registrationId: string): Promise<EmailSendResult> {
+  const reg = await loadRegistrationForEmail(registrationId);
+  if (!reg) return "skipped_no_email";
+  if (reg.status !== "CANCELLED") return "skipped_ineligible";
+
+  const guardian = reg.child.guardian;
+  if (!guardian?.email?.trim()) return "skipped_no_email";
+
+  const gname = `${guardian.firstName} ${guardian.lastName}`.trim();
+  const childName = `${reg.child.firstName} ${reg.child.lastName}`.trim();
+  const registerUrl = `${getPublicAppBaseUrl()}/register`;
+  const childListHtml = childListBlockHtml([{ child: reg.child }]);
+
+  const inner = buildRegistrationCancelledEmailInner({
+    guardianName: gname,
+    seasonName: reg.season.name,
+    childListHtml,
+    registerUrl,
+  });
+
+  const subjectChild = childName.split(" ")[0] || "your child";
+  const { result, error } = await sendHtml(
+    guardian.email.trim(),
+    gname,
+    `${brandName()} — Registration cancelled (${subjectChild})`,
+    emailShell(inner),
+  );
+
+  if (result === "failed") console.error("[registration email cancelled]", error);
+  if (result === "sent") return "sent";
+  if (result === "skipped_no_graph") return "skipped_no_graph";
+  return "failed";
+}
+
+/**
+ * After admin cancels all (or selected) registrations on a form submission — one email to the guardian.
+ */
+export async function sendSubmissionCancelledEmail(
+  submissionId: string,
+  registrationIds?: string[],
+): Promise<EmailSendResult> {
+  const submission = await prisma.formSubmission.findUnique({
+    where: { id: submissionId },
+    include: {
+      guardian: true,
+      season: true,
+      registrations: {
+        where: {
+          status: "CANCELLED",
+          ...(registrationIds?.length ? { id: { in: registrationIds } } : {}),
+        },
+        include: { child: true },
+      },
+    },
+  });
+  if (!submission?.guardian.email?.trim()) return "skipped_no_email";
+  if (submission.registrations.length === 0) return "skipped_ineligible";
+
+  const gname = `${submission.guardian.firstName} ${submission.guardian.lastName}`.trim();
+  const registerUrl = `${getPublicAppBaseUrl()}/register`;
+  const childListHtml = childListBlockHtml(submission.registrations);
+
+  const inner = buildRegistrationCancelledEmailInner({
+    guardianName: gname,
+    seasonName: submission.season.name,
+    childListHtml,
+    registerUrl,
+  });
+
+  const { result, error } = await sendHtml(
+    submission.guardian.email.trim(),
+    gname,
+    `${brandName()} — Registration cancelled`,
+    emailShell(inner),
+  );
+
+  if (result === "failed") console.error("[registration email submission cancelled]", error);
+  if (result === "sent") return "sent";
+  if (result === "skipped_no_graph") return "skipped_no_graph";
+  return "failed";
+}
+
+export function formatCancellationEmailHint(result: EmailSendResult): string {
+  if (result === "sent") return " Cancellation notice emailed to the guardian.";
+  if (result === "skipped_no_graph") return " (Email not configured — notify the family manually.)";
+  if (result === "skipped_no_email") return " (No guardian email — could not send cancellation notice.)";
+  if (result === "skipped_ineligible") return "";
+  return " (Cancellation email failed — check server logs.)";
+}
+
 export async function sendPaymentReminderEmail(registrationId: string): Promise<EmailSendResult> {
   const reg = await loadRegistrationForEmail(registrationId);
   if (!reg) return "skipped_no_email";

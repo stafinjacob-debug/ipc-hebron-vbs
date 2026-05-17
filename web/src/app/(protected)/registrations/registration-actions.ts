@@ -2,9 +2,11 @@
 
 import { auth } from "@/auth";
 import {
+  formatCancellationEmailHint,
   sendAllApprovedRegistrationsEmailForSubmission,
   sendPaymentReminderEmail,
   sendRegistrationApprovedEmail,
+  sendRegistrationCancelledEmail,
 } from "@/lib/email/registration-emails";
 import { tryAutoAssignRegistration } from "@/lib/class-assignment";
 import { makeCheckInToken, makeUniqueRegistrationNumber } from "@/lib/registration-identity";
@@ -108,18 +110,26 @@ export async function declineRegistration(registrationId: string): Promise<RegAc
 
   const reg = await prisma.registration.findUnique({
     where: { id: registrationId },
-    select: { id: true, seasonId: true },
+    select: { id: true, seasonId: true, status: true },
   });
   if (!reg) return { ok: false, message: "Registration not found." };
+  if (reg.status === "CANCELLED") {
+    return { ok: false, message: "This registration is already cancelled." };
+  }
 
   await prisma.registration.update({
     where: { id: registrationId },
     data: { status: "CANCELLED" },
   });
 
+  const emailResult = await sendRegistrationCancelledEmail(registrationId);
+
   revalidateRegistrationPaths(reg.seasonId);
   revalidatePath(`/registrations/${registrationId}`);
-  return { ok: true, message: "Registration declined (cancelled)." };
+  return {
+    ok: true,
+    message: `Registration declined (cancelled).${formatCancellationEmailHint(emailResult)}`,
+  };
 }
 
 export async function deleteRegistrationRecord(registrationId: string): Promise<RegActionState> {

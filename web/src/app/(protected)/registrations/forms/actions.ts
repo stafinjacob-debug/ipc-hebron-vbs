@@ -15,7 +15,11 @@ import { getPublicBaseUrl } from "@/lib/public-base-url";
 import { clampRegistrationBackgroundDimmingPercent } from "@/lib/registration-background-scrim";
 import { parsePublicRegistrationLayout } from "@/lib/public-registration-layout";
 import { rulesFromDb } from "@/lib/public-registration";
-import { sendAllApprovedRegistrationsEmailForSubmission } from "@/lib/email/registration-emails";
+import {
+  formatCancellationEmailHint,
+  sendAllApprovedRegistrationsEmailForSubmission,
+  sendSubmissionCancelledEmail,
+} from "@/lib/email/registration-emails";
 import { canManageDirectory } from "@/lib/roles";
 import {
   filterWaiverMergeKeysToDef,
@@ -485,6 +489,8 @@ export async function updateSubmissionRegistrations(
     "CHECKED_OUT",
   ]);
 
+  const newlyCancelledIds: string[] = [];
+
   for (const u of updates) {
     const reg = await prisma.registration.findFirst({
       where: { id: u.registrationId, formSubmissionId: submissionId },
@@ -492,6 +498,9 @@ export async function updateSubmissionRegistrations(
     if (!reg) continue;
     const st =
       u.status && allowedStatus.has(u.status) ? (u.status as RegistrationStatus) : undefined;
+    if (st === "CANCELLED" && reg.status !== "CANCELLED") {
+      newlyCancelledIds.push(reg.id);
+    }
     await prisma.registration.update({
       where: { id: u.registrationId },
       data: {
@@ -499,6 +508,12 @@ export async function updateSubmissionRegistrations(
         ...(u.notes !== undefined ? { notes: u.notes } : {}),
       },
     });
+  }
+
+  let emailHint = "";
+  if (newlyCancelledIds.length > 0) {
+    const emailResult = await sendSubmissionCancelledEmail(submissionId, newlyCancelledIds);
+    emailHint = formatCancellationEmailHint(emailResult);
   }
 
   if (submission.formId) {
@@ -513,7 +528,7 @@ export async function updateSubmissionRegistrations(
   for (const u of updates) {
     if (u.registrationId) revalidatePath(`/registrations/${u.registrationId}`);
   }
-  return { ok: true, message: "Registration rows updated." };
+  return { ok: true, message: `Registration rows updated.${emailHint}` };
 }
 
 export async function updateSubmissionGuardianAndResponses(
@@ -613,8 +628,8 @@ export async function bulkCancelSubmission(submissionId: string): Promise<Action
   });
   if (!submission) return { ok: false, message: "Submission not found." };
 
-  await prisma.registration.updateMany({
-    where: { formSubmissionId: submissionId },
+  const cancelResult = await prisma.registration.updateMany({
+    where: { formSubmissionId: submissionId, status: { not: "CANCELLED" } },
     data: { status: "CANCELLED" },
   });
 
@@ -622,9 +637,15 @@ export async function bulkCancelSubmission(submissionId: string): Promise<Action
     await auditForm(submission.formId, session.user.id, "SUBMISSION_CANCELLED", { submissionId });
   }
 
+  let emailHint = "";
+  if (cancelResult.count > 0) {
+    const emailResult = await sendSubmissionCancelledEmail(submissionId);
+    emailHint = formatCancellationEmailHint(emailResult);
+  }
+
   revalidatePath(`${RF_PATH}/${submission.seasonId}/submissions`);
   revalidatePath(`${RF_PATH}/${submission.seasonId}/submissions/${submissionId}`);
-  return { ok: true, message: "All children on this submission cancelled." };
+  return { ok: true, message: `All children on this submission cancelled.${emailHint}` };
 }
 
 export async function resendRegistrationConfirmation(submissionId: string): Promise<ActionState> {
