@@ -12,6 +12,7 @@ import {
   submissionPayUrl,
 } from "@/lib/registration-public-token";
 import { formatVbsFirstDayLabel } from "@/lib/pay-later";
+import { formatSeasonDateRange } from "@/lib/season-calendar-date";
 import { isCheckoutPendingRegistration } from "@/lib/registration-list-payment";
 import { resolveCheckoutResumeUrlForSubmission } from "@/lib/stripe-registration-payment";
 import { isMicrosoftGraphEmailConfigured, sendMailViaMicrosoftGraph } from "@/lib/email/microsoft-graph";
@@ -301,15 +302,6 @@ async function ensureRegistrationIdentitiesForSubmission(submissionId: string): 
   }
 }
 
-function buildSubmissionReferenceCodeHtml(registrationCode: string): string {
-  const code = escapeHtml(registrationCode);
-  return `<p style="margin:0 0 16px;padding:12px 14px;border-radius:12px;background:#f0f9ff;border:1px solid #bae6fd;color:#0c4a6e;font-size:14px;line-height:1.5;">
-      <span style="display:block;font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#0369a1;">Family reference code</span>
-      <span style="display:block;margin-top:6px;font-family:ui-monospace,Consolas,monospace;font-size:20px;font-weight:800;letter-spacing:0.04em;">${code}</span>
-      <span style="display:block;margin-top:6px;font-size:13px;color:#475569;">Use this code if you contact the VBS team about your registration.</span>
-    </p>`;
-}
-
 function buildPayLaterPaymentInstructionsHtml(args: {
   dayOneLabel: string;
   seasonName: string;
@@ -385,7 +377,6 @@ export async function sendSubmissionReceivedEmail(submissionId: string): Promise
   if (!blocks) return "skipped_ineligible";
 
   const isPayLater = submission.payLaterChosen && !submission.stripePaidAt;
-  const referenceBlock = buildSubmissionReferenceCodeHtml(submission.registrationCode);
 
   const paidNote = submission.stripePaidAt
     ? `<p style="margin:0 0 16px;padding:12px 14px;border-radius:12px;background:#ecfdf5;border:1px solid #a7f3d0;color:#065f46;font-size:14px;">Your online payment was received — thank you.</p>`
@@ -409,7 +400,6 @@ export async function sendSubmissionReceivedEmail(submissionId: string): Promise
   const inner = isPayLater
     ? `
     <p style="margin:0 0 12px;">Hi ${escapeHtml(gname)},</p>
-    ${referenceBlock}
     ${cardsIntro}
     <table role="presentation" width="100%" cellspacing="0" cellpadding="0">${blocks}</table>
     ${payLaterBlock}
@@ -419,7 +409,6 @@ export async function sendSubmissionReceivedEmail(submissionId: string): Promise
     : `
     <p style="margin:0 0 12px;">Hi ${escapeHtml(gname)},</p>
     ${paidNote}
-    ${referenceBlock}
     ${cardsIntro}
     <table role="presentation" width="100%" cellspacing="0" cellpadding="0">${blocks}</table>
     <p style="margin:10px 0 0;font-size:13px;color:#64748b;">Save this email for check-in day. Staff may still follow up if details need review.</p>
@@ -483,7 +472,7 @@ export async function sendRegistrationApprovedEmail(
   const season = escapeHtml(reg.season.name);
   const cls = reg.classroom ? escapeHtml(reg.classroom.name) : "To be assigned";
   const num = escapeHtml(reg.registrationNumber ?? "Pending approval");
-  const dates = `${reg.season.startDate.toLocaleDateString()} – ${reg.season.endDate.toLocaleDateString()}`;
+  const dates = formatSeasonDateRange(reg.season.startDate, reg.season.endDate);
 
   const inner = `
     ${
@@ -775,6 +764,47 @@ export async function sendSubmissionCancelledEmail(
   );
 
   if (result === "failed") console.error("[registration email submission cancelled]", error);
+  if (result === "sent") return "sent";
+  if (result === "skipped_no_graph") return "skipped_no_graph";
+  return "failed";
+}
+
+/**
+ * Before admin permanently deletes registration row(s) — same copy as cancellation,
+ * but does not require rows to still exist in the database.
+ */
+export async function sendRegistrationsRemovedEmail(args: {
+  guardianEmail: string;
+  guardianName: string;
+  seasonName: string;
+  children: Array<{ firstName: string; lastName: string }>;
+}): Promise<EmailSendResult> {
+  const email = args.guardianEmail.trim();
+  if (!email) return "skipped_no_email";
+
+  const registrations = args.children.map((child) => ({ child }));
+  const childListHtml = childListBlockHtml(registrations);
+  const registerUrl = `${getPublicAppBaseUrl()}/register`;
+  const inner = buildRegistrationCancelledEmailInner({
+    guardianName: args.guardianName,
+    seasonName: args.seasonName,
+    childListHtml,
+    registerUrl,
+  });
+
+  const subjectChild =
+    args.children.length === 1
+      ? args.children[0]!.firstName.trim() || "your child"
+      : "your family";
+
+  const { result, error } = await sendHtml(
+    email,
+    args.guardianName,
+    `${brandName()} — Registration cancelled (${subjectChild})`,
+    emailShell(inner),
+  );
+
+  if (result === "failed") console.error("[registration email removed]", error);
   if (result === "sent") return "sent";
   if (result === "skipped_no_graph") return "skipped_no_graph";
   return "failed";

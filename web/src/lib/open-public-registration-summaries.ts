@@ -4,6 +4,7 @@ import type {
   PublicRegistrationCardBadge,
 } from "@/lib/open-public-registration-landing";
 import { prisma } from "@/lib/prisma";
+import { calendarDateFromDate } from "@/lib/season-calendar-date";
 
 export type { OpenPublicRegistrationSummary, PublicRegistrationCardBadge } from "@/lib/open-public-registration-landing";
 
@@ -58,8 +59,8 @@ export async function listOpenPublicRegistrationSummaries(): Promise<OpenPublicR
       id: s.id,
       name: s.name,
       year: s.year,
-      startDateIso: s.startDate.toISOString(),
-      endDateIso: s.endDate.toISOString(),
+      startDateIso: calendarDateFromDate(s.startDate),
+      endDateIso: calendarDateFromDate(s.endDate),
       sessionTimeDescription: s.publicRegistrationSettings?.sessionTimeDescription?.trim() || null,
       helpContactEmail: s.publicRegistrationSettings?.helpContactEmail?.trim() || null,
       formTitle: form.title,

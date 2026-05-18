@@ -21,6 +21,7 @@ import {
 import type { PublicRegistrationLayout } from "@/generated/prisma";
 import { clampRegistrationBackgroundDimmingPercent } from "@/lib/registration-background-scrim";
 import { formatPhoneInput, phoneDigits } from "@/lib/phone-format";
+import { formatSeasonDateRange } from "@/lib/season-calendar-date";
 import { RegistrationBackgroundMedia } from "./registration-background-media";
 import { RegistrationHeroBrand } from "./registration-hero-brand";
 import { submitPublicRegistration, type PublicRegisterState } from "./actions";
@@ -175,13 +176,6 @@ export function PublicRegistrationForm({
     [children, rules],
   );
 
-  const formatEventRange = useCallback((startIso: string, endIso: string) => {
-    const start = new Date(startIso);
-    const end = new Date(endIso);
-    const o = { month: "long" as const, day: "numeric" as const, year: "numeric" as const };
-    return `${start.toLocaleDateString(undefined, o)} – ${end.toLocaleDateString(undefined, o)}`;
-  }, []);
-
   const validateStep = useCallback(
     (s: number): string | null => {
       if (s === 0) {
@@ -318,7 +312,7 @@ export function PublicRegistrationForm({
           </h1>
           {current && (
             <p className="mt-2 text-sm font-medium text-neutral-700 dark:text-neutral-300">
-              {formatEventRange(current.startDate, current.endDate)}
+              {formatSeasonDateRange(current.startDate, current.endDate)}
             </p>
           )}
           <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-neutral-600 dark:text-neutral-400">

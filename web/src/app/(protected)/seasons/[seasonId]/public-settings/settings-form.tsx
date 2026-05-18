@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import Link from "next/link";
 import type { PublicRegistrationLayout } from "@/generated/prisma";
+import { formatCalendarDateInputValue } from "@/lib/season-calendar-date";
 import {
   savePublicRegistrationSettings,
   type SavePublicSettingsState,
@@ -65,7 +66,7 @@ export function PublicRegistrationSettingsForm(p: Props) {
               id="seasonStartDate"
               name="seasonStartDate"
               type="date"
-              defaultValue={p.seasonStartDate.toISOString().slice(0, 10)}
+              defaultValue={formatCalendarDateInputValue(p.seasonStartDate)}
               className="mt-1 w-full rounded-md border border-foreground/15 bg-background px-3 py-2 text-sm"
             />
           </div>
@@ -77,7 +78,7 @@ export function PublicRegistrationSettingsForm(p: Props) {
               id="seasonEndDate"
               name="seasonEndDate"
               type="date"
-              defaultValue={p.seasonEndDate.toISOString().slice(0, 10)}
+              defaultValue={formatCalendarDateInputValue(p.seasonEndDate)}
               className="mt-1 w-full rounded-md border border-foreground/15 bg-background px-3 py-2 text-sm"
             />
           </div>

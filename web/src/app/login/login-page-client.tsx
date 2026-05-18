@@ -10,6 +10,7 @@ import {
   type PublicRegistrationCardBadge,
 } from "@/lib/open-public-registration-landing";
 import { OrganizationLogo } from "@/components/layout/organization-logo";
+import { formatSeasonDateRangeCompact } from "@/lib/season-calendar-date";
 import { LoginForm } from "./login-form";
 import { StaffPasswordResetForm } from "./staff-password-reset-form";
 
@@ -31,17 +32,6 @@ const loginCardDisplay = Fredoka({
   display: "swap",
   adjustFontFallback: true,
 });
-
-function formatCampDates(startIso: string, endIso: string): string {
-  const start = new Date(startIso);
-  const end = new Date(endIso);
-  const sameMonth = start.getMonth() === end.getMonth() && start.getFullYear() === end.getFullYear();
-  const opts: Intl.DateTimeFormatOptions = { month: "long", day: "numeric", year: "numeric" };
-  if (sameMonth) {
-    return `${start.toLocaleDateString(undefined, { month: "long", day: "numeric" })} – ${end.toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" })}`;
-  }
-  return `${start.toLocaleDateString(undefined, opts)} – ${end.toLocaleDateString(undefined, opts)}`;
-}
 
 /** Badges stay high-contrast on the frosted card (no `dark:` flip — OS dark mode was washing out “Open”). */
 function statusBadgeUI(badge: PublicRegistrationCardBadge): { label: string; className: string } {
@@ -318,7 +308,7 @@ export function LoginPageClient({ seasons }: { seasons: OpenPublicRegistrationSu
                                     <div className="flex flex-col gap-2.5 text-sm font-medium text-neutral-800 dark:text-neutral-800">
                                       <p className="inline-flex items-center gap-2">
                                         <CalendarDays className="size-4 shrink-0 text-teal-600" aria-hidden />
-                                        <span>{formatCampDates(s.startDateIso, s.endDateIso)}</span>
+                                        <span>{formatSeasonDateRangeCompact(s.startDateIso, s.endDateIso)}</span>
                                       </p>
                                       {s.sessionTimeDescription?.trim() ? (
                                         <p className="flex items-start gap-2">

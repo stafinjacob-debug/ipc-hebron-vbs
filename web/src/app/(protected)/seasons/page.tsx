@@ -1,5 +1,6 @@
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { formatSeasonDateRange } from "@/lib/season-calendar-date";
 import { canManageDirectory, canViewOperations } from "@/lib/roles";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -49,7 +50,7 @@ export default async function SeasonsPage() {
                 <td className="px-4 py-3 font-medium">{s.name}</td>
                 <td className="px-4 py-3 tabular-nums">{s.year}</td>
                 <td className="px-4 py-3 text-foreground/80">
-                  {s.startDate.toLocaleDateString()} – {s.endDate.toLocaleDateString()}
+                  {formatSeasonDateRange(s.startDate, s.endDate)}
                 </td>
                 <td className="px-4 py-3 text-foreground/70">{s.theme ?? "—"}</td>
                 <td className="px-4 py-3 tabular-nums">{s._count.classrooms}</td>

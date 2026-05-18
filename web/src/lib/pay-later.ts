@@ -1,12 +1,9 @@
 /** Labels and copy for the public “pay later” registration path. */
 
+import { formatCalendarDateLong } from "@/lib/season-calendar-date";
+
 export function formatVbsFirstDayLabel(startDate: Date): string {
-  return startDate.toLocaleDateString("en-US", {
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-  });
+  return formatCalendarDateLong(startDate, "en-US", { weekday: "long" });
 }
 
 export function buildDefaultPayLaterNotice(season: {

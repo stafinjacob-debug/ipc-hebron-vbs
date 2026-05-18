@@ -10,6 +10,7 @@ import { prisma } from "@/lib/prisma";
 import { clampRegistrationBackgroundDimmingPercent } from "@/lib/registration-background-scrim";
 import { parsePublicRegistrationLayout } from "@/lib/public-registration-layout";
 import { rulesFromDb } from "@/lib/public-registration";
+import { calendarDateFromDate } from "@/lib/season-calendar-date";
 import { parseWaiverMergeFieldKeysFromDb, parseWaiverSupplementalDefsFromDb } from "@/lib/waiver-merge-fields";
 import { DynamicRegistrationWizard, type PublicSeasonWaiverSnapshot } from "./dynamic-registration-wizard";
 
@@ -77,8 +78,8 @@ export default async function PublicRegisterPage({
       id: s.id,
       name: s.name,
       year: s.year,
-      startDate: s.startDate.toISOString(),
-      endDate: s.endDate.toISOString(),
+      startDate: calendarDateFromDate(s.startDate),
+      endDate: calendarDateFromDate(s.endDate),
       welcomeMessage: formRow.welcomeMessage ?? s.publicRegistrationSettings?.welcomeMessage ?? null,
       backgroundImageUrl:
         s.publicRegistrationSettings?.registrationBackgroundImageUrl ?? null,

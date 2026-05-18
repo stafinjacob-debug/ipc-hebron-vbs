@@ -5,8 +5,8 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import {
   approveRegistration,
+  bulkDeleteRegistrations,
   bulkSendCheckoutRemindersAction,
-  deleteRegistrationRecord,
   sendCheckoutReminderEmailAction,
 } from "./registration-actions";
 
@@ -239,21 +239,22 @@ export function RegistrationsBulkTable({
     });
     if (
       !window.confirm(
-        `Permanently delete ${ids.length} registration(s)? This cannot be undone. Guardians are not notified automatically.\n\n${labels.slice(0, 12).join(", ")}${labels.length > 12 ? "…" : ""}`,
+        `Permanently delete ${ids.length} registration(s)? This cannot be undone. A cancellation email will be sent to each family (when an email is on file).\n\n${labels.slice(0, 12).join(", ")}${labels.length > 12 ? "…" : ""}`,
       )
     ) {
       return;
     }
     startTransition(async () => {
-      const lines: string[] = [];
-      for (const id of ids) {
-        const row = rowById.get(id);
-        const label = row ? `${row.childFirstName} ${row.childLastName}` : id;
-        const r = await deleteRegistrationRecord(id);
-        lines.push(`${label}: ${r.ok ? "Removed." : r.message}`);
-      }
+      const bulk = await bulkDeleteRegistrations(ids);
+      const lines =
+        bulk.results.length > 0
+          ? bulk.results.map((r) => r.message)
+          : [bulk.message];
       window.alert(lines.join("\n"));
-      router.refresh();
+      if (bulk.ok) {
+        setSelected(new Set());
+        router.refresh();
+      }
     });
   }, [selected, rowById, router]);
 

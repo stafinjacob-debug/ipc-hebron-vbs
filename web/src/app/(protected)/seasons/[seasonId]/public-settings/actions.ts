@@ -11,6 +11,7 @@ import {
 } from "@/lib/registration-background-upload";
 import { revalidatePath } from "next/cache";
 import { clampRegistrationBackgroundDimmingPercent } from "@/lib/registration-background-scrim";
+import { parseCalendarDateInput } from "@/lib/season-calendar-date";
 
 export type SavePublicSettingsState = {
   ok: boolean;
@@ -20,13 +21,6 @@ export type SavePublicSettingsState = {
 function str(formData: FormData, k: string) {
   const v = formData.get(k);
   return typeof v === "string" ? v : "";
-}
-
-function parseDateInput(value: string): Date | null {
-  const trimmed = value.trim();
-  if (!trimmed) return null;
-  const d = new Date(`${trimmed}T00:00:00`);
-  return Number.isNaN(d.getTime()) ? null : d;
 }
 
 function normalizeOptionalEmail(raw: string): string | null {
@@ -114,8 +108,8 @@ export async function savePublicRegistrationSettings(
   const endStr = str(formData, "seasonEndDate").trim();
   /** Form workspace “Design” tab saves public settings without season date fields — keep existing VBS dates. */
   const omitSeasonDates = !startStr && !endStr;
-  const seasonStartDate = omitSeasonDates ? season.startDate : parseDateInput(startStr);
-  const seasonEndDate = omitSeasonDates ? season.endDate : parseDateInput(endStr);
+  const seasonStartDate = omitSeasonDates ? season.startDate : parseCalendarDateInput(startStr);
+  const seasonEndDate = omitSeasonDates ? season.endDate : parseCalendarDateInput(endStr);
   if (!seasonStartDate || !seasonEndDate) {
     return { ok: false, message: "Provide valid season start and end dates." };
   }

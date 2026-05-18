@@ -8,6 +8,8 @@ import {
   sendPaymentReminderEmail,
   sendRegistrationApprovedEmail,
   sendRegistrationCancelledEmail,
+  sendRegistrationsRemovedEmail,
+  type EmailSendResult,
 } from "@/lib/email/registration-emails";
 import { isCheckoutPendingRegistration } from "@/lib/registration-list-payment";
 import { tryAutoAssignRegistration } from "@/lib/class-assignment";
@@ -134,27 +136,133 @@ export async function declineRegistration(registrationId: string): Promise<RegAc
   };
 }
 
+async function removeRegistrationRows(registrationIds: string[]): Promise<void> {
+  for (const registrationId of registrationIds) {
+    const reg = await prisma.registration.findUnique({
+      where: { id: registrationId },
+      select: { id: true, childId: true },
+    });
+    if (!reg) continue;
+    await prisma.registration.delete({ where: { id: registrationId } });
+    const remaining = await prisma.registration.count({ where: { childId: reg.childId } });
+    if (remaining === 0) {
+      await prisma.child.delete({ where: { id: reg.childId } }).catch(() => {});
+    }
+  }
+}
+
 export async function deleteRegistrationRecord(registrationId: string): Promise<RegActionState> {
+  const bulk = await bulkDeleteRegistrations([registrationId]);
+  return bulk.results[0] ?? { ok: bulk.ok, message: bulk.message };
+}
+
+/** Permanently delete registrations and email guardians (one email per family per season). */
+export async function bulkDeleteRegistrations(registrationIds: string[]): Promise<{
+  ok: boolean;
+  message: string;
+  results: RegActionState[];
+}> {
   const session = await auth();
   if (!session?.user?.role || !canManageDirectory(session.user.role)) {
-    return { ok: false, message: "You do not have permission." };
+    return { ok: false, message: "You do not have permission.", results: [] };
   }
 
-  const reg = await prisma.registration.findUnique({
-    where: { id: registrationId },
-    select: { id: true, childId: true, seasonId: true },
+  const uniqueIds = [...new Set(registrationIds.map((id) => id.trim()).filter(Boolean))];
+  if (uniqueIds.length === 0) {
+    return { ok: false, message: "No registrations selected.", results: [] };
+  }
+
+  const regs = await prisma.registration.findMany({
+    where: { id: { in: uniqueIds } },
+    include: {
+      child: { include: { guardian: true } },
+      season: true,
+    },
   });
-  if (!reg) return { ok: false, message: "Registration not found." };
 
-  await prisma.registration.delete({ where: { id: registrationId } });
-
-  const remaining = await prisma.registration.count({ where: { childId: reg.childId } });
-  if (remaining === 0) {
-    await prisma.child.delete({ where: { id: reg.childId } }).catch(() => {});
+  if (regs.length === 0) {
+    return {
+      ok: false,
+      message: "No registrations found.",
+      results: uniqueIds.map(() => ({ ok: false, message: "Registration not found." })),
+    };
   }
 
-  revalidateRegistrationPaths(reg.seasonId);
-  return { ok: true, message: "Registration removed." };
+  type RemovalGroup = {
+    guardianId: string;
+    seasonId: string;
+    guardianEmail: string | null;
+    guardianName: string;
+    seasonName: string;
+    children: Array<{ firstName: string; lastName: string }>;
+    registrationIds: string[];
+  };
+
+  const groups = new Map<string, RemovalGroup>();
+  for (const reg of regs) {
+    const guardian = reg.child.guardian;
+    const key = `${guardian.id}::${reg.seasonId}`;
+    const existing = groups.get(key);
+    if (existing) {
+      existing.registrationIds.push(reg.id);
+      existing.children.push({
+        firstName: reg.child.firstName,
+        lastName: reg.child.lastName,
+      });
+    } else {
+      groups.set(key, {
+        guardianId: guardian.id,
+        seasonId: reg.seasonId,
+        guardianEmail: guardian.email,
+        guardianName: `${guardian.firstName} ${guardian.lastName}`.trim(),
+        seasonName: reg.season.name,
+        children: [{ firstName: reg.child.firstName, lastName: reg.child.lastName }],
+        registrationIds: [reg.id],
+      });
+    }
+  }
+
+  const emailByGuardianSeason = new Map<string, EmailSendResult>();
+  for (const [key, group] of groups) {
+    if (!group.guardianEmail?.trim()) {
+      emailByGuardianSeason.set(key, "skipped_no_email");
+      continue;
+    }
+    const emailResult = await sendRegistrationsRemovedEmail({
+      guardianEmail: group.guardianEmail,
+      guardianName: group.guardianName,
+      seasonName: group.seasonName,
+      children: group.children,
+    });
+    emailByGuardianSeason.set(key, emailResult);
+  }
+
+  await removeRegistrationRows(regs.map((r) => r.id));
+
+  const seasonIds = new Set(regs.map((r) => r.seasonId));
+  for (const seasonId of seasonIds) {
+    revalidateRegistrationPaths(seasonId);
+  }
+
+  const results: RegActionState[] = uniqueIds.map((id) => {
+    const reg = regs.find((r) => r.id === id);
+    if (!reg) return { ok: false, message: "Registration not found." };
+    const key = `${reg.child.guardian.id}::${reg.seasonId}`;
+    const emailResult = emailByGuardianSeason.get(key) ?? "skipped_no_email";
+    const childLabel = `${reg.child.firstName} ${reg.child.lastName}`.trim();
+    return {
+      ok: true,
+      message: `${childLabel}: Removed.${formatCancellationEmailHint(emailResult)}`,
+    };
+  });
+
+  const sentCount = [...emailByGuardianSeason.values()].filter((r) => r === "sent").length;
+  const summary =
+    uniqueIds.length === 1
+      ? results[0]?.message ?? "Registration removed."
+      : `Removed ${regs.length} registration(s).${sentCount > 0 ? ` ${sentCount} cancellation email(s) sent.` : ""}`;
+
+  return { ok: true, message: summary, results };
 }
 
 export async function resendRegistrationConfirmationEmailAction(registrationId: string): Promise<RegActionState> {

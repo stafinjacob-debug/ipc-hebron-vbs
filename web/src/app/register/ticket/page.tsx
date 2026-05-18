@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { registrationTicketUrl } from "@/lib/registration-identity";
+import { formatSeasonDateRange } from "@/lib/season-calendar-date";
 import { getPublicAppBaseUrl } from "@/lib/public-app-url";
 import type { Metadata } from "next";
 import QRCode from "qrcode";
@@ -74,7 +75,7 @@ export default async function PublicRegistrationTicketPage({
     color: { dark: "#0f172a", light: "#ffffff" },
   });
 
-  const range = `${reg.season.startDate.toLocaleDateString()} – ${reg.season.endDate.toLocaleDateString()}`;
+  const range = formatSeasonDateRange(reg.season.startDate, reg.season.endDate);
   const themeLogoDataUrl = await loadThemeLogoDataUrl();
 
   return (

@@ -47,6 +47,7 @@ import type { PublicRegistrationLayout } from "@/generated/prisma";
 import { RegistrationBackgroundMedia } from "./registration-background-media";
 import { RegistrationHeroBrand } from "./registration-hero-brand";
 import { payLaterNoticeParagraphs, resolvePayLaterNotice } from "@/lib/pay-later";
+import { formatSeasonDateRange } from "@/lib/season-calendar-date";
 import { submitPublicRegistration, type PublicRegisterState } from "./actions";
 
 /** Shown on the thank-you screen when card checkout was skipped by the form’s payment-skip rule. */
@@ -927,13 +928,6 @@ export function DynamicRegistrationWizard({
     return () => window.cancelAnimationFrame(t);
   }, [step, reviewStepIndex, reviewChildDobFieldMessages]);
 
-  const formatEventRange = useCallback((startIso: string, endIso: string) => {
-    const start = new Date(startIso);
-    const end = new Date(endIso);
-    const o = { month: "long" as const, day: "numeric" as const, year: "numeric" as const };
-    return `${start.toLocaleDateString(undefined, o)} – ${end.toLocaleDateString(undefined, o)}`;
-  }, []);
-
   const validateStep = useCallback(
     (s: number): string | null => {
       if (!def) return "Form not loaded.";
@@ -1185,7 +1179,7 @@ export function DynamicRegistrationWizard({
           <div className="mx-auto mt-4 max-w-md space-y-1.5 text-center" role="group" aria-label="VBS dates and times">
             <p className="flex flex-wrap items-center justify-center gap-2 text-lg font-bold leading-snug text-white sm:text-xl">
               <CalendarDays className="size-4 shrink-0 text-amber-200/90" aria-hidden />
-              <span>{formatEventRange(season.startDate, season.endDate)}</span>
+              <span>{formatSeasonDateRange(season.startDate, season.endDate)}</span>
             </p>
             {season.sessionTimeDescription?.trim() ? (
               <p className="flex items-start justify-center gap-2 text-sm font-semibold leading-snug text-white/95">
