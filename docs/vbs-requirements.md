@@ -27,6 +27,57 @@ This document is the canonical requirements reference for the VBS application. I
 
 ---
 
+## Badge printing (thermal, check-in desk)
+
+**Status:** Planned — not implemented in-app yet (see `/reports` and check-in desk placeholders).
+
+**Goal:** At the check-in desk, staff open the VBS portal on an iPad, check a child in, and print a name badge to a **thermal label printer** connected to that iPad (or on the same local network). Admins configure what appears on each badge per season.
+
+### Hardware & desk setup
+
+| Item | Notes |
+|------|--------|
+| **iPad** | Safari → staff login → **Check-in desk** (`/check-in`). One iPad per check-in station is typical. |
+| **Thermal printer** | Label/name-badge printer (e.g. Brother QL, Zebra ZD/ZQ, Star Micronics mC-Print / TSP). Prefer models with **AirPrint**, **Wi‑Fi/Ethernet**, or vendor **web print** (e.g. Star WebPRNT) so Safari can send jobs without a native app. |
+| **Connection** | USB/Lightning/USB‑C adapter, Bluetooth, or Wi‑Fi — depends on printer model. Document the pairing steps for your church’s hardware in an internal runbook. |
+| **Label stock** | Match admin template to physical label size (e.g. 2″×3″, 62 mm continuous). |
+
+Printing is initiated **from the browser on the iPad** after check-in (or via reprint on a registration). The app renders badge content from registration data and sends a print job to the **locally selected** printer — no cloud print service is required for the default design.
+
+### Admin configuration (per season)
+
+Admins (`ADMIN`, and optionally `COORDINATOR`) configure badge content under season settings (planned UI: **Settings → Badge printing**, or a tab on the active season).
+
+| Setting | Purpose |
+|---------|---------|
+| **Enabled** | Turn badge printing on/off for the season. |
+| **Label size / orientation** | Match physical media (width, height, DPI). |
+| **Fields to print** | Toggle which data lines appear — e.g. child first/last name, registration number, classroom name, classroom **badge display name**, classroom **check-in label**, season name/year, optional QR (check-in token URL). |
+| **Optional logo** | Small season or church mark at top (URL or uploaded asset). |
+| **Medical / allergy line** | Optional short flag (e.g. “Allergies on file”) — avoid full medical text on a public badge unless policy allows. |
+| **Auto-print on check-in** | When enabled, print once when staff taps **Check in**; otherwise require an explicit **Print badge** action. |
+| **Preview** | Sample badge using a test registration before saving the template. |
+
+**Data already in the system** that badges can use today: `Registration.registrationNumber`, `Registration.checkInToken` (for QR), `Child` name, `Classroom.name`, `Classroom.badgeDisplayName`, `Classroom.checkInLabel`, and season title/dates.
+
+### Check-in desk workflow
+
+1. Volunteer signs in on the iPad and opens **Check-in desk**.  
+2. Finds the child (search/list) and taps **Check in** (or scans QR when scanning ships).  
+3. If auto-print is on, the badge prints immediately; otherwise staff tap **Print badge**.  
+4. **Reprint:** From the registration detail page or check-in row menu — same template, does not duplicate check-in.  
+
+Roles with check-in access (`ADMIN`, `COORDINATOR`, check-in volunteers per `canUseCheckInActions`) can print; only admins edit the badge template.
+
+### Implementation notes (for developers)
+
+- Prefer **client-side print** (CSS `@media print`, or vendor JS SDK) so jobs go straight to the iPad’s printer; avoid storing printer credentials on the server unless using network printers with a documented API.  
+- Store template JSON on the season (e.g. extend `PublicRegistrationSettings` or a dedicated `BadgePrintSettings` model) — not in `.env`.  
+- Respect iOS Safari limits: Bluetooth raw printing from the web is restricted; **network/AirPrint/vendor web print** is the supported path for iPad + Safari.  
+- See `docs/CREDENTIALS-AND-CONFIG.md` §6 for configuration map and optional env placeholders.
+
+---
+
 ## Environments, source control, and deployment
 
 ### Required environments
@@ -62,7 +113,7 @@ Support environment-specific values for:
 
 - Database URL  
 - Authentication (secret, app URL)  
-- Storage, email/SMS, QR/badge, parent portal, API URLs, logging (placeholders documented in `.env.example` where not yet wired)  
+- Storage, email/SMS, QR/badge (see **Badge printing** above), parent portal, API URLs, logging (placeholders documented in `.env.example` where not yet wired)  
 
 **Local:** `.env.local`  
 **Production:** Azure App Service **Application settings** (and Key Vault references when adopted)  

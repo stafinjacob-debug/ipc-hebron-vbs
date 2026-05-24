@@ -97,6 +97,12 @@ enum IncomingMessageStatus {
   ARCHIVED
 }
 
+enum BadgeLabelSize {
+  LABEL_2X3
+  LABEL_4X6
+  LABEL_62MM
+}
+
 model User {
   id           String      @id @default(cuid())
   email        String      @unique
@@ -228,6 +234,7 @@ model VbsSeason {
   waiverAgreements           WaiverAgreement[]
   userSeasonScopes           UserSeasonScope[]
   announcements              VbsAnnouncement[]
+  badgePrintSettings         BadgePrintSettings?
 }
 
 /// Operational notices for a season (check-in desk, room changes, etc.).
@@ -275,6 +282,31 @@ model PublicRegistrationSettings {
   registrationBackgroundDimmingPercent Int @default(48)
   /// Whether the form is centered over the media or split into two columns on large screens.
   registrationBackgroundLayout PublicRegistrationLayout @default(OVERLAY)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+/// Per-season thermal badge layout and print behavior at check-in.
+model BadgePrintSettings {
+  id       String    @id @default(cuid())
+  seasonId String    @unique
+  season   VbsSeason @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+
+  enabled Boolean @default(true)
+  labelSize BadgeLabelSize @default(LABEL_2X3)
+
+  showChildName            Boolean @default(true)
+  showRegistrationNumber   Boolean @default(true)
+  showClassroomName        Boolean @default(true)
+  showBadgeDisplayName     Boolean @default(true)
+  showCheckInLabel         Boolean @default(false)
+  showSeasonName           Boolean @default(true)
+  showQrCode               Boolean @default(true)
+  showAllergyFlag          Boolean @default(false)
+
+  logoUrl String?
+  autoPrintOnCheckIn Boolean @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

@@ -1,10 +1,11 @@
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { resolveBadgePrintSettings } from "@/lib/badge-print";
 import { canUseCheckInActions } from "@/lib/permissions";
 import { ClipboardCheck } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { toggleCheckInForm } from "./actions";
+import { CheckInDeskClient } from "./check-in-desk-client";
 
 export default async function CheckInPage() {
   const session = await auth();
@@ -14,6 +15,7 @@ export default async function CheckInPage() {
   const activeSeason = await prisma.vbsSeason.findFirst({
     where: { isActive: true },
     orderBy: [{ year: "desc" }, { startDate: "desc" }],
+    include: { badgePrintSettings: true },
   });
 
   const rows = activeSeason
@@ -24,6 +26,8 @@ export default async function CheckInPage() {
       })
     : [];
 
+  const badgeSettings = resolveBadgePrintSettings(activeSeason?.badgePrintSettings);
+
   return (
     <div className="mx-auto max-w-5xl space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -33,7 +37,7 @@ export default async function CheckInPage() {
             Check-in desk
           </h1>
           <p className="mt-1 text-muted">
-            Mark arrivals for your active VBS season. Families can be searched by name in this list.
+            Mark arrivals for your active VBS season. Use an iPad here to check in families and print thermal badges.
           </p>
         </div>
         <Link
@@ -58,9 +62,21 @@ export default async function CheckInPage() {
       )}
 
       {activeSeason && (
-        <p className="text-sm text-muted">
-          Checking in: <span className="font-medium text-foreground">{activeSeason.name}</span>
-        </p>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted">
+          <p>
+            Checking in: <span className="font-medium text-foreground">{activeSeason.name}</span>
+          </p>
+          {badgeSettings.enabled ? (
+            <Link
+              href={`/seasons/${activeSeason.id}/badge-settings`}
+              className="font-medium text-brand underline-offset-4 hover:underline"
+            >
+              Badge settings
+            </Link>
+          ) : (
+            <span className="text-amber-700 dark:text-amber-300">Badge printing is off for this season.</span>
+          )}
+        </div>
       )}
 
       {activeSeason && rows.length === 0 && (
@@ -77,58 +93,16 @@ export default async function CheckInPage() {
       )}
 
       {activeSeason && rows.length > 0 && (
-        <div className="overflow-hidden rounded-xl border border-foreground/10 bg-surface-elevated shadow-sm">
-          <table className="w-full text-left text-sm">
-            <thead className="border-b border-foreground/10 bg-foreground/[0.03] text-muted">
-              <tr>
-                <th className="px-4 py-3 font-medium">Student</th>
-                <th className="px-4 py-3 font-medium">Class</th>
-                <th className="px-4 py-3 font-medium">Status</th>
-                <th className="px-4 py-3 font-medium text-right">Check-in</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r) => {
-                const isIn = !!r.checkedInAt;
-                return (
-                  <tr key={r.id} className="border-t border-foreground/10">
-                    <td className="px-4 py-3 font-medium">
-                      {r.child.firstName} {r.child.lastName}
-                    </td>
-                    <td className="px-4 py-3 text-muted">{r.classroom?.name ?? "—"}</td>
-                    <td className="px-4 py-3">
-                      {isIn ? (
-                        <span className="inline-flex items-center rounded-full bg-emerald-500/15 px-2.5 py-0.5 text-xs font-medium text-emerald-800 dark:text-emerald-300">
-                          Checked in
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center rounded-full bg-foreground/10 px-2.5 py-0.5 text-xs font-medium text-muted">
-                          Expected
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <form action={toggleCheckInForm}>
-                        <input type="hidden" name="registrationId" value={r.id} />
-                        <input type="hidden" name="nextChecked" value={isIn ? "0" : "1"} />
-                        <button
-                          type="submit"
-                          className={
-                            isIn
-                              ? "rounded-lg border border-foreground/15 px-3 py-1.5 text-xs font-medium hover:bg-foreground/5"
-                              : "rounded-lg bg-brand px-3 py-1.5 text-xs font-medium text-brand-foreground hover:opacity-90"
-                          }
-                        >
-                          {isIn ? "Undo" : "Check in"}
-                        </button>
-                      </form>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        <CheckInDeskClient
+          badgePrintingEnabled={badgeSettings.enabled}
+          autoPrintOnCheckIn={badgeSettings.autoPrintOnCheckIn}
+          rows={rows.map((r) => ({
+            id: r.id,
+            studentName: `${r.child.firstName} ${r.child.lastName}`,
+            className: r.classroom?.name ?? "—",
+            checkedIn: Boolean(r.checkedInAt),
+          }))}
+        />
       )}
     </div>
   );

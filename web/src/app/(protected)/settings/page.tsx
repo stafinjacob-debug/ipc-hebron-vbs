@@ -1,6 +1,6 @@
 import { auth } from "@/auth";
 import { canManageDirectory, canViewOperations } from "@/lib/roles";
-import { CalendarDays, Globe, Settings2 } from "lucide-react";
+import { CalendarDays, Globe, Printer, Settings2 } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
@@ -33,6 +33,21 @@ export default async function SettingsGeneralPage() {
             Open seasons
           </Link>
         </li>
+        {canEdit && (
+          <li className="rounded-xl border border-foreground/10 bg-surface-elevated p-5 shadow-sm">
+            <Printer className="size-8 text-brand" aria-hidden />
+            <h3 className="mt-3 font-semibold text-foreground">Badge printing</h3>
+            <p className="mt-1 text-sm text-muted">
+              Thermal label layout, fields, and auto-print for the check-in desk iPads.
+            </p>
+            <Link
+              href="/seasons"
+              className="mt-4 inline-flex text-sm font-medium text-brand underline-offset-4 hover:underline"
+            >
+              Choose a season → Badge printing
+            </Link>
+          </li>
+        )}
         {canEdit && (
           <li className="rounded-xl border border-foreground/10 bg-surface-elevated p-5 shadow-sm">
             <Globe className="size-8 text-brand" aria-hidden />

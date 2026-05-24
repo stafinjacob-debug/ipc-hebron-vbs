@@ -1,13 +1,23 @@
 import { auth } from "@/auth";
+import { prisma } from "@/lib/prisma";
+import { resolveBadgePrintSettings } from "@/lib/badge-print";
+import { canManageDirectory, canViewOperations } from "@/lib/roles";
 import { BarChart3, Printer } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { canViewOperations } from "@/lib/roles";
 
 export default async function ReportsPage() {
   const session = await auth();
   if (!session?.user?.role) redirect("/login");
   if (!canViewOperations(session.user.role)) redirect("/dashboard");
+
+  const activeSeason = await prisma.vbsSeason.findFirst({
+    where: { isActive: true },
+    orderBy: [{ year: "desc" }, { startDate: "desc" }],
+    include: { badgePrintSettings: true },
+  });
+  const badgeSettings = resolveBadgePrintSettings(activeSeason?.badgePrintSettings);
+  const canConfigure = canManageDirectory(session.user.role);
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
@@ -24,12 +34,50 @@ export default async function ReportsPage() {
           <div>
             <p className="font-medium text-foreground">Print badges</p>
             <p className="mt-1 text-sm text-muted">
-              Name badges and labels are not generated in-app yet. Use{" "}
-              <Link href="/registrations" className="font-medium text-brand underline">
-                registrations
+              Print thermal name badges from the{" "}
+              <Link href="/check-in" className="font-medium text-brand underline">
+                check-in desk
               </Link>{" "}
-              or export from your workflow when we add CSV / PDF export.
+              on an iPad connected to your label printer. Reprint individual badges from a{" "}
+              <Link href="/registrations" className="font-medium text-brand underline">
+                registration
+              </Link>{" "}
+              detail page.
             </p>
+            {activeSeason && badgeSettings.enabled ? (
+              <p className="mt-2 text-sm text-muted">
+                Active season: <span className="font-medium text-foreground">{activeSeason.name}</span>
+                {canConfigure ? (
+                  <>
+                    {" "}
+                    —{" "}
+                    <Link
+                      href={`/seasons/${activeSeason.id}/badge-settings`}
+                      className="font-medium text-brand underline"
+                    >
+                      Configure badge layout
+                    </Link>
+                  </>
+                ) : null}
+              </p>
+            ) : activeSeason ? (
+              <p className="mt-2 text-sm text-amber-700 dark:text-amber-300">
+                Badge printing is off for {activeSeason.name}.
+                {canConfigure ? (
+                  <>
+                    {" "}
+                    <Link
+                      href={`/seasons/${activeSeason.id}/badge-settings`}
+                      className="font-medium underline"
+                    >
+                      Enable in badge settings
+                    </Link>
+                  </>
+                ) : null}
+              </p>
+            ) : (
+              <p className="mt-2 text-sm text-muted">Set an active season to print badges.</p>
+            )}
           </div>
         </div>
         <div className="flex gap-3 border-t border-foreground/10 pt-4">
@@ -42,10 +90,10 @@ export default async function ReportsPage() {
           </div>
         </div>
         <Link
-          href="/dashboard"
+          href="/check-in"
           className="inline-flex rounded-lg bg-brand px-4 py-2 text-sm font-medium text-brand-foreground hover:opacity-90"
         >
-          View dashboard
+          Open check-in desk
         </Link>
       </div>
     </div>

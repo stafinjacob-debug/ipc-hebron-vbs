@@ -141,3 +141,50 @@ When you add features, expect additional secrets (stored only in Azure / GitHub 
 - **Stripe** — `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`; register webhook URL `https://<your-host>/api/stripe/webhook` for `checkout.session.completed`.
 
 See `web/.env.example` for naming suggestions.
+
+---
+
+## 6. Badge printing (thermal, check-in desk)
+
+**Product spec:** `docs/vbs-requirements.md` (Badge printing section).  
+**Status:** Planned — badge layout and print actions are not wired in the app yet.
+
+Badge templates and field toggles are **admin configuration stored in the database per season**, not GitHub/Azure secrets. Only add environment variables below if you adopt a cloud print bridge or network-print API.
+
+### 6a. Admin configuration (no secrets)
+
+| Where (planned) | Who | What |
+|-----------------|-----|------|
+| Season settings → **Badge printing** | `ADMIN` (and optionally `COORDINATOR`) | Label size, which fields to print (name, registration #, class, QR, etc.), optional logo, auto-print on check-in, preview. |
+| **Classes** (`/classes`) | Staff with class edit access | **Badge display name** and **Check-in label** per classroom — already on each class; used as badge lines when enabled in the template. |
+| **Registration form settings** | Admin | **Registration number prefix** — affects the number printed on badges. |
+
+No entries in GitHub Secrets or Azure App Service are required for the default design (iPad Safari → local/network thermal printer).
+
+### 6b. Check-in desk (iPad + printer)
+
+| Item | Configuration |
+|------|----------------|
+| **Portal URL** | Production `AUTH_URL` (e.g. `https://your-app.azurewebsites.net`). Bookmark **Check-in desk** (`/check-in`) on each iPad. |
+| **Staff login** | Check-in volunteers need accounts with a role that includes check-in (`COORDINATOR`, check-in volunteer, or `ADMIN`). |
+| **Printer** | Pair or join the thermal printer to the iPad per manufacturer instructions (USB adapter, Bluetooth, or Wi‑Fi). Prefer **AirPrint** or vendor **web print** (e.g. Star WebPRNT) for Safari. |
+| **Label stock** | Physical labels must match the admin **label size** setting. |
+
+Operational checklist (keep in an internal runbook, not in this repo):
+
+1. Charge iPads and verify Wi‑Fi (or cellular) reaches the VBS site.  
+2. Confirm printer online and loaded with labels.  
+3. Print a test badge from admin **preview** before doors open.  
+4. One printer per iPad/station; print jobs stay on that device’s selected printer.
+
+### 6c. Optional environment variables (only if needed)
+
+Use these **only** if implementation uses a server-side print proxy or vendor cloud API — not for direct iPad → local printer printing.
+
+| Variable | Where to set | Purpose |
+|----------|--------------|---------|
+| `BADGE_PRINT_PROVIDER` | `web/.env.local` / Azure app settings | e.g. `browser` (default), `star_webprnt`, `zebra_cloud` — selects print integration when multiple are supported. |
+| `STAR_WEBPRNT_HOST` | Per-station or app setting | Hostname/IP of a Star WebPRNT-enabled printer on the LAN (if not chosen in the browser UI). |
+| `ZEBRA_CLOUD_API_KEY` | Azure Key Vault / app setting | Only if using Zebra’s cloud print API instead of local ZPL. |
+
+See commented placeholders in `web/.env.example`. Until badge printing ships, these can stay unset.

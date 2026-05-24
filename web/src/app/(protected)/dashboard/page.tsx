@@ -375,8 +375,8 @@ export default async function DashboardPage() {
                     Open check-in desk
                   </Link>
                   <p className="mt-4 border-t border-foreground/10 pt-3 text-xs text-muted">
-                    Pickup &amp; check-out tracking and badge reprints aren&apos;t in the app yet—we&apos;re focusing on
-                    arrival check-in first.
+                    Print thermal badges from check-in or a registration page. Pickup &amp; check-out tracking is still
+                    planned.
                   </p>
                 </div>
                 <div className="rounded-xl border border-foreground/10 bg-surface-elevated p-5 shadow-sm lg:col-span-8">
@@ -541,7 +541,7 @@ export default async function DashboardPage() {
                 href="/reports"
                 icon={Printer}
                 title="Print badges & reports"
-                hint="Roster exports and printable materials (more coming soon)."
+                hint="Configure badge layout and open the check-in desk on iPad."
               />
               <QuickAction
                 href="/classes"

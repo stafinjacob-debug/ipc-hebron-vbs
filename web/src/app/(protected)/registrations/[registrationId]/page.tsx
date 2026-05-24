@@ -2,6 +2,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { parseFormDefinitionJson } from "@/lib/registration-form-definition";
 import { canManageDirectory, canViewOperations } from "@/lib/roles";
+import { canUseCheckInActions } from "@/lib/permissions";
 import { registrationTicketUrl } from "@/lib/registration-identity";
 import { getPublicAppBaseUrl } from "@/lib/public-app-url";
 import { isCheckoutPendingRegistration } from "@/lib/registration-list-payment";
@@ -9,6 +10,8 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import QRCode from "qrcode";
 import { smsGatewaySetupHint } from "@/lib/sms/sms-config-hint";
+import { resolveBadgePrintSettings } from "@/lib/badge-print";
+import { PrintBadgeButton } from "@/components/badge-print/print-badge-button";
 import { RegistrationAdminPanel } from "./registration-admin-panel";
 import { RegistrationClassAssignment } from "./registration-class-assignment";
 
@@ -53,7 +56,7 @@ export default async function RegistrationDetailPage({
     where: { id: registrationId },
     include: {
       child: { include: { guardian: true } },
-      season: true,
+      season: { include: { badgePrintSettings: true } },
       classroom: true,
       formSubmission: {
         select: {
@@ -88,6 +91,7 @@ export default async function RegistrationDetailPage({
   if (!reg) notFound();
 
   const canEdit = canManageDirectory(session.user.role);
+  const badgeSettings = resolveBadgePrintSettings(reg.season.badgePrintSettings);
   const checkoutPending = isCheckoutPendingRegistration({
     expectsPayment: reg.expectsPayment,
     paymentReceivedAt: reg.paymentReceivedAt,
@@ -306,10 +310,10 @@ export default async function RegistrationDetailPage({
         </div>
 
         <div className="rounded-xl border border-foreground/10 bg-surface-elevated p-5">
-          <h2 className="text-sm font-semibold text-foreground">Check-in QR</h2>
+          <h2 className="text-sm font-semibold text-foreground">Check-in & badge</h2>
           {hasTicket && qrDataUrl && ticketUrl ? (
             <>
-              <p className="mt-1 text-xs text-foreground/60">Same code families see when confirmed.</p>
+              <p className="mt-1 text-xs text-foreground/60">Same QR code families see when confirmed.</p>
               <div className="mt-4 flex justify-center rounded-lg bg-white p-3 dark:bg-slate-900">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={qrDataUrl} width={180} height={180} alt="QR code" />
@@ -321,6 +325,14 @@ export default async function RegistrationDetailPage({
               QR/ticket will be generated when this registration is approved.
             </p>
           )}
+          {badgeSettings.enabled && canUseCheckInActions(session.user.role) ? (
+            <div className="mt-4">
+              <PrintBadgeButton
+                registrationId={reg.id}
+                className="w-full rounded-lg bg-brand px-3 py-2 text-sm font-medium text-brand-foreground hover:opacity-90 disabled:opacity-50"
+              />
+            </div>
+          ) : null}
         </div>
       </div>
     </div>
