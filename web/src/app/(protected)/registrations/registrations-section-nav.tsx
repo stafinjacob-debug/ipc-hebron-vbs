@@ -14,6 +14,11 @@ const TABS: {
     match: (p) => p === "/registrations" || p.startsWith("/registrations/new"),
   },
   {
+    href: "/registrations/duplicates",
+    label: "Duplicates",
+    match: (p) => p === "/registrations/duplicates" || p.startsWith("/registrations/duplicates/"),
+  },
+  {
     href: "/registrations/students",
     label: "Students",
     match: (p) => p === "/registrations/students" || p.startsWith("/registrations/students/"),

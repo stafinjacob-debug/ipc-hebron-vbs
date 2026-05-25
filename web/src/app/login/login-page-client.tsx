@@ -216,6 +216,12 @@ export function LoginPageClient({ seasons }: { seasons: OpenPublicRegistrationSu
             <p className="mb-3 text-center text-[11px] text-stone-500">Management portal — coordinators & staff</p>
             <LoginForm />
             <StaffPasswordResetForm />
+            <p className="mt-4 text-center text-sm text-stone-600">
+              Registered for VBS?{" "}
+              <Link href="/register/lookup" className="font-semibold text-brand underline">
+                Look up or edit your registration
+              </Link>
+            </p>
           </div>
         </div>
       ) : null}

@@ -1,6 +1,10 @@
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { buildRegistrationExportFieldOptionsFromJson } from "@/lib/registration-export";
+import {
+  buildRegistrationExportFieldOptionsFromJson,
+  resolveRegistrationExportFieldValue,
+} from "@/lib/registration-export";
+import { countDuplicateRegistrationGroups } from "@/lib/registration-duplicates";
 import {
   RESERVED_CHILD_KEYS,
   RESERVED_GUARDIAN_KEYS,
@@ -16,6 +20,7 @@ import {
   registrationListPaymentBadge,
 } from "@/lib/registration-list-payment";
 import { ExportRegistrationsModal } from "./export-registrations-modal";
+import { RegistrationListColumnsModal } from "./registration-list-columns-modal";
 import { RegistrationsBulkTable, type RegistrationBulkTableRow } from "./registrations-bulk-table";
 
 type QueryParams = {
@@ -31,6 +36,7 @@ type QueryParams = {
   df2v?: string;
   df3k?: string;
   df3v?: string;
+  col?: string | string[];
 };
 
 type DynamicFieldOption = {
@@ -236,6 +242,27 @@ export default async function RegistrationsPage({
   ];
   const dynamicFilters = rawDynamicFilters.filter((f) => f.key && f.value && dynMap.has(f.key));
 
+  const rawCols = sp.col;
+  const colKeysRaw = Array.isArray(rawCols) ? rawCols : rawCols ? [rawCols] : [];
+  const exportFieldOptions = selectedSeason
+    ? buildRegistrationExportFieldOptionsFromJson(
+        selectedSeason.registrationForm?.publishedDefinitionJson ??
+          selectedSeason.registrationForm?.draftDefinitionJson,
+      )
+    : [];
+  const exportOptionMap = new Map(exportFieldOptions.map((o) => [o.key, o]));
+  const extraColumnKeys = colKeysRaw
+    .map((k) => k.trim())
+    .filter((k, i, arr) => k && exportOptionMap.has(k) && arr.indexOf(k) === i);
+  const extraColumns = extraColumnKeys.map((key) => ({
+    key,
+    label: exportOptionMap.get(key)?.label ?? key,
+  }));
+
+  const duplicateGroupCount = selectedSeason?.id
+    ? await countDuplicateRegistrationGroups(selectedSeason.id)
+    : 0;
+
   const where: Prisma.RegistrationWhereInput = {};
   if (selectedSeason?.id) where.seasonId = selectedSeason.id;
   if (status) where.status = status as RegistrationStatus;
@@ -258,6 +285,8 @@ export default async function RegistrationsPage({
     child: { include: { guardian: true } },
     season: true,
     classroom: true,
+    customResponses: true,
+    notes: true,
     formSubmission: {
       select: {
         registrationCode: true,
@@ -421,6 +450,24 @@ export default async function RegistrationsPage({
   const bulkRows: RegistrationBulkTableRow[] = rows.map((r) => {
     const badge = registrationListPaymentBadge(r);
     const checkoutPending = isCheckoutPendingRegistration(r);
+    const extraCells: Record<string, string> = {};
+    for (const key of extraColumnKeys) {
+      extraCells[key] = resolveRegistrationExportFieldValue(
+        {
+          id: r.id,
+          registrationNumber: r.registrationNumber,
+          status: r.status,
+          registeredAt: r.registeredAt,
+          notes: r.notes,
+          customResponses: r.customResponses,
+          child: r.child,
+          classroom: r.classroom,
+          formSubmission: r.formSubmission,
+        },
+        r.season.name,
+        key,
+      );
+    }
     return {
       id: r.id,
       status: r.status,
@@ -435,6 +482,7 @@ export default async function RegistrationsPage({
       paymentBadgeClassName: badge.className,
       checkoutPending,
       checkoutReminderSentAtIso: r.formSubmission?.stripeCheckoutReminderSentAt?.toISOString() ?? null,
+      extraCells,
     };
   });
 
@@ -459,7 +507,14 @@ export default async function RegistrationsPage({
             <strong className="font-medium text-foreground/80">Form builder</strong> for public signup.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {selectedSeason ? (
+            <RegistrationListColumnsModal
+              seasons={seasonExportConfigs}
+              selectedSeasonId={selectedSeason.id}
+              activeColumnKeys={extraColumnKeys}
+            />
+          ) : null}
           <ExportRegistrationsModal seasons={seasonExportConfigs} />
           {canAdd && (
             <Link
@@ -471,6 +526,16 @@ export default async function RegistrationsPage({
           )}
         </div>
       </div>
+
+      {duplicateGroupCount > 0 && selectedSeason ? (
+        <div className="rounded-xl border border-amber-500/35 bg-amber-500/10 px-4 py-3 text-sm text-amber-950 dark:text-amber-100">
+          <strong>{duplicateGroupCount}</strong> possible duplicate group
+          {duplicateGroupCount === 1 ? "" : "s"} in {selectedSeason.name} (same child name + guardian email).{" "}
+          <Link href={`/registrations/duplicates?season=${selectedSeason.id}`} className="font-medium underline">
+            Review duplicates
+          </Link>
+        </div>
+      ) : null}
 
       <section className="grid gap-2 sm:grid-cols-2 lg:grid-cols-6">
         <div className="rounded-lg border border-foreground/10 bg-surface-elevated px-3 py-2">
@@ -667,6 +732,7 @@ export default async function RegistrationsPage({
 
       <RegistrationsBulkTable
         rows={bulkRows}
+        extraColumns={extraColumns}
         canBulkAct={canAdd}
         baseQueryString={qsBase.toString()}
         page={page}

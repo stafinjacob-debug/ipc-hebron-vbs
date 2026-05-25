@@ -24,7 +24,10 @@ export type RegistrationBulkTableRow = {
   paymentBadgeClassName: string;
   checkoutPending: boolean;
   checkoutReminderSentAtIso: string | null;
+  extraCells?: Record<string, string>;
 };
+
+export type ExtraTableColumn = { key: string; label: string };
 
 function linkForPage(baseQs: string, p: number) {
   const q = new URLSearchParams(baseQs);
@@ -118,6 +121,7 @@ function canApproveStatus(status: string) {
 
 export function RegistrationsBulkTable({
   rows,
+  extraColumns = [],
   canBulkAct,
   baseQueryString,
   page,
@@ -126,6 +130,7 @@ export function RegistrationsBulkTable({
   selectionResetKey,
 }: {
   rows: RegistrationBulkTableRow[];
+  extraColumns?: ExtraTableColumn[];
   canBulkAct: boolean;
   baseQueryString: string;
   page: number;
@@ -349,6 +354,11 @@ export function RegistrationsBulkTable({
             <th className="px-4 py-3 font-medium">Payment</th>
             <th className="px-4 py-3 font-medium">Checkout reminder</th>
             <th className="px-4 py-3 font-medium">Registered</th>
+            {extraColumns.map((col) => (
+              <th key={col.key} className="px-4 py-3 font-medium">
+                {col.label}
+              </th>
+            ))}
             <th className="px-4 py-3 font-medium text-right">Actions</th>
           </tr>
         </thead>
@@ -401,6 +411,11 @@ export function RegistrationsBulkTable({
                   )}
                 </td>
                 <td className="px-4 py-3 text-foreground/70">{registeredLabel}</td>
+                {extraColumns.map((col) => (
+                  <td key={col.key} className="max-w-[12rem] truncate px-4 py-3 text-foreground/80" title={r.extraCells?.[col.key] ?? ""}>
+                    {r.extraCells?.[col.key]?.trim() || "—"}
+                  </td>
+                ))}
                 <td className="px-4 py-3 text-right">
                   <div className="flex flex-col items-end gap-1">
                     <Link

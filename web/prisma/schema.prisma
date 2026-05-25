@@ -158,6 +158,22 @@ model PasswordResetOtp {
   @@index([expiresAt])
 }
 
+/// Email OTP for families to look up and edit their registration without staff login.
+model RegistrantLookupOtp {
+  id               String    @id @default(cuid())
+  emailNormalized  String
+  registrationCode String?
+  codeHash         String
+  expiresAt        DateTime
+  consumedAt       DateTime?
+  attempts         Int       @default(0)
+  createdAt        DateTime  @default(now())
+
+  @@index([emailNormalized, createdAt])
+  @@index([registrationCode])
+  @@index([expiresAt])
+}
+
 model UserSeasonScope {
   userId   String
   seasonId String
