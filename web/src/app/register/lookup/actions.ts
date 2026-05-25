@@ -11,6 +11,10 @@ import {
   readRegistrantLookupSession,
   setRegistrantLookupSessionCookie,
 } from "@/lib/registrant-lookup-session";
+import {
+  registrantLookupRegistrationWhere,
+  registrantLookupSubmissionWhere,
+} from "@/lib/registrant-lookup";
 import { revalidatePath } from "next/cache";
 
 export type RegistrantLookupActionState = {
@@ -40,16 +44,24 @@ function neutralMessage(): string {
   return "If we found a matching registration with that email, we sent a 6-digit code. It expires in 15 minutes.";
 }
 
+const submissionLookupInclude = {
+  guardian: true,
+  season: { select: { name: true } },
+  registrations: {
+    where: registrantLookupRegistrationWhere,
+    include: { child: true },
+  },
+} as const;
+
 async function findSubmissionsForLookup(emailNormalized: string, registrationCode?: string) {
   if (registrationCode?.trim()) {
     const code = registrationCode.trim();
-    const submission = await prisma.formSubmission.findUnique({
-      where: { registrationCode: code },
-      include: {
-        guardian: true,
-        season: { select: { name: true } },
-        registrations: { include: { child: true } },
+    const submission = await prisma.formSubmission.findFirst({
+      where: {
+        registrationCode: code,
+        ...registrantLookupSubmissionWhere,
       },
+      include: submissionLookupInclude,
     });
     if (!submission) return [];
     const guardianEmail = normalizeEmail(submission.guardian.email ?? "");
@@ -60,14 +72,11 @@ async function findSubmissionsForLookup(emailNormalized: string, registrationCod
   return prisma.formSubmission.findMany({
     where: {
       guardian: { email: { equals: emailNormalized, mode: "insensitive" } },
+      ...registrantLookupSubmissionWhere,
     },
     orderBy: { submittedAt: "desc" },
     take: 20,
-    include: {
-      guardian: true,
-      season: { select: { name: true } },
-      registrations: { include: { child: true } },
-    },
+    include: submissionLookupInclude,
   });
 }
 
@@ -236,6 +245,7 @@ export async function openRegistrantSubmissionAction(
     where: {
       id: submissionId,
       guardian: { email: { equals: email, mode: "insensitive" } },
+      ...registrantLookupSubmissionWhere,
     },
     select: { id: true },
   });
@@ -258,9 +268,18 @@ export async function saveRegistrantSubmissionAction(
     return { ok: false, message: "Your session expired. Look up your registration again." };
   }
 
-  const submission = await prisma.formSubmission.findUnique({
-    where: { id: session.submissionId },
-    include: { guardian: true, registrations: { include: { child: true } } },
+  const submission = await prisma.formSubmission.findFirst({
+    where: {
+      id: session.submissionId,
+      ...registrantLookupSubmissionWhere,
+    },
+    include: {
+      guardian: true,
+      registrations: {
+        where: registrantLookupRegistrationWhere,
+        include: { child: true },
+      },
+    },
   });
   if (!submission) {
     return { ok: false, message: "Registration not found." };

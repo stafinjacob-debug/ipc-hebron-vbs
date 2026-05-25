@@ -2,18 +2,26 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { readRegistrantLookupSession } from "@/lib/registrant-lookup-session";
+import {
+  registrantLookupRegistrationWhere,
+  registrantLookupSubmissionWhere,
+} from "@/lib/registrant-lookup";
 import { RegistrantEditForm } from "./registrant-edit-form";
 
 export default async function RegistrantLookupEditPage() {
   const session = await readRegistrantLookupSession();
   if (!session) redirect("/register/lookup");
 
-  const submission = await prisma.formSubmission.findUnique({
-    where: { id: session.submissionId },
+  const submission = await prisma.formSubmission.findFirst({
+    where: {
+      id: session.submissionId,
+      ...registrantLookupSubmissionWhere,
+    },
     include: {
       guardian: true,
       season: { select: { name: true } },
       registrations: {
+        where: registrantLookupRegistrationWhere,
         include: { child: true },
         orderBy: { child: { firstName: "asc" } },
       },
