@@ -1,6 +1,10 @@
 import type { BadgeLabelSize, BadgePrintSettings } from "@/generated/prisma";
-import { registrationTicketUrl } from "@/lib/registration-identity";
 import { getPublicAppBaseUrl } from "@/lib/public-app-url";
+
+function registrationTicketUrl(checkInToken: string, baseUrl?: string): string {
+  const b = (baseUrl ?? getPublicAppBaseUrl()).replace(/\/$/, "");
+  return `${b}/register/ticket?t=${encodeURIComponent(checkInToken)}`;
+}
 
 export type ResolvedBadgePrintSettings = {
   enabled: boolean;
