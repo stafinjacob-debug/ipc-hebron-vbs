@@ -3,7 +3,7 @@
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import {
-  parseBadgeCustomFieldsForm,
+  parseBadgeFormFieldsForm,
   parseBadgeLabelSize,
   parseBadgeOrientation,
 } from "@/lib/badge-print";
@@ -58,8 +58,8 @@ export async function saveBadgePrintSettings(
     }
   }
 
-  const customFields = parseBadgeCustomFieldsForm(str(formData, "customFieldsJson"));
-  const customFieldsJson = customFields.map(({ id, label, text }) => ({ id, label, text }));
+  const formFields = parseBadgeFormFieldsForm(str(formData, "customFieldsJson"));
+  const customFieldsJson = formFields.map(({ id, fieldKey }) => ({ id, fieldKey }));
 
   await prisma.badgePrintSettings.upsert({
     where: { seasonId },

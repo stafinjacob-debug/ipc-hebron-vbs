@@ -17,7 +17,7 @@ function lineTone(kind: BadgePrintPayload["lines"][number]["kind"], horizontal: 
       return "text-xs font-bold tabular-nums tracking-wide text-slate-800";
     case "allergy":
       return "text-[10px] font-bold uppercase tracking-wide text-amber-700";
-    case "custom":
+    case "formField":
       return "text-xs font-semibold text-slate-700";
     default:
       return "text-sm font-semibold text-slate-700";
@@ -29,14 +29,18 @@ function BadgeLines({ payload, horizontal }: { payload: BadgePrintPayload; horiz
     <div className={`flex flex-col gap-0.5 ${horizontal ? "items-start text-left" : "items-center text-center"}`}>
       {payload.lines.map((line) => (
         <div key={`${line.kind}-${line.label ?? ""}-${line.text}`}>
-          {line.kind === "custom" && line.label ? (
-            <div className="flex flex-col">
-              <span className="text-[9px] font-semibold uppercase tracking-wide text-slate-400">
-                {line.label}
-              </span>
-              <span className={lineTone(line.kind, horizontal)}>{line.text}</span>
-            </div>
-          ) : (
+            {line.kind === "formField" ? (
+              line.label ? (
+                <div className="flex flex-col">
+                  <span className="text-[9px] font-semibold uppercase tracking-wide text-slate-400">
+                    {line.label}
+                  </span>
+                  <span className={lineTone(line.kind, horizontal)}>{line.text}</span>
+                </div>
+              ) : (
+                <div className={lineTone(line.kind, horizontal)}>{line.text}</div>
+              )
+            ) : (
             <div className={lineTone(line.kind, horizontal)}>{line.text}</div>
           )}
         </div>

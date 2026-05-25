@@ -1,4 +1,9 @@
 import type { BadgeLabelSize, BadgeOrientation, BadgePrintSettings } from "@/generated/prisma";
+import {
+  type ExportFieldOption,
+  resolveRegistrationExportFieldValue,
+  type RegistrationFieldValueRow,
+} from "@/lib/registration-export";
 import { getPublicAppBaseUrl } from "@/lib/public-app-url";
 
 function registrationTicketUrl(checkInToken: string, baseUrl?: string): string {
@@ -6,10 +11,10 @@ function registrationTicketUrl(checkInToken: string, baseUrl?: string): string {
   return `${b}/register/ticket?t=${encodeURIComponent(checkInToken)}`;
 }
 
-export type BadgeCustomField = {
+/** Selected registration form field to include on each badge. */
+export type BadgeFormFieldSelection = {
   id: string;
-  label: string;
-  text: string;
+  fieldKey: string;
 };
 
 export type ResolvedBadgePrintSettings = {
@@ -25,7 +30,7 @@ export type ResolvedBadgePrintSettings = {
   showQrCode: boolean;
   showAllergyFlag: boolean;
   logoUrl: string | null;
-  customFields: BadgeCustomField[];
+  formFields: BadgeFormFieldSelection[];
   autoPrintOnCheckIn: boolean;
 };
 
@@ -42,12 +47,12 @@ export const DEFAULT_BADGE_PRINT_SETTINGS: ResolvedBadgePrintSettings = {
   showQrCode: true,
   showAllergyFlag: false,
   logoUrl: null,
-  customFields: [],
+  formFields: [],
   autoPrintOnCheckIn: false,
 };
 
 export type BadgePrintLine = {
-  kind: "season" | "name" | "number" | "class" | "badgeName" | "checkInLabel" | "allergy" | "custom";
+  kind: "season" | "name" | "number" | "class" | "badgeName" | "checkInLabel" | "allergy" | "formField";
   text: string;
   label?: string;
 };
@@ -67,6 +72,17 @@ const LABEL_SIZE_OPTIONS: { value: BadgeLabelSize; label: string }[] = [
   { value: "LABEL_62MM", label: "62 mm continuous roll" },
 ];
 
+const SAMPLE_FORM_FIELD_VALUES: Record<string, string> = {
+  "guardian:guardianFirstName": "Maria",
+  "guardian:guardianLastName": "Rivera",
+  "guardian:guardianEmail": "maria@example.com",
+  "guardian:guardianPhone": "(555) 123-4567",
+  "child:childFirstName": "Alex",
+  "child:childLastName": "Rivera",
+  "child:childDateOfBirth": "2018-06-15",
+  "child:allergiesNotes": "Peanuts",
+};
+
 export function badgeLabelSizeOptions() {
   return LABEL_SIZE_OPTIONS;
 }
@@ -80,28 +96,30 @@ export function parseBadgeOrientation(raw: string): BadgeOrientation {
   return raw === "HORIZONTAL" ? "HORIZONTAL" : "VERTICAL";
 }
 
-export function parseBadgeCustomFieldsJson(raw: unknown): BadgeCustomField[] {
+export function parseBadgeFormFieldsJson(raw: unknown): BadgeFormFieldSelection[] {
   if (!Array.isArray(raw)) return [];
-  const out: BadgeCustomField[] = [];
+  const out: BadgeFormFieldSelection[] = [];
+  const seen = new Set<string>();
+
   for (const item of raw) {
     if (!item || typeof item !== "object" || Array.isArray(item)) continue;
     const row = item as Record<string, unknown>;
-    const text = typeof row.text === "string" ? row.text.trim() : "";
-    if (!text) continue;
-    const label = typeof row.label === "string" ? row.label.trim() : "";
+    const fieldKey = typeof row.fieldKey === "string" ? row.fieldKey.trim() : "";
+    if (!fieldKey || seen.has(fieldKey)) continue;
+    seen.add(fieldKey);
     const id =
       typeof row.id === "string" && row.id.trim()
         ? row.id.trim()
-        : `custom-${out.length + 1}`;
-    out.push({ id, label, text });
+        : `field-${out.length + 1}`;
+    out.push({ id, fieldKey });
   }
   return out.slice(0, 12);
 }
 
-export function parseBadgeCustomFieldsForm(raw: string): BadgeCustomField[] {
+export function parseBadgeFormFieldsForm(raw: string): BadgeFormFieldSelection[] {
   if (!raw.trim()) return [];
   try {
-    return parseBadgeCustomFieldsJson(JSON.parse(raw));
+    return parseBadgeFormFieldsJson(JSON.parse(raw));
   } catch {
     return [];
   }
@@ -110,7 +128,7 @@ export function parseBadgeCustomFieldsForm(raw: string): BadgeCustomField[] {
 export function resolveBadgePrintSettings(
   row: BadgePrintSettings | null | undefined,
 ): ResolvedBadgePrintSettings {
-  if (!row) return { ...DEFAULT_BADGE_PRINT_SETTINGS, customFields: [] };
+  if (!row) return { ...DEFAULT_BADGE_PRINT_SETTINGS, formFields: [] };
   return {
     enabled: row.enabled,
     labelSize: row.labelSize,
@@ -124,7 +142,7 @@ export function resolveBadgePrintSettings(
     showQrCode: row.showQrCode,
     showAllergyFlag: row.showAllergyFlag,
     logoUrl: row.logoUrl?.trim() || null,
-    customFields: parseBadgeCustomFieldsJson(row.customFieldsJson),
+    formFields: parseBadgeFormFieldsJson(row.customFieldsJson),
     autoPrintOnCheckIn: row.autoPrintOnCheckIn,
   };
 }
@@ -163,6 +181,14 @@ export function badgeLabelPageCss(
   return { pageSize: `${width} ${height}`, width, height, isHorizontal: false };
 }
 
+function formFieldLabel(fieldKey: string, fieldOptions: ExportFieldOption[]): string {
+  return fieldOptions.find((o) => o.key === fieldKey)?.label ?? fieldKey;
+}
+
+function sampleFormFieldValue(fieldKey: string): string {
+  return SAMPLE_FORM_FIELD_VALUES[fieldKey] ?? "Sample answer";
+}
+
 type BuildBadgeInput = {
   settings: ResolvedBadgePrintSettings;
   registrationId: string;
@@ -177,11 +203,14 @@ type BuildBadgeInput = {
   badgeDisplayName: string | null;
   checkInLabel: string | null;
   qrDataUrl?: string | null;
+  registrationRow?: RegistrationFieldValueRow | null;
+  fieldOptions?: ExportFieldOption[];
 };
 
 export function buildBadgePrintPayload(input: BuildBadgeInput): BadgePrintPayload {
   const childName = `${input.childFirstName} ${input.childLastName}`.trim();
   const lines: BadgePrintLine[] = [];
+  const fieldOptions = input.fieldOptions ?? [];
 
   if (input.settings.showSeasonName) {
     lines.push({ kind: "season", text: `${input.seasonName} (${input.seasonYear})` });
@@ -204,12 +233,13 @@ export function buildBadgePrintPayload(input: BuildBadgeInput): BadgePrintPayloa
     lines.push({ kind: "allergy", text: "Allergies on file" });
   }
 
-  for (const field of input.settings.customFields) {
-    lines.push({
-      kind: "custom",
-      text: field.text,
-      label: field.label || undefined,
-    });
+  for (const field of input.settings.formFields) {
+    const label = formFieldLabel(field.fieldKey, fieldOptions);
+    const text = input.registrationRow
+      ? resolveRegistrationExportFieldValue(input.registrationRow, input.seasonName, field.fieldKey)
+      : sampleFormFieldValue(field.fieldKey);
+    if (!text.trim()) continue;
+    lines.push({ kind: "formField", label, text: text.trim() });
   }
 
   const base = getPublicAppBaseUrl();
@@ -230,6 +260,7 @@ export function buildBadgePrintPayload(input: BuildBadgeInput): BadgePrintPayloa
 
 export function sampleBadgePreviewPayload(
   settings: ResolvedBadgePrintSettings,
+  fieldOptions: ExportFieldOption[] = [],
 ): BadgePrintPayload {
   return buildBadgePrintPayload({
     settings,
@@ -247,5 +278,6 @@ export function sampleBadgePreviewPayload(
     qrDataUrl: settings.showQrCode
       ? "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Crect width='120' height='120' fill='%23fff'/%3E%3Ctext x='60' y='64' text-anchor='middle' font-size='12' fill='%2364748b'%3EQR%3C/text%3E%3C/svg%3E"
       : null,
+    fieldOptions,
   });
 }

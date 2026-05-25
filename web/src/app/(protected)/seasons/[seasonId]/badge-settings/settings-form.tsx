@@ -2,18 +2,20 @@
 
 import { useActionState, useMemo, useState } from "react";
 import Link from "next/link";
-import type { BadgeCustomField, ResolvedBadgePrintSettings } from "@/lib/badge-print";
+import type { BadgeFormFieldSelection, ResolvedBadgePrintSettings } from "@/lib/badge-print";
 import {
   badgeLabelSizeOptions,
   sampleBadgePreviewPayload,
 } from "@/lib/badge-print";
-import { BadgeCustomFieldsEditor } from "@/components/badge-print/badge-custom-fields-editor";
+import type { ExportFieldOption } from "@/lib/registration-export";
+import { BadgeFormFieldsPicker } from "@/components/badge-print/badge-form-fields-picker";
 import { BadgePreviewCard } from "@/components/badge-print/badge-preview-card";
 import { saveBadgePrintSettings, type SaveBadgePrintSettingsState } from "./actions";
 
 type Props = {
   seasonId: string;
   settings: ResolvedBadgePrintSettings;
+  formFieldOptions: ExportFieldOption[];
 };
 
 const initial: SaveBadgePrintSettingsState | null = null;
@@ -48,23 +50,23 @@ function FieldCheckbox({
   );
 }
 
-export function BadgePrintSettingsForm({ seasonId, settings }: Props) {
+export function BadgePrintSettingsForm({ seasonId, settings, formFieldOptions }: Props) {
   const [state, action, pending] = useActionState(
     saveBadgePrintSettings.bind(null, seasonId),
     initial,
   );
 
   const [draft, setDraft] = useState<ResolvedBadgePrintSettings>(settings);
-  const [customFields, setCustomFields] = useState<BadgeCustomField[]>(settings.customFields);
+  const [formFields, setFormFields] = useState<BadgeFormFieldSelection[]>(settings.formFields);
   const [logoPreview, setLogoPreview] = useState<string | null>(settings.logoUrl);
 
   const previewSettings = useMemo(
-    () => ({ ...draft, customFields, logoUrl: logoPreview }),
-    [draft, customFields, logoPreview],
+    () => ({ ...draft, formFields, logoUrl: logoPreview }),
+    [draft, formFields, logoPreview],
   );
   const previewPayload = useMemo(
-    () => sampleBadgePreviewPayload(previewSettings),
-    [previewSettings],
+    () => sampleBadgePreviewPayload(previewSettings, formFieldOptions),
+    [previewSettings, formFieldOptions],
   );
 
   function patchDraft(patch: Partial<ResolvedBadgePrintSettings>) {
@@ -79,7 +81,7 @@ export function BadgePrintSettingsForm({ seasonId, settings }: Props) {
 
   return (
     <form action={action} encType="multipart/form-data" className="max-w-2xl space-y-8">
-      <input type="hidden" name="customFieldsJson" value={JSON.stringify(customFields)} readOnly />
+      <input type="hidden" name="customFieldsJson" value={JSON.stringify(formFields)} readOnly />
 
       {state?.message ? (
         <div
@@ -236,12 +238,17 @@ export function BadgePrintSettingsForm({ seasonId, settings }: Props) {
       </div>
 
       <div className="rounded-xl border border-foreground/10 p-4">
-        <h2 className="text-sm font-semibold text-foreground/90">Custom fields</h2>
+        <h2 className="text-sm font-semibold text-foreground/90">Registration form fields</h2>
         <p className="mt-1 text-sm text-muted">
-          Add extra lines that print on every badge — church name, volunteer notes, or other fixed text.
+          Pull additional answers from your published registration form onto each badge — values come from
+          each child&apos;s submission at print time.
         </p>
         <div className="mt-4">
-          <BadgeCustomFieldsEditor fields={customFields} onChange={setCustomFields} />
+          <BadgeFormFieldsPicker
+            fields={formFields}
+            options={formFieldOptions}
+            onChange={setFormFields}
+          />
         </div>
       </div>
 

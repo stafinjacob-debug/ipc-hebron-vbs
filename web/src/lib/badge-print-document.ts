@@ -19,7 +19,7 @@ function lineClass(kind: BadgePrintPayload["lines"][number]["kind"]): string {
       return "line number";
     case "allergy":
       return "line allergy";
-    case "custom":
+    case "formField":
       return "line custom";
     default:
       return "line detail";
@@ -28,7 +28,7 @@ function lineClass(kind: BadgePrintPayload["lines"][number]["kind"]): string {
 
 function renderLine(line: BadgePrintPayload["lines"][number]): string {
   const text = escapeHtml(line.text);
-  if (line.kind === "custom" && line.label) {
+  if (line.kind === "formField" && line.label) {
     return `<div class="${lineClass(line.kind)}"><span class="custom-label">${escapeHtml(line.label)}</span><span class="custom-text">${text}</span></div>`;
   }
   return `<div class="${lineClass(line.kind)}">${text}</div>`;

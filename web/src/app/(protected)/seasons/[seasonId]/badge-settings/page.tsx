@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { resolveBadgePrintSettings } from "@/lib/badge-print";
 import { canManageDirectory } from "@/lib/roles";
+import { badgePrintableFormFieldOptions } from "@/lib/registration-export";
 import { notFound, redirect } from "next/navigation";
 import { BadgePrintSettingsForm } from "./settings-form";
 
@@ -16,11 +17,20 @@ export default async function BadgePrintSettingsPage({ params }: PageProps) {
 
   const season = await prisma.vbsSeason.findUnique({
     where: { id: seasonId },
-    include: { badgePrintSettings: true },
+    include: {
+      badgePrintSettings: true,
+      registrationForm: {
+        select: { publishedDefinitionJson: true, draftDefinitionJson: true },
+      },
+    },
   });
   if (!season) notFound();
 
   const settings = resolveBadgePrintSettings(season.badgePrintSettings);
+  const formJson =
+    season.registrationForm?.publishedDefinitionJson ??
+    season.registrationForm?.draftDefinitionJson;
+  const formFieldOptions = badgePrintableFormFieldOptions(formJson);
 
   return (
     <div className="space-y-8">
@@ -40,7 +50,11 @@ export default async function BadgePrintSettingsPage({ params }: PageProps) {
         </p>
       </div>
 
-      <BadgePrintSettingsForm seasonId={season.id} settings={settings} />
+      <BadgePrintSettingsForm
+        seasonId={season.id}
+        settings={settings}
+        formFieldOptions={formFieldOptions}
+      />
     </div>
   );
 }

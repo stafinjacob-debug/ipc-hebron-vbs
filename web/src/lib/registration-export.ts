@@ -121,3 +121,93 @@ export function buildRegistrationExportFieldOptionsFromJson(
 ): ExportFieldOption[] {
   return buildRegistrationExportFieldOptions(parseFormDefinitionJson(json));
 }
+
+/** Guardian and child fields from the registration form — suitable for badge printing. */
+export function badgePrintableFormFieldOptions(
+  json: string | null | undefined,
+): ExportFieldOption[] {
+  return buildRegistrationExportFieldOptionsFromJson(json).filter(
+    (o) => o.group === "guardian" || o.group === "child",
+  );
+}
+
+function asObject(v: unknown): Record<string, unknown> {
+  return v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
+}
+
+export function formatExportFieldValue(v: unknown): string {
+  if (v == null) return "";
+  if (typeof v === "string") return v.trim();
+  if (typeof v === "number" || typeof v === "boolean") return String(v);
+  if (v instanceof Date) return v.toISOString().slice(0, 10);
+  if (Array.isArray(v)) return v.map((x) => String(x)).join(", ");
+  try {
+    return JSON.stringify(v);
+  } catch {
+    return String(v);
+  }
+}
+
+export type RegistrationFieldValueRow = {
+  id: string;
+  registrationNumber: string | null;
+  status: string;
+  registeredAt: Date;
+  notes: string | null;
+  customResponses: unknown;
+  child: {
+    firstName: string;
+    lastName: string;
+    dateOfBirth: Date;
+    allergiesNotes: string | null;
+    guardian: {
+      firstName: string;
+      lastName: string;
+      email: string | null;
+      phone: string | null;
+    };
+  };
+  classroom: { name: string } | null;
+  formSubmission: {
+    registrationCode: string | null;
+    guardianResponses: unknown;
+  } | null;
+};
+
+export function resolveRegistrationExportFieldValue(
+  row: RegistrationFieldValueRow,
+  seasonName: string,
+  fieldKey: string,
+): string {
+  const guardianExtra = asObject(row.formSubmission?.guardianResponses);
+  const childExtra = asObject(row.customResponses);
+
+  if (fieldKey === "registrationId") return row.id;
+  if (fieldKey === "registrationNumber") return row.registrationNumber ?? "";
+  if (fieldKey === "status") return row.status;
+  if (fieldKey === "registeredAt") return row.registeredAt.toISOString();
+  if (fieldKey === "seasonName") return seasonName;
+  if (fieldKey === "classroomName") return row.classroom?.name ?? "";
+  if (fieldKey === "submissionCode") return row.formSubmission?.registrationCode ?? "";
+  if (fieldKey === "staffNotes") return row.notes ?? "";
+
+  if (fieldKey.startsWith("guardian:")) {
+    const fld = fieldKey.slice("guardian:".length);
+    if (fld === "guardianFirstName") return row.child.guardian.firstName;
+    if (fld === "guardianLastName") return row.child.guardian.lastName;
+    if (fld === "guardianEmail") return row.child.guardian.email ?? "";
+    if (fld === "guardianPhone") return row.child.guardian.phone ?? "";
+    return formatExportFieldValue(guardianExtra[fld]);
+  }
+
+  if (fieldKey.startsWith("child:")) {
+    const fld = fieldKey.slice("child:".length);
+    if (fld === "childFirstName") return row.child.firstName;
+    if (fld === "childLastName") return row.child.lastName;
+    if (fld === "childDateOfBirth") return row.child.dateOfBirth.toISOString().slice(0, 10);
+    if (fld === "allergiesNotes") return row.child.allergiesNotes ?? "";
+    return formatExportFieldValue(childExtra[fld]);
+  }
+
+  return "";
+}

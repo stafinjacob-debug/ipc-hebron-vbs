@@ -4,7 +4,9 @@ import {
   buildBadgePrintPayload,
   resolveBadgePrintSettings,
 } from "@/lib/badge-print";
-import { canUseCheckInActions, canViewOperations } from "@/lib/roles";
+import { canUseCheckInActions } from "@/lib/permissions";
+import { canViewOperations } from "@/lib/roles";
+import { badgePrintableFormFieldOptions } from "@/lib/registration-export";
 import { registrationTicketUrl } from "@/lib/registration-identity";
 import { getPublicAppBaseUrl } from "@/lib/public-app-url";
 import QRCode from "qrcode";
@@ -27,9 +29,19 @@ export async function GET(_request: Request, context: RouteContext) {
   const reg = await prisma.registration.findUnique({
     where: { id: registrationId },
     include: {
-      child: true,
-      season: { include: { badgePrintSettings: true } },
+      child: { include: { guardian: true } },
+      season: {
+        include: {
+          badgePrintSettings: true,
+          registrationForm: {
+            select: { publishedDefinitionJson: true, draftDefinitionJson: true },
+          },
+        },
+      },
       classroom: true,
+      formSubmission: {
+        select: { registrationCode: true, guardianResponses: true },
+      },
     },
   });
 
@@ -41,6 +53,11 @@ export async function GET(_request: Request, context: RouteContext) {
   if (!settings.enabled) {
     return NextResponse.json({ error: "Badge printing is disabled for this season." }, { status: 403 });
   }
+
+  const formJson =
+    reg.season.registrationForm?.publishedDefinitionJson ??
+    reg.season.registrationForm?.draftDefinitionJson;
+  const fieldOptions = badgePrintableFormFieldOptions(formJson);
 
   let qrDataUrl: string | null = null;
   if (settings.showQrCode && reg.checkInToken) {
@@ -66,6 +83,18 @@ export async function GET(_request: Request, context: RouteContext) {
     badgeDisplayName: reg.classroom?.badgeDisplayName ?? null,
     checkInLabel: reg.classroom?.checkInLabel ?? null,
     qrDataUrl,
+    fieldOptions,
+    registrationRow: {
+      id: reg.id,
+      registrationNumber: reg.registrationNumber,
+      status: reg.status,
+      registeredAt: reg.registeredAt,
+      notes: reg.notes,
+      customResponses: reg.customResponses,
+      child: reg.child,
+      classroom: reg.classroom,
+      formSubmission: reg.formSubmission,
+    },
   });
 
   return NextResponse.json(payload);

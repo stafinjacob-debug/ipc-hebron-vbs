@@ -312,7 +312,7 @@ model BadgePrintSettings {
   showAllergyFlag          Boolean @default(false)
 
   logoUrl String?
-  /// [{ "id": "…", "label": "Optional label", "text": "Printed text" }]
+  /// [{ "id": "…", "fieldKey": "guardian:guardianPhone" | "child:customKey" }]
   customFieldsJson Json @default("[]")
   autoPrintOnCheckIn Boolean @default(false)
 
