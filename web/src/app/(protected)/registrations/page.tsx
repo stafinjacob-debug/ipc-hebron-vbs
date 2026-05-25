@@ -285,8 +285,6 @@ export default async function RegistrationsPage({
     child: { include: { guardian: true } },
     season: true,
     classroom: true,
-    customResponses: true,
-    notes: true,
     formSubmission: {
       select: {
         registrationCode: true,
