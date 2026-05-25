@@ -1,4 +1,4 @@
-import type { BadgeLabelSize, BadgePrintSettings } from "@/generated/prisma";
+import type { BadgeLabelSize, BadgeOrientation, BadgePrintSettings } from "@/generated/prisma";
 import { getPublicAppBaseUrl } from "@/lib/public-app-url";
 
 function registrationTicketUrl(checkInToken: string, baseUrl?: string): string {
@@ -6,9 +6,16 @@ function registrationTicketUrl(checkInToken: string, baseUrl?: string): string {
   return `${b}/register/ticket?t=${encodeURIComponent(checkInToken)}`;
 }
 
+export type BadgeCustomField = {
+  id: string;
+  label: string;
+  text: string;
+};
+
 export type ResolvedBadgePrintSettings = {
   enabled: boolean;
   labelSize: BadgeLabelSize;
+  orientation: BadgeOrientation;
   showChildName: boolean;
   showRegistrationNumber: boolean;
   showClassroomName: boolean;
@@ -18,12 +25,14 @@ export type ResolvedBadgePrintSettings = {
   showQrCode: boolean;
   showAllergyFlag: boolean;
   logoUrl: string | null;
+  customFields: BadgeCustomField[];
   autoPrintOnCheckIn: boolean;
 };
 
 export const DEFAULT_BADGE_PRINT_SETTINGS: ResolvedBadgePrintSettings = {
   enabled: true,
   labelSize: "LABEL_2X3",
+  orientation: "VERTICAL",
   showChildName: true,
   showRegistrationNumber: true,
   showClassroomName: true,
@@ -33,12 +42,14 @@ export const DEFAULT_BADGE_PRINT_SETTINGS: ResolvedBadgePrintSettings = {
   showQrCode: true,
   showAllergyFlag: false,
   logoUrl: null,
+  customFields: [],
   autoPrintOnCheckIn: false,
 };
 
 export type BadgePrintLine = {
-  kind: "season" | "name" | "number" | "class" | "badgeName" | "checkInLabel" | "allergy";
+  kind: "season" | "name" | "number" | "class" | "badgeName" | "checkInLabel" | "allergy" | "custom";
   text: string;
+  label?: string;
 };
 
 export type BadgePrintPayload = {
@@ -65,13 +76,45 @@ export function parseBadgeLabelSize(raw: string): BadgeLabelSize {
   return "LABEL_2X3";
 }
 
+export function parseBadgeOrientation(raw: string): BadgeOrientation {
+  return raw === "HORIZONTAL" ? "HORIZONTAL" : "VERTICAL";
+}
+
+export function parseBadgeCustomFieldsJson(raw: unknown): BadgeCustomField[] {
+  if (!Array.isArray(raw)) return [];
+  const out: BadgeCustomField[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== "object" || Array.isArray(item)) continue;
+    const row = item as Record<string, unknown>;
+    const text = typeof row.text === "string" ? row.text.trim() : "";
+    if (!text) continue;
+    const label = typeof row.label === "string" ? row.label.trim() : "";
+    const id =
+      typeof row.id === "string" && row.id.trim()
+        ? row.id.trim()
+        : `custom-${out.length + 1}`;
+    out.push({ id, label, text });
+  }
+  return out.slice(0, 12);
+}
+
+export function parseBadgeCustomFieldsForm(raw: string): BadgeCustomField[] {
+  if (!raw.trim()) return [];
+  try {
+    return parseBadgeCustomFieldsJson(JSON.parse(raw));
+  } catch {
+    return [];
+  }
+}
+
 export function resolveBadgePrintSettings(
   row: BadgePrintSettings | null | undefined,
 ): ResolvedBadgePrintSettings {
-  if (!row) return { ...DEFAULT_BADGE_PRINT_SETTINGS };
+  if (!row) return { ...DEFAULT_BADGE_PRINT_SETTINGS, customFields: [] };
   return {
     enabled: row.enabled,
     labelSize: row.labelSize,
+    orientation: row.orientation,
     showChildName: row.showChildName,
     showRegistrationNumber: row.showRegistrationNumber,
     showClassroomName: row.showClassroomName,
@@ -81,19 +124,43 @@ export function resolveBadgePrintSettings(
     showQrCode: row.showQrCode,
     showAllergyFlag: row.showAllergyFlag,
     logoUrl: row.logoUrl?.trim() || null,
+    customFields: parseBadgeCustomFieldsJson(row.customFieldsJson),
     autoPrintOnCheckIn: row.autoPrintOnCheckIn,
   };
 }
 
-export function badgeLabelPageCss(labelSize: BadgeLabelSize): { pageSize: string; width: string; height: string } {
+export function badgeLabelPageCss(
+  labelSize: BadgeLabelSize,
+  orientation: BadgeOrientation = "VERTICAL",
+): { pageSize: string; width: string; height: string; isHorizontal: boolean } {
+  let width: string;
+  let height: string;
+
   switch (labelSize) {
     case "LABEL_4X6":
-      return { pageSize: "4in 6in", width: "4in", height: "6in" };
+      width = "4in";
+      height = "6in";
+      break;
     case "LABEL_62MM":
-      return { pageSize: "62mm 100mm", width: "62mm", height: "100mm" };
+      width = "62mm";
+      height = "100mm";
+      break;
     default:
-      return { pageSize: "2in 3in", width: "2in", height: "3in" };
+      width = "2in";
+      height = "3in";
   }
+
+  const isHorizontal = orientation === "HORIZONTAL";
+  if (isHorizontal) {
+    return {
+      pageSize: `${height} ${width}`,
+      width: height,
+      height: width,
+      isHorizontal: true,
+    };
+  }
+
+  return { pageSize: `${width} ${height}`, width, height, isHorizontal: false };
 }
 
 type BuildBadgeInput = {
@@ -135,6 +202,14 @@ export function buildBadgePrintPayload(input: BuildBadgeInput): BadgePrintPayloa
   }
   if (input.settings.showAllergyFlag && input.allergiesNotes?.trim()) {
     lines.push({ kind: "allergy", text: "Allergies on file" });
+  }
+
+  for (const field of input.settings.customFields) {
+    lines.push({
+      kind: "custom",
+      text: field.text,
+      label: field.label || undefined,
+    });
   }
 
   const base = getPublicAppBaseUrl();

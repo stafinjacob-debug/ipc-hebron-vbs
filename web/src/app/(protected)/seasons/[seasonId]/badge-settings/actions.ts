@@ -2,7 +2,12 @@
 
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { parseBadgeLabelSize } from "@/lib/badge-print";
+import {
+  parseBadgeCustomFieldsForm,
+  parseBadgeLabelSize,
+  parseBadgeOrientation,
+} from "@/lib/badge-print";
+import { deleteLocalBadgeLogo, uploadBadgeLogoImage } from "@/lib/badge-logo-upload";
 import { canManageDirectory } from "@/lib/roles";
 import { revalidatePath } from "next/cache";
 
@@ -35,11 +40,26 @@ export async function saveBadgePrintSettings(
     return { ok: false, message: "Season not found." };
   }
 
-  const logoRaw = str(formData, "logoUrl").trim();
-  const logoUrl = logoRaw.length > 0 ? logoRaw : null;
-  if (logoUrl && !/^https?:\/\//i.test(logoUrl) && !logoUrl.startsWith("/")) {
-    return { ok: false, message: "Logo URL must be an https:// link or a site path starting with /." };
+  const existing = await prisma.badgePrintSettings.findUnique({ where: { seasonId } });
+  let logoUrl = existing?.logoUrl ?? null;
+
+  if (formData.get("removeLogo") === "on") {
+    await deleteLocalBadgeLogo(logoUrl);
+    logoUrl = null;
+  } else {
+    const file = formData.get("logoImage");
+    if (file instanceof File && file.size > 0) {
+      const uploaded = await uploadBadgeLogoImage(file, seasonId);
+      if (!uploaded.ok) {
+        return { ok: false, message: uploaded.error };
+      }
+      await deleteLocalBadgeLogo(logoUrl);
+      logoUrl = uploaded.url;
+    }
   }
+
+  const customFields = parseBadgeCustomFieldsForm(str(formData, "customFieldsJson"));
+  const customFieldsJson = customFields.map(({ id, label, text }) => ({ id, label, text }));
 
   await prisma.badgePrintSettings.upsert({
     where: { seasonId },
@@ -47,6 +67,7 @@ export async function saveBadgePrintSettings(
       seasonId,
       enabled: checkbox(formData, "enabled"),
       labelSize: parseBadgeLabelSize(str(formData, "labelSize")),
+      orientation: parseBadgeOrientation(str(formData, "orientation")),
       showChildName: checkbox(formData, "showChildName"),
       showRegistrationNumber: checkbox(formData, "showRegistrationNumber"),
       showClassroomName: checkbox(formData, "showClassroomName"),
@@ -56,11 +77,13 @@ export async function saveBadgePrintSettings(
       showQrCode: checkbox(formData, "showQrCode"),
       showAllergyFlag: checkbox(formData, "showAllergyFlag"),
       logoUrl,
+      customFieldsJson,
       autoPrintOnCheckIn: checkbox(formData, "autoPrintOnCheckIn"),
     },
     update: {
       enabled: checkbox(formData, "enabled"),
       labelSize: parseBadgeLabelSize(str(formData, "labelSize")),
+      orientation: parseBadgeOrientation(str(formData, "orientation")),
       showChildName: checkbox(formData, "showChildName"),
       showRegistrationNumber: checkbox(formData, "showRegistrationNumber"),
       showClassroomName: checkbox(formData, "showClassroomName"),
@@ -70,6 +93,7 @@ export async function saveBadgePrintSettings(
       showQrCode: checkbox(formData, "showQrCode"),
       showAllergyFlag: checkbox(formData, "showAllergyFlag"),
       logoUrl,
+      customFieldsJson,
       autoPrintOnCheckIn: checkbox(formData, "autoPrintOnCheckIn"),
     },
   });

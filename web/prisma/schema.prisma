@@ -103,6 +103,11 @@ enum BadgeLabelSize {
   LABEL_62MM
 }
 
+enum BadgeOrientation {
+  VERTICAL
+  HORIZONTAL
+}
+
 model User {
   id           String      @id @default(cuid())
   email        String      @unique
@@ -295,6 +300,7 @@ model BadgePrintSettings {
 
   enabled Boolean @default(true)
   labelSize BadgeLabelSize @default(LABEL_2X3)
+  orientation BadgeOrientation @default(VERTICAL)
 
   showChildName            Boolean @default(true)
   showRegistrationNumber   Boolean @default(true)
@@ -306,6 +312,8 @@ model BadgePrintSettings {
   showAllergyFlag          Boolean @default(false)
 
   logoUrl String?
+  /// [{ "id": "…", "label": "Optional label", "text": "Printed text" }]
+  customFieldsJson Json @default("[]")
   autoPrintOnCheckIn Boolean @default(false)
 
   createdAt DateTime @default(now())
