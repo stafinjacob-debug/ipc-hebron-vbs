@@ -70,6 +70,7 @@ export function FormSettingsForm({
     stripeProductLabel: string | null;
     stripeSkipWhenFieldKey: string | null;
     stripeSkipWhenFieldValue: string | null;
+    registrantLookupEnabled: boolean;
     waiverEnabled: boolean;
     waiverTitle: string | null;
     waiverDescription: string | null;
@@ -188,6 +189,7 @@ export function FormSettingsForm({
           String(fd.get("stripeProcessingFeeMode") ?? "") === "REQUIRED" ? "REQUIRED" : "OPTIONAL";
         const stripeProductLabel = String(fd.get("stripeProductLabel") ?? "").trim() || null;
         const helpContactEmail = String(fd.get("helpContactEmail") ?? "").trim() || null;
+        const registrantLookupEnabled = fd.get("registrantLookupEnabled") === "on";
         let stripeSkipWhenFieldKey = String(fd.get("stripeSkipWhenFieldKey") ?? "").trim() || null;
         let stripeSkipWhenFieldValue = String(fd.get("stripeSkipWhenFieldValue") ?? "").trim() || null;
         if (!stripeSkipWhenFieldKey) {
@@ -247,6 +249,7 @@ export function FormSettingsForm({
             stripeProductLabel,
             stripeSkipWhenFieldKey,
             stripeSkipWhenFieldValue,
+            registrantLookupEnabled,
             helpContactEmail,
             waiverEnabled,
             waiverTitle: waiverTitle.trim() || null,
@@ -329,6 +332,18 @@ export function FormSettingsForm({
             className="mt-1 w-full rounded-md border border-foreground/15 bg-background px-3 py-2 text-sm"
           />
         </div>
+        <label className="flex items-start gap-2 text-sm font-medium">
+          <input
+            type="checkbox"
+            name="registrantLookupEnabled"
+            defaultChecked={initial.registrantLookupEnabled}
+            className="mt-0.5 size-4 rounded border-foreground/30"
+          />
+          <span>
+            Show a <strong>look up or edit registration</strong> button on the public registration page (links to email
+            verification at <code className="text-xs">/register/lookup</code>).
+          </span>
+        </label>
       </div>
 
       <div className="space-y-4 rounded-xl border border-foreground/10 p-4">

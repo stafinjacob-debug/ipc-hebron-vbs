@@ -395,6 +395,9 @@ model RegistrationForm {
   /// JSON array of { key, label, required } for extra per-child waiver prompts (stored on PDF).
   waiverSupplementalFields  Json?
 
+  /// When true, the public registration page shows a link to look up and edit an existing registration.
+  registrantLookupEnabled   Boolean @default(true)
+
   draftDefinitionJson     String? @db.Text
   publishedDefinitionJson String? @db.Text
   publishedAt             DateTime?

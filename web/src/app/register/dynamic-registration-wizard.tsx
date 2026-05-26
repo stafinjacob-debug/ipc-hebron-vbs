@@ -1,6 +1,7 @@
 "use client";
 
 import type React from "react";
+import Link from "next/link";
 import { Fragment, useActionState, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Baby,
@@ -14,6 +15,7 @@ import {
   Lock,
   Mail,
   Plus,
+  Search,
   Shield,
   Trash2,
   UserRound,
@@ -95,6 +97,7 @@ export type PublicSeasonOption = {
   /** When set with {@link stripeSkipWhenFieldValue}, card checkout is skipped if any matching field equals (case-insensitive). */
   stripeSkipWhenFieldKey: string | null;
   stripeSkipWhenFieldValue: string | null;
+  registrantLookupEnabled: boolean;
   /** Optional line under VBS dates on the wizard header (from public settings). */
   sessionTimeDescription: string | null;
   /** Optional per-season help email shown in public UI. */
@@ -1201,6 +1204,17 @@ export function DynamicRegistrationWizard({
                 {effectiveContactEmail}
               </a>
             </p>
+          ) : null}
+          {season.registrantLookupEnabled ? (
+            <div className="mx-auto mt-4 max-w-md px-1">
+              <Link
+                href="/register/lookup"
+                className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-white/30 bg-white/10 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:border-white/45 hover:bg-white/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/70"
+              >
+                <Search className="size-4 shrink-0" aria-hidden />
+                Already registered? Look up or edit
+              </Link>
+            </div>
           ) : null}
         </div>
 

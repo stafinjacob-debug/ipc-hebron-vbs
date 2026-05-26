@@ -193,6 +193,7 @@ export async function updateRegistrationFormSettings(
     stripeProductLabel: string | null;
     stripeSkipWhenFieldKey: string | null;
     stripeSkipWhenFieldValue: string | null;
+    registrantLookupEnabled: boolean;
     waiverEnabled: boolean;
     waiverTitle: string | null;
     waiverDescription: string | null;
@@ -342,6 +343,7 @@ export async function updateRegistrationFormSettings(
         stripeProductLabel: data.stripeProductLabel?.trim() ? data.stripeProductLabel.trim() : null,
         stripeSkipWhenFieldKey: data.stripeCheckoutEnabled ? stripeSkipWhenFieldKey : null,
         stripeSkipWhenFieldValue: data.stripeCheckoutEnabled ? stripeSkipWhenFieldValue : null,
+        registrantLookupEnabled: data.registrantLookupEnabled,
         waiverEnabled: data.waiverEnabled,
         waiverTitle: data.waiverEnabled ? data.waiverTitle?.trim() || "Medical Liability Release Form" : null,
         waiverDescription: data.waiverEnabled ? data.waiverDescription?.trim() || null : null,
@@ -423,6 +425,7 @@ export async function cloneRegistrationFormFromSeason(
       stripeProductLabel: srcForm.stripeProductLabel,
       stripeSkipWhenFieldKey: srcForm.stripeSkipWhenFieldKey,
       stripeSkipWhenFieldValue: srcForm.stripeSkipWhenFieldValue,
+      registrantLookupEnabled: srcForm.registrantLookupEnabled,
       waiverEnabled: srcForm.waiverEnabled,
       waiverTitle: srcForm.waiverTitle,
       waiverDescription: srcForm.waiverDescription,
@@ -738,6 +741,7 @@ export type FormWorkspacePayload = {
     stripeProductLabel: string | null;
     stripeSkipWhenFieldKey: string | null;
     stripeSkipWhenFieldValue: string | null;
+    registrantLookupEnabled: boolean;
     waiverEnabled: boolean;
     waiverTitle: string | null;
     waiverDescription: string | null;
@@ -885,6 +889,7 @@ export async function loadFormWorkspacePayload(
         stripeProductLabel: form.stripeProductLabel,
         stripeSkipWhenFieldKey: form.stripeSkipWhenFieldKey,
         stripeSkipWhenFieldValue: form.stripeSkipWhenFieldValue,
+        registrantLookupEnabled: form.registrantLookupEnabled,
         waiverEnabled: form.waiverEnabled,
         waiverTitle: form.waiverTitle,
         waiverDescription: form.waiverDescription,

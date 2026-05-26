@@ -106,6 +106,7 @@ export default async function PublicRegisterPage({
       stripeProductLabel: formRow.stripeProductLabel,
       stripeSkipWhenFieldKey: formRow.stripeSkipWhenFieldKey,
       stripeSkipWhenFieldValue: formRow.stripeSkipWhenFieldValue,
+      registrantLookupEnabled: formRow.registrantLookupEnabled,
       sessionTimeDescription: s.publicRegistrationSettings?.sessionTimeDescription?.trim() || null,
       helpContactEmail:
         s.publicRegistrationSettings?.helpContactEmail?.trim() ||

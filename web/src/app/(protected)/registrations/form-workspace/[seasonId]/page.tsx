@@ -149,6 +149,7 @@ export default async function RegistrationFormWorkspacePage({
           stripeProductLabel: form.stripeProductLabel,
           stripeSkipWhenFieldKey: form.stripeSkipWhenFieldKey,
           stripeSkipWhenFieldValue: form.stripeSkipWhenFieldValue,
+          registrantLookupEnabled: form.registrantLookupEnabled,
           waiverEnabled: form.waiverEnabled,
           waiverTitle: form.waiverTitle,
           waiverDescription: form.waiverDescription,
