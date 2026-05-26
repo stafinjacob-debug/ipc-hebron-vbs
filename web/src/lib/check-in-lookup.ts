@@ -48,4 +48,8 @@ export type CheckInLookupMatch = {
   checkedIn: boolean;
   registrationNumber: string | null;
   submissionCode: string | null;
+  guardianName: string | null;
+  dateOfBirth: string | null;
+  allergiesNotes: string | null;
+  registrationStatus: string;
 };

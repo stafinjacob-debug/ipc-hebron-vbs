@@ -13,12 +13,20 @@ export type LookupRegistrationForCheckInResult =
 
 function mapRegistrationToLookupMatch(r: {
   id: string;
+  status: string;
   checkedInAt: Date | null;
   registrationNumber: string | null;
-  child: { firstName: string; lastName: string };
+  child: {
+    firstName: string;
+    lastName: string;
+    dateOfBirth: Date;
+    allergiesNotes: string | null;
+    guardian: { firstName: string; lastName: string };
+  };
   classroom: { name: string } | null;
   formSubmission: { registrationCode: string } | null;
 }): CheckInLookupMatch {
+  const guardian = r.child.guardian;
   return {
     id: r.id,
     studentName: `${r.child.firstName} ${r.child.lastName}`.trim(),
@@ -26,6 +34,14 @@ function mapRegistrationToLookupMatch(r: {
     checkedIn: Boolean(r.checkedInAt),
     registrationNumber: r.registrationNumber,
     submissionCode: r.formSubmission?.registrationCode ?? null,
+    guardianName: `${guardian.firstName} ${guardian.lastName}`.trim() || null,
+    dateOfBirth: r.child.dateOfBirth.toLocaleDateString("en-US", {
+      month: "numeric",
+      day: "numeric",
+      year: "numeric",
+    }),
+    allergiesNotes: r.child.allergiesNotes?.trim() || null,
+    registrationStatus: r.status,
   };
 }
 
@@ -52,7 +68,7 @@ export async function lookupRegistrationForCheckIn(
   };
 
   const include = {
-    child: true,
+    child: { include: { guardian: true } },
     classroom: true,
     formSubmission: { select: { registrationCode: true } },
   } as const;

@@ -1,10 +1,12 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useMemo, useRef, useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { Camera, Search } from "lucide-react";
-import { PrintBadgeButton, printBadgeByRegistrationId } from "@/components/badge-print/print-badge-button";
+import { printBadgeByRegistrationId } from "@/components/badge-print/print-badge-button";
+import { CheckInLookupResultModal } from "@/components/check-in/check-in-lookup-result-modal";
 import { CheckInQrScanner } from "@/components/check-in/check-in-qr-scanner";
+import { PrintBadgeButton } from "@/components/badge-print/print-badge-button";
 import type { CheckInLookupMatch } from "@/lib/check-in-lookup";
 import { lookupRegistrationForCheckIn, toggleCheckIn } from "./actions";
 
@@ -26,14 +28,14 @@ type Props = {
 
 export function CheckInDeskClient({ seasonId, rows, badgePrintingEnabled, autoPrintOnCheckIn }: Props) {
   const router = useRouter();
-  const rowRefs = useRef<Record<string, HTMLTableRowElement | null>>({});
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [lookupQuery, setLookupQuery] = useState("");
   const [lookupPending, startLookupTransition] = useTransition();
-  const [lookupMatches, setLookupMatches] = useState<CheckInLookupMatch[] | null>(null);
   const [lookupMessage, setLookupMessage] = useState<string | null>(null);
-  const [highlightId, setHighlightId] = useState<string | null>(null);
+  const [lookupModalOpen, setLookupModalOpen] = useState(false);
+  const [lookupMatches, setLookupMatches] = useState<CheckInLookupMatch[]>([]);
+  const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [nameFilter, setNameFilter] = useState("");
   const [, startTransition] = useTransition();
@@ -50,36 +52,74 @@ export function CheckInDeskClient({ seasonId, rows, badgePrintingEnabled, autoPr
     );
   }, [rows, nameFilter]);
 
-  function focusRegistration(registrationId: string) {
-    setHighlightId(registrationId);
-    const el = rowRefs.current[registrationId];
-    if (el) {
-      el.scrollIntoView({ behavior: "smooth", block: "center" });
-    }
+  function closeLookupModal() {
+    setLookupModalOpen(false);
+    setLookupMatches([]);
+    setSelectedMatchId(null);
+  }
+
+  function openLookupResults(matches: CheckInLookupMatch[]) {
+    setLookupMatches(matches);
+    setSelectedMatchId(matches.length === 1 ? matches[0]!.id : null);
+    setLookupModalOpen(true);
   }
 
   function runLookup(rawInput: string) {
     const value = rawInput.trim();
     if (!value) {
       setLookupMessage("Enter a registration code or scan a QR code.");
-      setLookupMatches(null);
+      closeLookupModal();
       return;
     }
     setLookupQuery(value);
     setLookupMessage(null);
-    setLookupMatches(null);
     setError(null);
 
     startLookupTransition(async () => {
       const result = await lookupRegistrationForCheckIn(seasonId, value);
       if (!result.ok) {
+        closeLookupModal();
         setLookupMessage(result.message);
-        setLookupMatches(null);
         return;
       }
-      setLookupMatches(result.matches);
-      if (result.matches.length === 1) {
-        focusRegistration(result.matches[0]!.id);
+      openLookupResults(result.matches);
+    });
+  }
+
+  function handleCheckInFromModal(match: CheckInLookupMatch) {
+    setPendingId(match.id);
+    setError(null);
+    startTransition(async () => {
+      try {
+        const result = await toggleCheckIn(match.id, !match.checkedIn);
+        if (!result.ok) {
+          setError(result.message);
+          return;
+        }
+
+        const nextCheckedIn = !match.checkedIn;
+        setLookupMatches((prev) =>
+          prev.map((m) => (m.id === match.id ? { ...m, checkedIn: nextCheckedIn } : m)),
+        );
+
+        router.refresh();
+
+        if (result.shouldPrintBadge && badgePrintingEnabled) {
+          try {
+            await printBadgeByRegistrationId(match.id);
+          } catch (printErr) {
+            setError(printErr instanceof Error ? printErr.message : "Badge print failed.");
+          }
+        }
+
+        if (nextCheckedIn) {
+          closeLookupModal();
+          setLookupQuery("");
+        }
+      } catch {
+        setError("Check-in update failed.");
+      } finally {
+        setPendingId(null);
       }
     });
   }
@@ -108,42 +148,6 @@ export function CheckInDeskClient({ seasonId, rows, badgePrintingEnabled, autoPr
         setPendingId(null);
       }
     });
-  }
-
-  function renderMatchActions(match: CheckInLookupMatch) {
-    const row: CheckInRow = {
-      id: match.id,
-      studentName: match.studentName,
-      className: match.className,
-      checkedIn: match.checkedIn,
-      registrationNumber: match.registrationNumber,
-      submissionCode: match.submissionCode,
-    };
-    const isPending = pendingId === match.id;
-    return (
-      <div className="flex flex-wrap items-center gap-2">
-        {badgePrintingEnabled ? <PrintBadgeButton registrationId={match.id} compact label="Print" /> : null}
-        <button
-          type="button"
-          disabled={isPending}
-          onClick={() => handleToggle(row)}
-          className={
-            match.checkedIn
-              ? "rounded-lg border border-foreground/15 px-3 py-1.5 text-xs font-medium hover:bg-foreground/5 disabled:opacity-50"
-              : "rounded-lg bg-brand px-3 py-1.5 text-xs font-medium text-brand-foreground hover:opacity-90 disabled:opacity-50"
-          }
-        >
-          {isPending ? "…" : match.checkedIn ? "Undo check-in" : "Check in"}
-        </button>
-        <button
-          type="button"
-          className="rounded-lg border border-foreground/15 px-3 py-1.5 text-xs font-medium hover:bg-foreground/5"
-          onClick={() => focusRegistration(match.id)}
-        >
-          Show in list
-        </button>
-      </div>
-    );
   }
 
   return (
@@ -193,44 +197,23 @@ export function CheckInDeskClient({ seasonId, rows, badgePrintingEnabled, autoPr
             {lookupMessage}
           </p>
         ) : null}
-        {lookupMatches && lookupMatches.length === 1 ? (
-          <div className="mt-3 rounded-lg border border-brand/30 bg-brand/5 p-3">
-            <p className="text-sm font-semibold">{lookupMatches[0]!.studentName}</p>
-            <p className="mt-0.5 text-xs text-muted">
-              {lookupMatches[0]!.className}
-              {lookupMatches[0]!.registrationNumber
-                ? ` · Reg # ${lookupMatches[0]!.registrationNumber}`
-                : ""}
-            </p>
-            <div className="mt-3">{renderMatchActions(lookupMatches[0]!)}</div>
-          </div>
-        ) : null}
-        {lookupMatches && lookupMatches.length > 1 ? (
-          <div className="mt-3 space-y-2">
-            <p className="text-xs font-medium text-muted">
-              Multiple children share that family code — choose one:
-            </p>
-            {lookupMatches.map((match) => (
-              <div
-                key={match.id}
-                className="rounded-lg border border-foreground/10 bg-background px-3 py-2.5"
-              >
-                <p className="text-sm font-semibold">{match.studentName}</p>
-                <p className="text-xs text-muted">
-                  {match.className}
-                  {match.registrationNumber ? ` · Reg # ${match.registrationNumber}` : ""}
-                </p>
-                <div className="mt-2">{renderMatchActions(match)}</div>
-              </div>
-            ))}
-          </div>
-        ) : null}
       </div>
 
       <CheckInQrScanner
         open={scannerOpen}
         onClose={() => setScannerOpen(false)}
         onScan={(text) => runLookup(text)}
+      />
+
+      <CheckInLookupResultModal
+        open={lookupModalOpen}
+        matches={lookupMatches}
+        pendingId={pendingId}
+        badgePrintingEnabled={badgePrintingEnabled}
+        onClose={closeLookupModal}
+        onCheckIn={handleCheckInFromModal}
+        onSelectMatch={(match) => setSelectedMatchId(match.id)}
+        selectedMatchId={selectedMatchId}
       />
 
       {error ? (
@@ -263,67 +246,56 @@ export function CheckInDeskClient({ seasonId, rows, badgePrintingEnabled, autoPr
         ) : (
           <>
             <table className="w-full text-left text-sm">
-          <thead className="border-b border-foreground/10 bg-foreground/[0.03] text-muted">
-            <tr>
-              <th className="px-4 py-3 font-medium">Student</th>
-              <th className="px-4 py-3 font-medium">Class</th>
-              <th className="px-4 py-3 font-medium">Status</th>
-              <th className="px-4 py-3 font-medium text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredRows.map((row) => {
-              const isPending = pendingId === row.id;
-              const highlighted = highlightId === row.id;
-              return (
-                <tr
-                  key={row.id}
-                  ref={(el) => {
-                    rowRefs.current[row.id] = el;
-                  }}
-                  className={
-                    highlighted
-                      ? "border-t border-brand/30 bg-brand/10 ring-1 ring-inset ring-brand/30"
-                      : "border-t border-foreground/10"
-                  }
-                >
-                  <td className="px-4 py-3 font-medium">{row.studentName}</td>
-                  <td className="px-4 py-3 text-muted">{row.className}</td>
-                  <td className="px-4 py-3">
-                    {row.checkedIn ? (
-                      <span className="inline-flex items-center rounded-full bg-emerald-500/15 px-2.5 py-0.5 text-xs font-medium text-emerald-800 dark:text-emerald-300">
-                        Checked in
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center rounded-full bg-foreground/10 px-2.5 py-0.5 text-xs font-medium text-muted">
-                        Expected
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex flex-wrap items-center justify-end gap-2">
-                      {badgePrintingEnabled ? (
-                        <PrintBadgeButton registrationId={row.id} compact label="Print" />
-                      ) : null}
-                      <button
-                        type="button"
-                        disabled={isPending}
-                        onClick={() => handleToggle(row)}
-                        className={
-                          row.checkedIn
-                            ? "rounded-lg border border-foreground/15 px-3 py-1.5 text-xs font-medium hover:bg-foreground/5 disabled:opacity-50"
-                            : "rounded-lg bg-brand px-3 py-1.5 text-xs font-medium text-brand-foreground hover:opacity-90 disabled:opacity-50"
-                        }
-                      >
-                        {isPending ? "…" : row.checkedIn ? "Undo" : "Check in"}
-                      </button>
-                    </div>
-                  </td>
+              <thead className="border-b border-foreground/10 bg-foreground/[0.03] text-muted">
+                <tr>
+                  <th className="px-4 py-3 font-medium">Student</th>
+                  <th className="px-4 py-3 font-medium">Class</th>
+                  <th className="px-4 py-3 font-medium">Status</th>
+                  <th className="px-4 py-3 font-medium text-right">Actions</th>
                 </tr>
-              );
-            })}
-          </tbody>
-        </table>
+              </thead>
+              <tbody>
+                {filteredRows.map((row) => {
+                  const isPending = pendingId === row.id;
+                  return (
+                    <tr key={row.id} className="border-t border-foreground/10">
+                      <td className="px-4 py-3 font-medium">{row.studentName}</td>
+                      <td className="px-4 py-3 text-muted">{row.className}</td>
+                      <td className="px-4 py-3">
+                        {row.checkedIn ? (
+                          <span className="inline-flex items-center rounded-full bg-emerald-500/15 px-2.5 py-0.5 text-xs font-medium text-emerald-800 dark:text-emerald-300">
+                            Checked in
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center rounded-full bg-foreground/10 px-2.5 py-0.5 text-xs font-medium text-muted">
+                            Expected
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex flex-wrap items-center justify-end gap-2">
+                          {badgePrintingEnabled ? (
+                            <PrintBadgeButton registrationId={row.id} compact label="Print" />
+                          ) : null}
+                          <button
+                            type="button"
+                            disabled={isPending}
+                            onClick={() => handleToggle(row)}
+                            className={
+                              row.checkedIn
+                                ? "rounded-lg border border-foreground/15 px-3 py-1.5 text-xs font-medium hover:bg-foreground/5 disabled:opacity-50"
+                                : "rounded-lg bg-brand px-3 py-1.5 text-xs font-medium text-brand-foreground hover:opacity-90 disabled:opacity-50"
+                            }
+                          >
+                            {isPending ? "…" : row.checkedIn ? "Undo" : "Check in"}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
             {filteredRows.length === 0 ? (
               <p className="px-4 py-8 text-center text-sm text-muted">No registrations match your filter.</p>
             ) : null}
