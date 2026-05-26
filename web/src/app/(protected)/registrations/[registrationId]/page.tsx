@@ -1,4 +1,5 @@
 import { auth } from "@/auth";
+import { loadAdminSubmissionFormEditContext } from "@/lib/admin-submission-edit-context";
 import { prisma } from "@/lib/prisma";
 import { parseFormDefinitionJson } from "@/lib/registration-form-definition";
 import { canManageDirectory, canViewOperations } from "@/lib/roles";
@@ -14,6 +15,7 @@ import { resolveBadgePrintSettings } from "@/lib/badge-print";
 import { PrintBadgeButton } from "@/components/badge-print/print-badge-button";
 import { RegistrationAdminPanel } from "./registration-admin-panel";
 import { RegistrationClassAssignment } from "./registration-class-assignment";
+import { AdminFormEntriesEdit } from "../forms/[seasonId]/submissions/[submissionId]/admin-form-entries-edit";
 
 function asRecord(v: unknown): Record<string, unknown> {
   if (!v || typeof v !== "object" || Array.isArray(v)) return {};
@@ -91,6 +93,14 @@ export default async function RegistrationDetailPage({
   if (!reg) notFound();
 
   const canEdit = canManageDirectory(session.user.role);
+  const formEditContext =
+    canEdit && reg.formSubmission
+      ? await loadAdminSubmissionFormEditContext({
+          seasonId: reg.seasonId,
+          submissionId: reg.formSubmission.id,
+        })
+      : null;
+  const showFormEdit = Boolean(formEditContext?.adminStructuredEditEnabled);
   const badgeSettings = resolveBadgePrintSettings(reg.season.badgePrintSettings);
   const checkoutPending = isCheckoutPendingRegistration({
     expectsPayment: reg.expectsPayment,
@@ -187,13 +197,21 @@ export default async function RegistrationDetailPage({
               {reg.formSubmission ? (
                 <div className="sm:col-span-2">
                   <dt className="text-foreground/55">Form submission</dt>
-                  <dd>
+                  <dd className="flex flex-wrap items-center gap-3">
                     <Link
                       href={`/registrations/forms/${reg.seasonId}/submissions/${reg.formSubmission.id}`}
                       className="font-medium text-brand underline"
                     >
                       {reg.formSubmission.registrationCode}
                     </Link>
+                    {showFormEdit ? (
+                      <Link
+                        href={`/registrations/forms/${reg.seasonId}/submissions/${reg.formSubmission.id}#edit-form-entries`}
+                        className="rounded-md bg-brand px-2.5 py-1 text-xs font-medium text-brand-foreground hover:opacity-90"
+                      >
+                        Edit form entries
+                      </Link>
+                    ) : null}
                   </dd>
                 </div>
               ) : null}
@@ -245,6 +263,17 @@ export default async function RegistrationDetailPage({
             <p className="mt-1 text-xs text-foreground/60">
               Values saved from the public registration form for this family and this child.
             </p>
+            {showFormEdit && formEditContext ? (
+              <div className="mt-4" id="edit-form-entries">
+                <AdminFormEntriesEdit
+                  submissionId={formEditContext.submissionId}
+                  definition={formEditContext.definition}
+                  rules={formEditContext.rules}
+                  guardianValues={formEditContext.guardianValues}
+                  childFormRows={formEditContext.childFormRows}
+                />
+              </div>
+            ) : (
             <div className="mt-4 grid gap-4 lg:grid-cols-2">
               <div className="rounded-lg border border-foreground/10 p-3">
                 <p className="text-xs font-semibold uppercase tracking-wide text-foreground/60">Guardian fields</p>
@@ -269,6 +298,7 @@ export default async function RegistrationDetailPage({
                 </dl>
               </div>
             </div>
+            )}
           </section>
 
           <RegistrationClassAssignment

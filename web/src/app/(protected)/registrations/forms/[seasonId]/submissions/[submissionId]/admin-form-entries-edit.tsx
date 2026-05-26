@@ -18,7 +18,7 @@ type Props = {
   definition: FormDefinitionV1;
   rules: PublicRegistrationFieldRules;
   guardianValues: Record<string, string>;
-  children: ChildRow[];
+  childFormRows: ChildRow[];
 };
 
 export function AdminFormEntriesEdit(p: Props) {
@@ -27,7 +27,7 @@ export function AdminFormEntriesEdit(p: Props) {
   const [message, setMessage] = useState<string | null>(null);
   const [ok, setOk] = useState<boolean | null>(null);
   const [guardianValues, setGuardianValues] = useState(p.guardianValues);
-  const [childRows, setChildRows] = useState(p.children);
+  const [childRows, setChildRows] = useState(p.childFormRows);
 
   const guardianSections = useMemo(
     () => sortSections(p.definition).filter((s) => s.audience === "guardian" || s.audience === "consent"),

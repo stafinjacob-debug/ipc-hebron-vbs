@@ -177,7 +177,7 @@ export default async function RegistrationsSubmissionsHubPage({
                         href={`/registrations/forms/${activeSeasonId}/submissions/${s.id}`}
                         className="inline-block font-medium text-brand underline hover:no-underline"
                       >
-                        Open full edit view
+                        Open full edit view — edit form entries
                       </Link>
                     </div>
                   </details>

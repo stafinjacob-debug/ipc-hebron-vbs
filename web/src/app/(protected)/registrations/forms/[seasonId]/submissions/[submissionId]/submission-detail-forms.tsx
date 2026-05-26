@@ -3,8 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import type { FormDefinitionV1 } from "@/lib/registration-form-definition";
-import type { PublicRegistrationFieldRules } from "@/lib/public-registration";
+import type { AdminSubmissionFormEditContext } from "@/lib/admin-submission-edit-context";
 import { sendCheckoutReminderForSubmissionAction } from "@/app/(protected)/registrations/registration-actions";
 import {
   bulkCancelSubmission,
@@ -17,20 +16,12 @@ import { AdminFormEntriesEdit } from "./admin-form-entries-edit";
 
 const STATUSES = ["PENDING", "CONFIRMED", "WAITLIST", "CANCELLED", "CHECKED_OUT", "DRAFT"] as const;
 
-type ChildRow = {
-  registrationId: string;
-  values: Record<string, string>;
-};
-
 export function SubmissionDetailForms({
   seasonId,
   submissionId,
   canEdit,
   adminStructuredEditEnabled = false,
-  definition,
-  rules,
-  guardianValues,
-  children,
+  formEditContext = null,
   guardian,
   responsesJson,
   registrations,
@@ -40,10 +31,7 @@ export function SubmissionDetailForms({
   submissionId: string;
   canEdit: boolean;
   adminStructuredEditEnabled?: boolean;
-  definition?: FormDefinitionV1;
-  rules?: PublicRegistrationFieldRules;
-  guardianValues?: Record<string, string>;
-  children?: ChildRow[];
+  formEditContext?: AdminSubmissionFormEditContext | null;
   /** Family still has an open Stripe Checkout session. */
   checkoutPending?: boolean;
   guardian: {
@@ -179,14 +167,16 @@ export function SubmissionDetailForms({
         </button>
       </div>
 
-      {adminStructuredEditEnabled && definition && rules && guardianValues && children ? (
-        <AdminFormEntriesEdit
-          submissionId={submissionId}
-          definition={definition}
-          rules={rules}
-          guardianValues={guardianValues}
-          children={children}
+      {adminStructuredEditEnabled && formEditContext ? (
+        <div id="edit-form-entries">
+          <AdminFormEntriesEdit
+          submissionId={formEditContext.submissionId}
+          definition={formEditContext.definition}
+          rules={formEditContext.rules}
+          guardianValues={formEditContext.guardianValues}
+          childFormRows={formEditContext.childFormRows}
         />
+        </div>
       ) : (
         <form
           className="space-y-4 rounded-xl border border-foreground/10 p-4"
@@ -208,7 +198,7 @@ export function SubmissionDetailForms({
           }}
         >
           <h3 className="text-sm font-semibold">Guardian & extra responses</h3>
-          {!adminStructuredEditEnabled && canEdit ? (
+          {canEdit ? (
             <p className="text-xs text-foreground/70">
               Structured form editing is turned off for this season. Enable it in{" "}
               <Link href={`/registrations/forms/${seasonId}/settings`} className="font-medium text-brand underline">

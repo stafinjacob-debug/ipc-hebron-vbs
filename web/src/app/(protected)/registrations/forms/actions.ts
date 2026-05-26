@@ -628,17 +628,18 @@ export async function updateSubmissionFormEntries(
     where: { id: submissionId },
     include: {
       guardian: true,
-      form: true,
       registrations: { include: { child: true } },
       season: { include: { publicRegistrationSettings: true, registrationForm: true } },
     },
   });
   if (!submission) return { ok: false, message: "Submission not found." };
 
-  const formRow = submission.form ?? submission.season.registrationForm;
-  if (!formRow?.adminRegistrationEditEnabled) {
+  const seasonForm = submission.season.registrationForm;
+  if (seasonForm && !seasonForm.adminRegistrationEditEnabled) {
     return { ok: false, message: "Staff form editing is disabled for this season." };
   }
+
+  const formRow = seasonForm;
 
   const allowedIds = new Set(submission.registrations.map((r) => r.id));
   if (!registrationIds.every((id) => allowedIds.has(id))) {
@@ -648,8 +649,8 @@ export async function updateSubmissionFormEntries(
   const definition =
     getEffectiveDefinition(
       {
-        publishedDefinitionJson: formRow.publishedDefinitionJson ?? null,
-        draftDefinitionJson: formRow.draftDefinitionJson ?? null,
+        publishedDefinitionJson: formRow?.publishedDefinitionJson ?? null,
+        draftDefinitionJson: formRow?.draftDefinitionJson ?? null,
       },
       false,
     ) ?? createDefaultFormDefinition();
