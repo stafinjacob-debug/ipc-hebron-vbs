@@ -1,4 +1,10 @@
-import type { BadgeLabelSize, BadgeOrientation, BadgePrintSettings } from "@/generated/prisma";
+import { barcodeSvgDataUrl } from "@/lib/badge-print-barcode";
+import type {
+  BadgeHorizontalLayout,
+  BadgeLabelSize,
+  BadgeOrientation,
+  BadgePrintSettings,
+} from "@/generated/prisma";
 import {
   type ExportFieldOption,
   resolveRegistrationExportFieldValue,
@@ -21,6 +27,7 @@ export type ResolvedBadgePrintSettings = {
   enabled: boolean;
   labelSize: BadgeLabelSize;
   orientation: BadgeOrientation;
+  horizontalLayout: BadgeHorizontalLayout;
   showChildName: boolean;
   showRegistrationNumber: boolean;
   showClassroomName: boolean;
@@ -38,6 +45,7 @@ export const DEFAULT_BADGE_PRINT_SETTINGS: ResolvedBadgePrintSettings = {
   enabled: true,
   labelSize: "LABEL_2X3",
   orientation: "VERTICAL",
+  horizontalLayout: "STANDARD",
   showChildName: true,
   showRegistrationNumber: true,
   showClassroomName: true,
@@ -57,14 +65,55 @@ export type BadgePrintLine = {
   label?: string;
 };
 
+export type BadgePrintStructured = {
+  firstName: string;
+  lastName: string;
+  securityCode: string | null;
+  serviceLine: string | null;
+  locationLine: string | null;
+  guardianLine: string | null;
+  guardianPhone: string | null;
+  birthdate: string | null;
+  medicalLine: string | null;
+  notesLine: string | null;
+  answerLines: BadgePrintLine[];
+  printedAt: string | null;
+};
+
 export type BadgePrintPayload = {
   registrationId: string;
   settings: ResolvedBadgePrintSettings;
   lines: BadgePrintLine[];
+  structured: BadgePrintStructured;
   childName: string;
   qrDataUrl: string | null;
+  barcodeDataUrl: string | null;
   ticketUrl: string | null;
 };
+
+export const BADGE_HORIZONTAL_LAYOUT_OPTIONS: {
+  value: BadgeHorizontalLayout;
+  label: string;
+  description: string;
+}[] = [
+  {
+    value: "STANDARD",
+    label: "Standard horizontal",
+    description: "Logo and fields on the left, QR code on the right (current default).",
+  },
+  {
+    value: "NAME_CODE_HEADER",
+    label: "Name + code header",
+    description:
+      "Large first and last name top-left, registration code in a box top-right, divider, then location and custom answers.",
+  },
+  {
+    value: "KIDCHECK",
+    label: "KidCheck-style",
+    description:
+      "Security code box, service/class line, guardian and birthdate, medical notes, vertical logo strip, timestamp and barcode.",
+  },
+];
 
 const LABEL_SIZE_OPTIONS: { value: BadgeLabelSize; label: string }[] = [
   { value: "LABEL_2X3", label: '2″ × 3″ (standard name badge)' },
@@ -94,6 +143,11 @@ export function parseBadgeLabelSize(raw: string): BadgeLabelSize {
 
 export function parseBadgeOrientation(raw: string): BadgeOrientation {
   return raw === "HORIZONTAL" ? "HORIZONTAL" : "VERTICAL";
+}
+
+export function parseBadgeHorizontalLayout(raw: string): BadgeHorizontalLayout {
+  if (raw === "NAME_CODE_HEADER" || raw === "KIDCHECK") return raw;
+  return "STANDARD";
 }
 
 export function parseBadgeFormFieldsJson(raw: unknown): BadgeFormFieldSelection[] {
@@ -133,6 +187,7 @@ export function resolveBadgePrintSettings(
     enabled: row.enabled,
     labelSize: row.labelSize,
     orientation: row.orientation,
+    horizontalLayout: row.horizontalLayout,
     showChildName: row.showChildName,
     showRegistrationNumber: row.showRegistrationNumber,
     showClassroomName: row.showClassroomName,
@@ -194,8 +249,14 @@ type BuildBadgeInput = {
   registrationId: string;
   childFirstName: string;
   childLastName: string;
+  childDateOfBirth?: Date | string | null;
   allergiesNotes: string | null;
   registrationNumber: string | null;
+  submissionCode?: string | null;
+  staffNotes?: string | null;
+  guardianFirstName?: string | null;
+  guardianLastName?: string | null;
+  guardianPhone?: string | null;
   checkInToken: string | null;
   seasonName: string;
   seasonYear: number;
@@ -205,7 +266,77 @@ type BuildBadgeInput = {
   qrDataUrl?: string | null;
   registrationRow?: RegistrationFieldValueRow | null;
   fieldOptions?: ExportFieldOption[];
+  printedAt?: Date;
 };
+
+function formatBirthdate(value: Date | string | null | undefined): string | null {
+  if (!value) return null;
+  const d = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toLocaleDateString("en-US", { month: "numeric", day: "numeric", year: "numeric" });
+}
+
+function buildStructuredData(input: BuildBadgeInput, answerLines: BadgePrintLine[]): BadgePrintStructured {
+  const classOrBadge =
+    input.badgeDisplayName?.trim() ||
+    (input.settings.showClassroomName ? input.classroomName?.trim() : null) ||
+    null;
+  const checkIn = input.settings.showCheckInLabel ? input.checkInLabel?.trim() : null;
+
+  const serviceParts: string[] = [];
+  if (input.settings.showSeasonName) {
+    serviceParts.push(`${input.seasonName} (${input.seasonYear})`);
+  }
+  if (classOrBadge) serviceParts.push(classOrBadge);
+  if (checkIn) serviceParts.push(checkIn);
+
+  const locationLine = serviceParts.join(" · ") || null;
+  const serviceLine =
+    input.settings.showSeasonName && classOrBadge
+      ? `${input.seasonName} — ${classOrBadge}`
+      : locationLine;
+
+  const guardianFirst = input.guardianFirstName?.trim() ?? "";
+  const guardianLast = input.guardianLastName?.trim() ?? "";
+  const guardianLine =
+    guardianLast || guardianFirst
+      ? `${guardianLast}${guardianLast && guardianFirst ? ", " : ""}${guardianFirst}`.trim()
+      : null;
+
+  const medicalLine = input.allergiesNotes?.trim()
+    ? input.allergiesNotes.trim()
+    : input.settings.showAllergyFlag
+      ? "Allergies on file"
+      : null;
+
+  const securityCode =
+    input.settings.showRegistrationNumber && input.registrationNumber
+      ? input.registrationNumber
+      : input.submissionCode?.trim() || null;
+
+  const printedAt = (input.printedAt ?? new Date()).toLocaleString("en-US", {
+    month: "2-digit",
+    day: "2-digit",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+
+  return {
+    firstName: input.childFirstName.trim(),
+    lastName: input.childLastName.trim(),
+    securityCode,
+    serviceLine,
+    locationLine,
+    guardianLine,
+    guardianPhone: input.guardianPhone?.trim() || null,
+    birthdate: formatBirthdate(input.childDateOfBirth),
+    medicalLine,
+    notesLine: input.staffNotes?.trim() || null,
+    answerLines,
+    printedAt,
+  };
+}
 
 export function buildBadgePrintPayload(input: BuildBadgeInput): BadgePrintPayload {
   const childName = `${input.childFirstName} ${input.childLastName}`.trim();
@@ -248,12 +379,22 @@ export function buildBadgePrintPayload(input: BuildBadgeInput): BadgePrintPayloa
       ? registrationTicketUrl(input.checkInToken, base)
       : null;
 
+  const answerLines = lines.filter((l) => l.kind === "formField");
+  const structured = buildStructuredData(input, answerLines);
+  const barcodeSource = structured.securityCode ?? input.registrationId.slice(-8).toUpperCase();
+  const barcodeDataUrl =
+    input.settings.orientation === "HORIZONTAL" && input.settings.horizontalLayout === "KIDCHECK"
+      ? barcodeSvgDataUrl(barcodeSource)
+      : null;
+
   return {
     registrationId: input.registrationId,
     settings: input.settings,
     lines,
+    structured,
     childName,
     qrDataUrl: input.qrDataUrl ?? null,
+    barcodeDataUrl,
     ticketUrl,
   };
 }
@@ -267,8 +408,14 @@ export function sampleBadgePreviewPayload(
     registrationId: "preview",
     childFirstName: "Alex",
     childLastName: "Rivera",
-    allergiesNotes: settings.showAllergyFlag ? "Peanuts" : null,
+    childDateOfBirth: "2018-06-15",
+    allergiesNotes: settings.showAllergyFlag ? "Peanut / tree nut allergy" : "None",
     registrationNumber: settings.showRegistrationNumber ? "VBS-2026-001" : null,
+    submissionCode: "ABC123",
+    staffNotes: "Potty training — please take to bathroom every 30 minutes.",
+    guardianFirstName: "Maria",
+    guardianLastName: "Rivera",
+    guardianPhone: "(555) 123-4567",
     checkInToken: settings.showQrCode ? "preview-token" : null,
     seasonName: "Summer VBS",
     seasonYear: 2026,

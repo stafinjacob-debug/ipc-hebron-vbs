@@ -4,6 +4,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import {
   parseBadgeFormFieldsForm,
+  parseBadgeHorizontalLayout,
   parseBadgeLabelSize,
   parseBadgeOrientation,
 } from "@/lib/badge-print";
@@ -68,6 +69,7 @@ export async function saveBadgePrintSettings(
       enabled: checkbox(formData, "enabled"),
       labelSize: parseBadgeLabelSize(str(formData, "labelSize")),
       orientation: parseBadgeOrientation(str(formData, "orientation")),
+      horizontalLayout: parseBadgeHorizontalLayout(str(formData, "horizontalLayout")),
       showChildName: checkbox(formData, "showChildName"),
       showRegistrationNumber: checkbox(formData, "showRegistrationNumber"),
       showClassroomName: checkbox(formData, "showClassroomName"),
@@ -84,6 +86,7 @@ export async function saveBadgePrintSettings(
       enabled: checkbox(formData, "enabled"),
       labelSize: parseBadgeLabelSize(str(formData, "labelSize")),
       orientation: parseBadgeOrientation(str(formData, "orientation")),
+      horizontalLayout: parseBadgeHorizontalLayout(str(formData, "horizontalLayout")),
       showChildName: checkbox(formData, "showChildName"),
       showRegistrationNumber: checkbox(formData, "showRegistrationNumber"),
       showClassroomName: checkbox(formData, "showClassroomName"),

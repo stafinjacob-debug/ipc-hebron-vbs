@@ -4,6 +4,7 @@ import { useActionState, useMemo, useState } from "react";
 import Link from "next/link";
 import type { BadgeFormFieldSelection, ResolvedBadgePrintSettings } from "@/lib/badge-print";
 import {
+  BADGE_HORIZONTAL_LAYOUT_OPTIONS,
   badgeLabelSizeOptions,
   sampleBadgePreviewPayload,
 } from "@/lib/badge-print";
@@ -171,6 +172,37 @@ export function BadgePrintSettingsForm({ seasonId, settings, formFieldOptions }:
             </div>
           </div>
         </div>
+        {draft.orientation === "HORIZONTAL" ? (
+          <div className="mt-4 border-t border-foreground/10 pt-4">
+            <span className="block text-xs font-medium text-foreground/70">Horizontal layout</span>
+            <p className="mt-1 text-xs text-muted">
+              Choose how fields are arranged on wide labels. Preview updates below.
+            </p>
+            <div className="mt-3 space-y-2">
+              {BADGE_HORIZONTAL_LAYOUT_OPTIONS.map((opt) => (
+                <label
+                  key={opt.value}
+                  className="flex cursor-pointer gap-3 rounded-md border border-foreground/10 px-3 py-2.5 hover:bg-foreground/[0.02]"
+                >
+                  <input
+                    type="radio"
+                    name="horizontalLayout"
+                    value={opt.value}
+                    checked={draft.horizontalLayout === opt.value}
+                    onChange={() => patchDraft({ horizontalLayout: opt.value })}
+                    className="mt-0.5"
+                  />
+                  <span>
+                    <span className="block text-sm font-medium text-foreground">{opt.label}</span>
+                    <span className="mt-0.5 block text-xs text-muted">{opt.description}</span>
+                  </span>
+                </label>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <input type="hidden" name="horizontalLayout" value={draft.horizontalLayout} readOnly />
+        )}
       </div>
 
       <div className="rounded-xl border border-foreground/10 p-4">
