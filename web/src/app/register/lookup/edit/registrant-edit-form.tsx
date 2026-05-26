@@ -1,29 +1,24 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
+import type { FormDefinitionV1 } from "@/lib/registration-form-definition";
+import { fieldsForSection, sortSections } from "@/lib/registration-form-definition";
+import type { PublicRegistrationFieldRules } from "@/lib/public-registration";
 import { saveRegistrantSubmissionAction, signOutRegistrantLookupAction } from "../actions";
+import { RegistrantEditFieldGroup } from "./registrant-edit-field-input";
 
 type ChildRow = {
   registrationId: string;
-  firstName: string;
-  lastName: string;
-  dateOfBirth: string;
-  allergiesNotes: string | null;
-  customResponsesJson: string;
+  values: Record<string, string>;
 };
 
 type Props = {
   registrationCode: string;
   seasonName: string;
-  showGuardianJson?: boolean;
-  guardian: {
-    firstName: string;
-    lastName: string;
-    email: string | null;
-    phone: string | null;
-  };
-  guardianResponsesJson: string;
+  definition: FormDefinitionV1;
+  rules: PublicRegistrationFieldRules;
+  guardianValues: Record<string, string>;
   children: ChildRow[];
 };
 
@@ -32,6 +27,27 @@ export function RegistrantEditForm(p: Props) {
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
   const [ok, setOk] = useState<boolean | null>(null);
+  const [guardianValues, setGuardianValues] = useState(p.guardianValues);
+  const [childRows, setChildRows] = useState(p.children);
+
+  const guardianSections = useMemo(
+    () => sortSections(p.definition).filter((s) => s.audience === "guardian" || s.audience === "consent"),
+    [p.definition],
+  );
+  const childSections = useMemo(
+    () => sortSections(p.definition).filter((s) => s.audience === "eachChild"),
+    [p.definition],
+  );
+
+  function updateChildValues(registrationId: string, key: string, value: string) {
+    setChildRows((rows) =>
+      rows.map((row) =>
+        row.registrationId === registrationId
+          ? { ...row, values: { ...row.values, [key]: value } }
+          : row,
+      ),
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -44,8 +60,8 @@ export function RegistrantEditForm(p: Props) {
         <div
           className={
             ok
-              ? "rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm"
-              : "rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm"
+              ? "rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-900"
+              : "rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-900"
           }
         >
           {message}
@@ -66,84 +82,65 @@ export function RegistrantEditForm(p: Props) {
           });
         }}
       >
-        <section className="space-y-3 rounded-xl border border-foreground/10 p-4">
-          <h2 className="text-sm font-semibold">Parent / guardian</h2>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div>
-              <label className="text-xs text-muted">First name</label>
-              <input
-                name="g_first"
-                required
-                defaultValue={p.guardian.firstName}
-                className="mt-1 w-full rounded-md border border-foreground/15 px-2 py-1.5 text-sm"
-              />
-            </div>
-            <div>
-              <label className="text-xs text-muted">Last name</label>
-              <input
-                name="g_last"
-                required
-                defaultValue={p.guardian.lastName}
-                className="mt-1 w-full rounded-md border border-foreground/15 px-2 py-1.5 text-sm"
-              />
-            </div>
-            <div>
-              <label className="text-xs text-muted">Email</label>
-              <input
-                name="g_email"
-                type="email"
-                defaultValue={p.guardian.email ?? ""}
-                className="mt-1 w-full rounded-md border border-foreground/15 px-2 py-1.5 text-sm"
-              />
-            </div>
-            <div>
-              <label className="text-xs text-muted">Phone</label>
-              <input
-                name="g_phone"
-                defaultValue={p.guardian.phone ?? ""}
-                className="mt-1 w-full rounded-md border border-foreground/15 px-2 py-1.5 text-sm"
-              />
-            </div>
-          </div>
-          {p.showGuardianJson !== false ? (
-            <div>
-              <label className="text-xs text-muted">Additional guardian answers (JSON)</label>
-              <textarea
-                name="g_json"
-                rows={5}
-                defaultValue={p.guardianResponsesJson}
-                className="mt-1 w-full rounded-md border border-foreground/15 px-2 py-1.5 font-mono text-xs"
-              />
-            </div>
-          ) : null}
-        </section>
+        {childRows.map((row) => (
+          <input
+            key={`reg-id-${row.registrationId}`}
+            type="hidden"
+            name="registrationIds"
+            value={row.registrationId}
+            readOnly
+          />
+        ))}
 
-        {p.children.map((c) => (
-          <section key={c.registrationId} className="space-y-3 rounded-xl border border-foreground/10 p-4">
-            <h2 className="text-sm font-semibold">
-              {c.firstName} {c.lastName}{" "}
-              <span className="font-normal text-muted">({c.dateOfBirth})</span>
-            </h2>
+        {guardianSections.map((section) => (
+          <section key={section.id} className="space-y-4 rounded-xl border border-foreground/10 p-4">
             <div>
-              <label className="text-xs text-muted">Allergies / medical notes</label>
-              <textarea
-                name={`allergies_${c.registrationId}`}
-                rows={2}
-                defaultValue={c.allergiesNotes ?? ""}
-                className="mt-1 w-full rounded-md border border-foreground/15 px-2 py-1.5 text-sm"
-              />
+              <h2 className="text-sm font-semibold">{section.title}</h2>
+              {section.description?.trim() ? (
+                <p className="mt-1 text-xs text-muted">{section.description}</p>
+              ) : null}
             </div>
-            <div>
-              <label className="text-xs text-muted">Additional child answers (JSON)</label>
-              <textarea
-                name={`child_json_${c.registrationId}`}
-                rows={5}
-                defaultValue={c.customResponsesJson}
-                className="mt-1 w-full rounded-md border border-foreground/15 px-2 py-1.5 font-mono text-xs"
-              />
-            </div>
+            <RegistrantEditFieldGroup
+              fields={fieldsForSection(p.definition, section.id)}
+              values={guardianValues}
+              onChange={(key, value) => setGuardianValues((prev) => ({ ...prev, [key]: value }))}
+              rules={p.rules}
+            />
           </section>
         ))}
+
+        {childRows.map((row) => {
+          const childName =
+            `${row.values.childFirstName ?? ""} ${row.values.childLastName ?? ""}`.trim() || "Child";
+          const dob = row.values.childDateOfBirth?.trim();
+          return (
+            <div key={row.registrationId} className="space-y-4">
+              {childSections.map((section) => (
+                <section
+                  key={`${row.registrationId}-${section.id}`}
+                  className="space-y-4 rounded-xl border border-foreground/10 p-4"
+                >
+                  <div>
+                    <h2 className="text-sm font-semibold">
+                      {childName}
+                      {dob ? <span className="font-normal text-muted"> ({dob})</span> : null}
+                    </h2>
+                    {section.description?.trim() ? (
+                      <p className="mt-1 text-xs text-muted">{section.description}</p>
+                    ) : null}
+                  </div>
+                  <RegistrantEditFieldGroup
+                    fields={fieldsForSection(p.definition, section.id)}
+                    values={row.values}
+                    onChange={(key, value) => updateChildValues(row.registrationId, key, value)}
+                    rules={p.rules}
+                    registrationId={row.registrationId}
+                  />
+                </section>
+              ))}
+            </div>
+          );
+        })}
 
         <div className="flex flex-wrap gap-3">
           <button

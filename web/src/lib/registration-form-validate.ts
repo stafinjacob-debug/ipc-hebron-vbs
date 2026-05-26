@@ -110,7 +110,7 @@ export function extractStripeSkipEvaluationData(
   return { guardian, guardianCustom, children };
 }
 
-function validateFieldValue(field: FormFieldDef, raw: string): string | null {
+export function validateFieldValue(field: FormFieldDef, raw: string): string | null {
   const v = raw.trim();
   if (field.type === "checkbox" || field.type === "boolean") {
     const checked = v === "true" || v === "on";

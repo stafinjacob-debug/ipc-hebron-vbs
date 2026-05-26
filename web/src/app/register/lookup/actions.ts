@@ -4,7 +4,12 @@ import { randomInt } from "crypto";
 import { compare, hash } from "bcryptjs";
 import { z } from "zod";
 import type { Prisma } from "@/generated/prisma";
+import { getEffectiveDefinition } from "@/lib/ensure-registration-form";
 import { prisma } from "@/lib/prisma";
+import { rulesFromDb } from "@/lib/public-registration";
+import { parseRegistrantEditForm } from "@/lib/registrant-edit-form";
+import { createDefaultFormDefinition } from "@/lib/registration-form-definition";
+import { parseLocalDate } from "@/lib/schemas/vbs-registration";
 import { sendRegistrantLookupOtpEmail } from "@/lib/email/send-registrant-lookup-otp-email";
 import { isMicrosoftGraphEmailConfigured } from "@/lib/email/microsoft-graph";
 import {
@@ -348,53 +353,76 @@ export async function saveRegistrantSubmissionAction(
     return { ok: false, message: "Your session expired. Look up your registration again." };
   }
 
-  const fn = String(formData.get("g_first") ?? "").trim();
-  const ln = String(formData.get("g_last") ?? "").trim();
-  const email = String(formData.get("g_email") ?? "").trim() || null;
-  const phone = String(formData.get("g_phone") ?? "").trim() || null;
-
-  if (!fn || !ln) {
-    return { ok: false, message: "Guardian first and last name are required." };
+  const registrationIds = formData
+    .getAll("registrationIds")
+    .map((v) => String(v).trim())
+    .filter(Boolean);
+  if (registrationIds.length === 0) {
+    return { ok: false, message: "No registration selected to update." };
   }
 
   if (session.kind === "registration") {
+    if (registrationIds.length !== 1 || registrationIds[0] !== session.registrationId) {
+      return { ok: false, message: "Session mismatch. Look up your registration again." };
+    }
+
     const reg = await prisma.registration.findFirst({
       where: {
         id: session.registrationId,
         ...registrantLookupRegistrationForEmail(session.emailNormalized),
       },
-      include: { child: { include: { guardian: true } } },
+      include: {
+        child: { include: { guardian: true } },
+        season: { include: { publicRegistrationSettings: true, registrationForm: true } },
+      },
     });
     if (!reg) {
       return { ok: false, message: "Registration not found." };
     }
 
-    let customResponses: object | undefined;
-    const childJson = String(formData.get(`child_json_${reg.id}`) ?? "").trim();
-    if (childJson) {
-      try {
-        customResponses = JSON.parse(childJson) as object;
-      } catch {
-        return { ok: false, message: "Custom child responses must be valid JSON." };
-      }
+    const definition =
+      getEffectiveDefinition(
+        {
+          publishedDefinitionJson: reg.season.registrationForm?.publishedDefinitionJson ?? null,
+          draftDefinitionJson: reg.season.registrationForm?.draftDefinitionJson ?? null,
+        },
+        false,
+      ) ?? createDefaultFormDefinition();
+    const rules = rulesFromDb(reg.season.publicRegistrationSettings);
+    const parsed = parseRegistrantEditForm(formData, definition, registrationIds, rules);
+    if (!parsed.ok) return { ok: false, message: parsed.message };
+
+    const child = parsed.children[0]!;
+    let childDob: Date;
+    try {
+      childDob = parseLocalDate(child.childDateOfBirth);
+    } catch {
+      return { ok: false, message: "Enter a valid date of birth." };
     }
 
-    const allergies = String(formData.get(`allergies_${reg.id}`) ?? "").trim() || null;
-
+    const priorCustom = (reg.customResponses as Record<string, unknown> | null) ?? {};
     await prisma.$transaction(async (tx) => {
       await tx.guardian.update({
         where: { id: reg.child.guardianId },
-        data: { firstName: fn, lastName: ln, email, phone },
+        data: {
+          firstName: parsed.guardian.guardianFirstName,
+          lastName: parsed.guardian.guardianLastName,
+          email: parsed.guardian.guardianEmail ?? null,
+          phone: parsed.guardian.guardianPhone ?? null,
+        },
       });
-      if (customResponses) {
-        await tx.registration.update({
-          where: { id: reg.id },
-          data: { customResponses },
-        });
-      }
+      await tx.registration.update({
+        where: { id: reg.id },
+        data: { customResponses: { ...priorCustom, ...child.custom } as object },
+      });
       await tx.child.update({
         where: { id: reg.childId },
-        data: { allergiesNotes: allergies },
+        data: {
+          firstName: child.childFirstName,
+          lastName: child.childLastName,
+          dateOfBirth: childDob,
+          allergiesNotes: child.allergiesNotes,
+        },
       });
     });
 
@@ -411,6 +439,7 @@ export async function saveRegistrantSubmissionAction(
         where: registrantLookupRegistrationWhere,
         include: { child: { include: { guardian: true } } },
       },
+      season: { include: { publicRegistrationSettings: true, registrationForm: true } },
     },
   });
   if (!submission || submission.registrations.length === 0) {
@@ -427,53 +456,68 @@ export async function saveRegistrantSubmissionAction(
     return { ok: false, message: "Session mismatch. Look up your registration again." };
   }
 
-  let guardianResponses: object = {};
-  const guardianJson = String(formData.get("g_json") ?? "").trim();
-  if (guardianJson) {
-    try {
-      guardianResponses = JSON.parse(guardianJson) as object;
-    } catch {
-      return { ok: false, message: "Custom guardian responses must be valid JSON." };
-    }
+  const allowedIds = new Set(submission.registrations.map((r) => r.id));
+  if (!registrationIds.every((id) => allowedIds.has(id))) {
+    return { ok: false, message: "One or more registrations could not be updated." };
   }
+
+  const definition =
+    getEffectiveDefinition(
+      {
+        publishedDefinitionJson: submission.season.registrationForm?.publishedDefinitionJson ?? null,
+        draftDefinitionJson: submission.season.registrationForm?.draftDefinitionJson ?? null,
+      },
+      false,
+    ) ?? createDefaultFormDefinition();
+  const rules = rulesFromDb(submission.season.publicRegistrationSettings);
+  const parsed = parseRegistrantEditForm(formData, definition, registrationIds, rules);
+  if (!parsed.ok) return { ok: false, message: parsed.message };
+
+  const childByRegId = new Map(parsed.children.map((c) => [c.registrationId, c]));
+  const priorResponses = (submission.guardianResponses as Record<string, unknown> | null) ?? {};
+  const guardianResponses: Record<string, unknown> = {
+    ...priorResponses,
+    ...parsed.guardianCustom,
+  };
 
   try {
     await prisma.$transaction(async (tx) => {
       await tx.guardian.update({
         where: { id: submission.guardianId },
-        data: { firstName: fn, lastName: ln, email, phone },
+        data: {
+          firstName: parsed.guardian.guardianFirstName,
+          lastName: parsed.guardian.guardianLastName,
+          email: parsed.guardian.guardianEmail ?? null,
+          phone: parsed.guardian.guardianPhone ?? null,
+        },
       });
       await tx.formSubmission.update({
         where: { id: submission.id },
-        data: { guardianResponses },
+        data: { guardianResponses: guardianResponses as object },
       });
 
       for (const reg of submission.registrations) {
-        const childJson = String(formData.get(`child_json_${reg.id}`) ?? "").trim();
-        if (childJson) {
-          let customResponses: object = {};
-          try {
-            customResponses = JSON.parse(childJson) as object;
-          } catch {
-            throw new Error("INVALID_CHILD_JSON");
-          }
-          await tx.registration.update({
-            where: { id: reg.id },
-            data: { customResponses },
-          });
-        }
-        const allergies = String(formData.get(`allergies_${reg.id}`) ?? "").trim() || null;
+        const child = childByRegId.get(reg.id);
+        if (!child) continue;
+        const childDob = parseLocalDate(child.childDateOfBirth);
+        const priorCustom = (reg.customResponses as Record<string, unknown> | null) ?? {};
+        await tx.registration.update({
+          where: { id: reg.id },
+          data: { customResponses: { ...priorCustom, ...child.custom } as object },
+        });
         await tx.child.update({
           where: { id: reg.childId },
-          data: { allergiesNotes: allergies },
+          data: {
+            firstName: child.childFirstName,
+            lastName: child.childLastName,
+            dateOfBirth: childDob,
+            allergiesNotes: child.allergiesNotes,
+          },
         });
       }
     });
-  } catch (e) {
-    if (e instanceof Error && e.message === "INVALID_CHILD_JSON") {
-      return { ok: false, message: "Custom child responses must be valid JSON." };
-    }
-    throw e;
+  } catch {
+    return { ok: false, message: "Enter a valid date of birth for each child." };
   }
 
   revalidatePath("/register/lookup/edit");
