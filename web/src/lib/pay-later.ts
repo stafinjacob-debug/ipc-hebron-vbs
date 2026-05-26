@@ -2,6 +2,10 @@
 
 import { formatCalendarDateLong } from "@/lib/season-calendar-date";
 
+/** Shown when payment is still due (emails and pay-later notices). */
+export const VBS_PAYMENT_DEADLINE_NOTICE =
+  "To finalize your child's VBS registration, payment must be received by the first day of VBS. Unfortunately unpaid registrations will not be eligible to attend VBS or receive a VBS t-shirt.";
+
 export function formatVbsFirstDayLabel(startDate: Date): string {
   return formatCalendarDateLong(startDate, "en-US", { weekday: "long" });
 }

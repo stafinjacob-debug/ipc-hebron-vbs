@@ -11,7 +11,7 @@ import {
   submissionCancelUrl,
   submissionPayUrl,
 } from "@/lib/registration-public-token";
-import { formatVbsFirstDayLabel } from "@/lib/pay-later";
+import { formatVbsFirstDayLabel, VBS_PAYMENT_DEADLINE_NOTICE } from "@/lib/pay-later";
 import { formatSeasonDateRange } from "@/lib/season-calendar-date";
 import { isCheckoutPendingRegistration } from "@/lib/registration-list-payment";
 import { resolveCheckoutResumeUrlForSubmission } from "@/lib/stripe-registration-payment";
@@ -302,6 +302,10 @@ async function ensureRegistrationIdentitiesForSubmission(submissionId: string): 
   }
 }
 
+function paymentDeadlineNoticeHtml(): string {
+  return `<p style="margin:0;padding:12px 14px;border-radius:12px;background:#fffbeb;border:1px solid #fde68a;color:#92400e;font-size:14px;line-height:1.55;">${escapeHtml(VBS_PAYMENT_DEADLINE_NOTICE)}</p>`;
+}
+
 function buildPayLaterPaymentInstructionsHtml(args: {
   dayOneLabel: string;
   seasonName: string;
@@ -327,6 +331,7 @@ function buildPayLaterPaymentInstructionsHtml(args: {
         <li style="margin:0 0 6px;"><strong>Zelle</strong> or <strong>card</strong></li>
         <li style="margin:0;">Cash and checks are <strong>not</strong> accepted on site.</li>
       </ul>
+      <div style="margin-top:12px;">${paymentDeadlineNoticeHtml()}</div>
     </div>`;
 }
 
@@ -889,6 +894,7 @@ export async function sendCheckoutReminderEmail(formSubmissionId: string): Promi
       Your VBS registration for <strong>${season}</strong> (reference <strong>${code}</strong>) is saved, but
       <strong>card payment is not finished yet</strong>. Use the button below to return to secure checkout and pay where you left off.
     </p>
+    <div style="margin:0 0 16px;">${paymentDeadlineNoticeHtml()}</div>
     <p style="margin:0 0 8px;font-size:14px;font-weight:600;color:#0f172a;">Children on this registration</p>
     <ul style="margin:0 0 16px;padding-left:20px;color:#334155;font-size:15px;line-height:1.5;">
       ${childLines || `<li>Your registered children</li>`}
@@ -946,6 +952,7 @@ export async function sendPaymentReminderEmail(registrationId: string): Promise<
   const inner = `
     <p style="margin:0 0 16px;">Hi ${escapeHtml(gname)},</p>
     <p style="margin:0 0 16px;">This is a friendly reminder about the program fee for <strong>${escapeHtml(childName)}</strong>’s registration <strong>${num}</strong> for <strong>${season}</strong>.</p>
+    <div style="margin:0 0 16px;">${paymentDeadlineNoticeHtml()}</div>
     <p style="margin:0 0 16px;">If you’ve already paid, thank you — you can disregard this message.</p>
     ${
       contact
