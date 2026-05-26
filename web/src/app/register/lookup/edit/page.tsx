@@ -4,9 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { readRegistrantLookupSession } from "@/lib/registrant-lookup-session";
 import {
   registrantLookupEmailMatchesSubmission,
-  registrantLookupRegistrationForEmail,
   registrantLookupRegistrationWhere,
-  registrantLookupSubmissionForEmail,
 } from "@/lib/registrant-lookup";
 import { RegistrantEditForm } from "./registrant-edit-form";
 
@@ -15,17 +13,19 @@ export default async function RegistrantLookupEditPage() {
   if (!session) redirect("/register/lookup");
 
   if (session.kind === "registration") {
-    const reg = await prisma.registration.findFirst({
-      where: {
-        id: session.registrationId,
-        ...registrantLookupRegistrationForEmail(session.emailNormalized),
-      },
+    const reg = await prisma.registration.findUnique({
+      where: { id: session.registrationId },
       include: {
         season: { select: { name: true } },
         child: { include: { guardian: true } },
       },
     });
     if (!reg) redirect("/register/lookup");
+    const active =
+      reg.status === "PENDING" || reg.status === "CONFIRMED" || reg.status === "WAITLIST";
+    const emailOk =
+      (reg.child.guardian.email ?? "").trim().toLowerCase() === session.emailNormalized;
+    if (!active || !emailOk) redirect("/register/lookup");
 
     const guardian = reg.child.guardian;
     return (
@@ -64,11 +64,8 @@ export default async function RegistrantLookupEditPage() {
     );
   }
 
-  const submission = await prisma.formSubmission.findFirst({
-    where: {
-      id: session.submissionId,
-      ...registrantLookupSubmissionForEmail(session.emailNormalized),
-    },
+  const submission = await prisma.formSubmission.findUnique({
+    where: { id: session.submissionId },
     include: {
       guardian: true,
       season: { select: { name: true } },
@@ -80,7 +77,7 @@ export default async function RegistrantLookupEditPage() {
     },
   });
 
-  if (!submission) redirect("/register/lookup");
+  if (!submission || submission.registrations.length === 0) redirect("/register/lookup");
 
   if (
     !registrantLookupEmailMatchesSubmission({

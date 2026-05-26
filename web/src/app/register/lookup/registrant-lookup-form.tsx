@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import {
   openRegistrantSubmissionAction,
@@ -12,7 +11,6 @@ import {
 type Step = "request" | "verify" | "pick";
 
 export function RegistrantLookupForm() {
-  const router = useRouter();
   const [step, setStep] = useState<Step>("request");
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
@@ -50,11 +48,6 @@ export function RegistrantLookupForm() {
       if (r.ok && r.step === "pick_submission" && r.submissions?.length) {
         setPickList(r.submissions);
         setStep("pick");
-        return;
-      }
-      if (r.ok && (!r.step || r.step !== "pick_submission")) {
-        router.push("/register/lookup/edit");
-        router.refresh();
       }
     });
   }
@@ -65,10 +58,6 @@ export function RegistrantLookupForm() {
       const r = await openRegistrantSubmissionAction(item.key, item.kind, email);
       setOk(r.ok);
       setMessage(r.message);
-      if (r.ok) {
-        router.push("/register/lookup/edit");
-        router.refresh();
-      }
     });
   }
 

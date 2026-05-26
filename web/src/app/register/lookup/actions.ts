@@ -22,6 +22,7 @@ import {
   type RegistrantLookupPickItem,
 } from "@/lib/registrant-lookup";
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 
 export type RegistrantLookupActionState = {
   ok: boolean;
@@ -303,9 +304,13 @@ export async function verifyRegistrantLookupOtpAction(
   if (pickItems.length === 1) {
     const ok = await openLookupSession(pickItems[0]!, parsedEmail.data);
     if (!ok) {
-      return { ok: false, message: "Could not start your session. Try again." };
+      return {
+        ok: false,
+        message:
+          "Could not start your session. The server may be missing AUTH_SECRET — contact the VBS team.",
+      };
     }
-    return { ok: true, message: "Verified. Opening your registration…" };
+    redirect("/register/lookup/edit");
   }
 
   return {
@@ -332,7 +337,7 @@ export async function openRegistrantSubmissionAction(
   if (!ok) {
     return { ok: false, message: "Could not start your session. Try again." };
   }
-  return { ok: true, message: "Opening your registration…" };
+  redirect("/register/lookup/edit");
 }
 
 export async function saveRegistrantSubmissionAction(
@@ -398,11 +403,8 @@ export async function saveRegistrantSubmissionAction(
     return { ok: true, message: "Your registration has been updated." };
   }
 
-  const submission = await prisma.formSubmission.findFirst({
-    where: {
-      id: session.submissionId,
-      ...registrantLookupSubmissionForEmail(session.emailNormalized),
-    },
+  const submission = await prisma.formSubmission.findUnique({
+    where: { id: session.submissionId },
     include: {
       guardian: true,
       registrations: {
@@ -411,7 +413,7 @@ export async function saveRegistrantSubmissionAction(
       },
     },
   });
-  if (!submission) {
+  if (!submission || submission.registrations.length === 0) {
     return { ok: false, message: "Registration not found." };
   }
 

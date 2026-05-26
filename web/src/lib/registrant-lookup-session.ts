@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 
 const COOKIE_NAME = "registrant_lookup_session";
 const SESSION_TTL_SEC = 60 * 60; // 1 hour
+const LEGACY_COOKIE_PATHS = ["/register/lookup", "/register", "/"] as const;
 
 export type RegistrantLookupSession =
   | { kind: "submission"; submissionId: string; emailNormalized: string }
@@ -25,11 +26,22 @@ function signPayload(payload: string): string | null {
 
 export function signRegistrantLookupSession(session: RegistrantLookupSession): string | null {
   const exp = Math.floor(Date.now() / 1000) + SESSION_TTL_SEC;
+  const emailPart = Buffer.from(session.emailNormalized, "utf8").toString("base64url");
   const payload =
     session.kind === "submission"
-      ? `s:${session.submissionId}:${session.emailNormalized}:${exp}`
-      : `r:${session.registrationId}:${session.emailNormalized}:${exp}`;
+      ? `s:${session.submissionId}:${emailPart}:${exp}`
+      : `r:${session.registrationId}:${emailPart}:${exp}`;
   return signPayload(payload);
+}
+
+function decodeEmailPart(emailPart: string): string {
+  try {
+    const decoded = Buffer.from(emailPart, "base64url").toString("utf8").trim().toLowerCase();
+    if (decoded.includes("@")) return decoded;
+  } catch {
+    // fall through — legacy plain-text email in token
+  }
+  return emailPart.trim().toLowerCase();
 }
 
 /** @deprecated Use signRegistrantLookupSession — kept for legacy token minting tests. */
@@ -64,11 +76,13 @@ export function verifyRegistrantLookupSessionToken(token: string): RegistrantLoo
   }
 
   if (segs.length === 4) {
-    const [kind, id, emailNormalized, expStr] = segs;
+    const [kind, id, emailPart, expStr] = segs;
     const exp = Number.parseInt(expStr, 10);
-    if (!id || !emailNormalized || !Number.isFinite(exp) || exp < Math.floor(Date.now() / 1000)) {
+    if (!id || !emailPart || !Number.isFinite(exp) || exp < Math.floor(Date.now() / 1000)) {
       return null;
     }
+    const emailNormalized = decodeEmailPart(emailPart);
+    if (!emailNormalized) return null;
     if (kind === "s") return { kind: "submission", submissionId: id, emailNormalized };
     if (kind === "r") return { kind: "registration", registrationId: id, emailNormalized };
   }
@@ -76,15 +90,22 @@ export function verifyRegistrantLookupSessionToken(token: string): RegistrantLoo
   return null;
 }
 
+async function clearLegacyLookupSessionCookies(jar: Awaited<ReturnType<typeof cookies>>): Promise<void> {
+  for (const path of LEGACY_COOKIE_PATHS) {
+    jar.delete({ name: COOKIE_NAME, path });
+  }
+}
+
 export async function setRegistrantLookupSessionCookie(session: RegistrantLookupSession): Promise<boolean> {
   const token = signRegistrantLookupSession(session);
   if (!token) return false;
   const jar = await cookies();
+  await clearLegacyLookupSessionCookies(jar);
   jar.set(COOKIE_NAME, token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
-    path: "/register",
+    path: "/",
     maxAge: SESSION_TTL_SEC,
   });
   return true;
@@ -99,5 +120,5 @@ export async function readRegistrantLookupSession(): Promise<RegistrantLookupSes
 
 export async function clearRegistrantLookupSessionCookie(): Promise<void> {
   const jar = await cookies();
-  jar.delete({ name: COOKIE_NAME, path: "/register" });
+  await clearLegacyLookupSessionCookies(jar);
 }
