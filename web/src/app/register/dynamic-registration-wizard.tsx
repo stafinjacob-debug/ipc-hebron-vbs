@@ -48,7 +48,7 @@ import { shouldSkipStripeForSubmission } from "@/lib/stripe-skip-rule";
 import type { PublicRegistrationLayout } from "@/generated/prisma";
 import { RegistrationBackgroundMedia } from "./registration-background-media";
 import { RegistrationHeroBrand } from "./registration-hero-brand";
-import { payLaterNoticeParagraphs, resolvePayLaterNotice } from "@/lib/pay-later";
+import { payLaterNoticeParagraphs, resolvePayLaterNotice, VBS_PAYMENT_DEADLINE_NOTICE } from "@/lib/pay-later";
 import { formatSeasonDateRange } from "@/lib/season-calendar-date";
 import { submitPublicRegistration, type PublicRegisterState } from "./actions";
 
@@ -1140,15 +1140,20 @@ export function DynamicRegistrationWizard({
             </p>
           ) : null}
           {state?.payLaterSubmitted && state.payLaterNotice ? (
-            <div className="mt-4 space-y-3 rounded-xl border border-amber-500/35 bg-amber-50 px-4 py-3 text-left text-sm leading-relaxed text-amber-950 dark:border-amber-500/25 dark:bg-amber-950/40 dark:text-amber-100">
-              <p className="font-semibold">Pay later — what to know</p>
-              {payLaterNoticeParagraphs(state.payLaterNotice).map((para) => (
-                <p key={para.slice(0, 48)}>{para}</p>
-              ))}
-              <p className="text-xs text-amber-900/80 dark:text-amber-200/80">
-                Payment details are also in the confirmation email we sent you.
-              </p>
-            </div>
+            <>
+              <div className="mt-4 space-y-3 rounded-xl border border-amber-500/35 bg-amber-50 px-4 py-3 text-left text-sm leading-relaxed text-amber-950 dark:border-amber-500/25 dark:bg-amber-950/40 dark:text-amber-100">
+                <p className="font-semibold">Pay later — what to know</p>
+                {payLaterNoticeParagraphs(state.payLaterNotice).map((para) => (
+                  <p key={para.slice(0, 48)}>{para}</p>
+                ))}
+                <p className="text-xs text-amber-900/80 dark:text-amber-200/80">
+                  Payment details are also in the confirmation email we sent you.
+                </p>
+              </div>
+              <div className="mt-3 rounded-xl border border-red-300/60 bg-red-50 px-4 py-3 text-left text-sm leading-relaxed text-red-950 dark:border-red-500/30 dark:bg-red-950/40 dark:text-red-100">
+                <p>{VBS_PAYMENT_DEADLINE_NOTICE}</p>
+              </div>
+            </>
           ) : null}
           <p className="mt-6 text-xs text-neutral-500">
             Questions?{" "}
