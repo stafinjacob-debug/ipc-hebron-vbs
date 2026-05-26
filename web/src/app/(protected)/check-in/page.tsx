@@ -22,7 +22,11 @@ export default async function CheckInPage() {
     ? await prisma.registration.findMany({
         where: { seasonId: activeSeason.id, status: { not: "CANCELLED" } },
         orderBy: [{ checkedInAt: "asc" }, { child: { lastName: "asc" } }],
-        include: { child: true, classroom: true },
+        include: {
+          child: true,
+          classroom: true,
+          formSubmission: { select: { registrationCode: true } },
+        },
       })
     : [];
 
@@ -37,7 +41,8 @@ export default async function CheckInPage() {
             Check-in desk
           </h1>
           <p className="mt-1 text-muted">
-            Mark arrivals for your active VBS season. Use an iPad here to check in families and print thermal badges.
+            Mark arrivals for your active VBS season. Scan a QR code or enter a registration code to find a child,
+            then check in and print badges from an iPad.
           </p>
         </div>
         <Link
@@ -79,21 +84,9 @@ export default async function CheckInPage() {
         </div>
       )}
 
-      {activeSeason && rows.length === 0 && (
-        <div className="rounded-xl border border-foreground/10 bg-surface-elevated px-6 py-10 text-center">
-          <p className="font-medium text-foreground">No registrations for this season yet</p>
-          <p className="mt-2 text-sm text-muted">When families register, they will appear here for check-in.</p>
-          <Link
-            href="/registrations/new"
-            className="mt-4 inline-flex rounded-lg bg-brand px-4 py-2 text-sm font-medium text-brand-foreground hover:opacity-90"
-          >
-            Add registration
-          </Link>
-        </div>
-      )}
-
-      {activeSeason && rows.length > 0 && (
+      {activeSeason && (
         <CheckInDeskClient
+          seasonId={activeSeason.id}
           badgePrintingEnabled={badgeSettings.enabled}
           autoPrintOnCheckIn={badgeSettings.autoPrintOnCheckIn}
           rows={rows.map((r) => ({
@@ -101,6 +94,8 @@ export default async function CheckInPage() {
             studentName: `${r.child.firstName} ${r.child.lastName}`,
             className: r.classroom?.name ?? "—",
             checkedIn: Boolean(r.checkedInAt),
+            registrationNumber: r.registrationNumber,
+            submissionCode: r.formSubmission?.registrationCode ?? null,
           }))}
         />
       )}

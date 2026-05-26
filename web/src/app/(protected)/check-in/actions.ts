@@ -4,7 +4,100 @@ import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { resolveBadgePrintSettings } from "@/lib/badge-print";
+import { parseCheckInLookupInput, type CheckInLookupMatch } from "@/lib/check-in-lookup";
 import { canUseCheckInActions } from "@/lib/permissions";
+
+export type LookupRegistrationForCheckInResult =
+  | { ok: true; matches: CheckInLookupMatch[] }
+  | { ok: false; message: string };
+
+function mapRegistrationToLookupMatch(r: {
+  id: string;
+  checkedInAt: Date | null;
+  registrationNumber: string | null;
+  child: { firstName: string; lastName: string };
+  classroom: { name: string } | null;
+  formSubmission: { registrationCode: string } | null;
+}): CheckInLookupMatch {
+  return {
+    id: r.id,
+    studentName: `${r.child.firstName} ${r.child.lastName}`.trim(),
+    className: r.classroom?.name ?? "—",
+    checkedIn: Boolean(r.checkedInAt),
+    registrationNumber: r.registrationNumber,
+    submissionCode: r.formSubmission?.registrationCode ?? null,
+  };
+}
+
+export async function lookupRegistrationForCheckIn(
+  seasonId: string,
+  rawInput: string,
+): Promise<LookupRegistrationForCheckInResult> {
+  const session = await auth();
+  if (!session?.user?.role || !canUseCheckInActions(session.user.role)) {
+    return { ok: false, message: "You do not have permission to look up registrations." };
+  }
+
+  const season = await prisma.vbsSeason.findUnique({ where: { id: seasonId }, select: { id: true, name: true } });
+  if (!season) return { ok: false, message: "Season not found." };
+
+  const parsed = parseCheckInLookupInput(rawInput);
+  if (!parsed.checkInToken && !parsed.plainCode) {
+    return { ok: false, message: "Enter a registration code or scan a check-in QR code." };
+  }
+
+  const baseWhere = {
+    seasonId,
+    status: { not: "CANCELLED" as const },
+  };
+
+  const include = {
+    child: true,
+    classroom: true,
+    formSubmission: { select: { registrationCode: true } },
+  } as const;
+
+  if (parsed.checkInToken) {
+    const reg = await prisma.registration.findFirst({
+      where: { ...baseWhere, checkInToken: parsed.checkInToken },
+      include,
+    });
+    if (!reg) {
+      return { ok: false, message: "No registration found for that QR code in the active season." };
+    }
+    return { ok: true, matches: [mapRegistrationToLookupMatch(reg)] };
+  }
+
+  const code = parsed.plainCode!;
+  const byNumber = await prisma.registration.findMany({
+    where: {
+      ...baseWhere,
+      registrationNumber: { equals: code, mode: "insensitive" },
+    },
+    include,
+    orderBy: [{ child: { lastName: "asc" } }, { child: { firstName: "asc" } }],
+  });
+  if (byNumber.length > 0) {
+    return { ok: true, matches: byNumber.map(mapRegistrationToLookupMatch) };
+  }
+
+  const bySubmission = await prisma.registration.findMany({
+    where: {
+      ...baseWhere,
+      formSubmission: { registrationCode: { equals: code, mode: "insensitive" } },
+    },
+    include,
+    orderBy: [{ child: { lastName: "asc" } }, { child: { firstName: "asc" } }],
+  });
+  if (bySubmission.length > 0) {
+    return { ok: true, matches: bySubmission.map(mapRegistrationToLookupMatch) };
+  }
+
+  return {
+    ok: false,
+    message: `No registration found for “${code}” in ${season.name}. Try the child’s registration number or family submission code.`,
+  };
+}
 
 export type ToggleCheckInResult = {
   ok: boolean;
