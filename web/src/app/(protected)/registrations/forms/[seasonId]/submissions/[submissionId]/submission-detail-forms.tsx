@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
+import type { FormDefinitionV1 } from "@/lib/registration-form-definition";
+import type { PublicRegistrationFieldRules } from "@/lib/public-registration";
 import { sendCheckoutReminderForSubmissionAction } from "@/app/(protected)/registrations/registration-actions";
 import {
   bulkCancelSubmission,
@@ -11,13 +13,24 @@ import {
   updateSubmissionGuardianAndResponses,
   updateSubmissionRegistrations,
 } from "../../../actions";
+import { AdminFormEntriesEdit } from "./admin-form-entries-edit";
 
 const STATUSES = ["PENDING", "CONFIRMED", "WAITLIST", "CANCELLED", "CHECKED_OUT", "DRAFT"] as const;
+
+type ChildRow = {
+  registrationId: string;
+  values: Record<string, string>;
+};
 
 export function SubmissionDetailForms({
   seasonId,
   submissionId,
   canEdit,
+  adminStructuredEditEnabled = false,
+  definition,
+  rules,
+  guardianValues,
+  children,
   guardian,
   responsesJson,
   registrations,
@@ -26,6 +39,11 @@ export function SubmissionDetailForms({
   seasonId: string;
   submissionId: string;
   canEdit: boolean;
+  adminStructuredEditEnabled?: boolean;
+  definition?: FormDefinitionV1;
+  rules?: PublicRegistrationFieldRules;
+  guardianValues?: Record<string, string>;
+  children?: ChildRow[];
   /** Family still has an open Stripe Checkout session. */
   checkoutPending?: boolean;
   guardian: {
@@ -161,80 +179,99 @@ export function SubmissionDetailForms({
         </button>
       </div>
 
-      <form
-        className="space-y-4 rounded-xl border border-foreground/10 p-4"
-        onSubmit={(e) => {
-          e.preventDefault();
-          const fd = new FormData(e.currentTarget);
-          setMsg(null);
-          startTransition(async () => {
-            const r = await updateSubmissionGuardianAndResponses(submissionId, {
-              firstName: String(fd.get("g_first") ?? ""),
-              lastName: String(fd.get("g_last") ?? ""),
-              email: String(fd.get("g_email") ?? "").trim() || null,
-              phone: String(fd.get("g_phone") ?? "").trim() || null,
-              guardianResponsesJson: String(fd.get("g_json") ?? ""),
+      {adminStructuredEditEnabled && definition && rules && guardianValues && children ? (
+        <AdminFormEntriesEdit
+          submissionId={submissionId}
+          definition={definition}
+          rules={rules}
+          guardianValues={guardianValues}
+          children={children}
+        />
+      ) : (
+        <form
+          className="space-y-4 rounded-xl border border-foreground/10 p-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            const fd = new FormData(e.currentTarget);
+            setMsg(null);
+            startTransition(async () => {
+              const r = await updateSubmissionGuardianAndResponses(submissionId, {
+                firstName: String(fd.get("g_first") ?? ""),
+                lastName: String(fd.get("g_last") ?? ""),
+                email: String(fd.get("g_email") ?? "").trim() || null,
+                phone: String(fd.get("g_phone") ?? "").trim() || null,
+                guardianResponsesJson: String(fd.get("g_json") ?? ""),
+              });
+              setMsg(r.message);
+              if (r.ok) router.refresh();
             });
-            setMsg(r.message);
-            if (r.ok) router.refresh();
-          });
-        }}
-      >
-        <h3 className="text-sm font-semibold">Guardian & extra responses</h3>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div>
-            <label className="text-xs text-foreground/70">First name</label>
-            <input
-              name="g_first"
-              required
-              defaultValue={guardian.firstName}
-              className="mt-1 w-full rounded-md border border-foreground/15 px-2 py-1.5 text-sm"
-            />
-          </div>
-          <div>
-            <label className="text-xs text-foreground/70">Last name</label>
-            <input
-              name="g_last"
-              required
-              defaultValue={guardian.lastName}
-              className="mt-1 w-full rounded-md border border-foreground/15 px-2 py-1.5 text-sm"
-            />
-          </div>
-          <div>
-            <label className="text-xs text-foreground/70">Email</label>
-            <input
-              name="g_email"
-              type="email"
-              defaultValue={guardian.email ?? ""}
-              className="mt-1 w-full rounded-md border border-foreground/15 px-2 py-1.5 text-sm"
-            />
-          </div>
-          <div>
-            <label className="text-xs text-foreground/70">Phone</label>
-            <input
-              name="g_phone"
-              defaultValue={guardian.phone ?? ""}
-              className="mt-1 w-full rounded-md border border-foreground/15 px-2 py-1.5 text-sm"
-            />
-          </div>
-        </div>
-        <div>
-          <label className="text-xs text-foreground/70">Custom guardian responses (JSON object)</label>
-          <textarea
-            name="g_json"
-            rows={6}
-            defaultValue={responsesJson}
-            className="mt-1 w-full rounded-md border border-foreground/15 px-2 py-1.5 font-mono text-xs"
-          />
-        </div>
-        <button
-          type="submit"
-          disabled={pending}
-          className="rounded-md bg-foreground px-3 py-2 text-sm font-medium text-background disabled:opacity-50"
+          }}
         >
-          Save guardian / JSON
-        </button>
-      </form>
+          <h3 className="text-sm font-semibold">Guardian & extra responses</h3>
+          {!adminStructuredEditEnabled && canEdit ? (
+            <p className="text-xs text-foreground/70">
+              Structured form editing is turned off for this season. Enable it in{" "}
+              <Link href={`/registrations/forms/${seasonId}/settings`} className="font-medium text-brand underline">
+                form settings
+              </Link>{" "}
+              to edit all registration fields here.
+            </p>
+          ) : null}
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <label className="text-xs text-foreground/70">First name</label>
+              <input
+                name="g_first"
+                required
+                defaultValue={guardian.firstName}
+                className="mt-1 w-full rounded-md border border-foreground/15 px-2 py-1.5 text-sm"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-foreground/70">Last name</label>
+              <input
+                name="g_last"
+                required
+                defaultValue={guardian.lastName}
+                className="mt-1 w-full rounded-md border border-foreground/15 px-2 py-1.5 text-sm"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-foreground/70">Email</label>
+              <input
+                name="g_email"
+                type="email"
+                defaultValue={guardian.email ?? ""}
+                className="mt-1 w-full rounded-md border border-foreground/15 px-2 py-1.5 text-sm"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-foreground/70">Phone</label>
+              <input
+                name="g_phone"
+                defaultValue={guardian.phone ?? ""}
+                className="mt-1 w-full rounded-md border border-foreground/15 px-2 py-1.5 text-sm"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="text-xs text-foreground/70">Custom guardian responses (JSON object)</label>
+            <textarea
+              name="g_json"
+              rows={6}
+              defaultValue={responsesJson}
+              className="mt-1 w-full rounded-md border border-foreground/15 px-2 py-1.5 font-mono text-xs"
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={pending}
+            className="rounded-md bg-foreground px-3 py-2 text-sm font-medium text-background disabled:opacity-50"
+          >
+            Save guardian / JSON
+          </button>
+        </form>
+      )}
 
       <form
         className="space-y-4 rounded-xl border border-foreground/10 p-4"

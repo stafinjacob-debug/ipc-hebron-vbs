@@ -15,6 +15,8 @@ import { getPublicBaseUrl } from "@/lib/public-base-url";
 import { clampRegistrationBackgroundDimmingPercent } from "@/lib/registration-background-scrim";
 import { parsePublicRegistrationLayout } from "@/lib/public-registration-layout";
 import { rulesFromDb } from "@/lib/public-registration";
+import { persistSubmissionFormEntries } from "@/lib/persist-submission-form-entries";
+import { parseRegistrantEditForm } from "@/lib/registrant-edit-form";
 import {
   formatCancellationEmailHint,
   sendAllApprovedRegistrationsEmailForSubmission,
@@ -194,6 +196,7 @@ export async function updateRegistrationFormSettings(
     stripeSkipWhenFieldKey: string | null;
     stripeSkipWhenFieldValue: string | null;
     registrantLookupEnabled: boolean;
+    adminRegistrationEditEnabled: boolean;
     waiverEnabled: boolean;
     waiverTitle: string | null;
     waiverDescription: string | null;
@@ -344,6 +347,7 @@ export async function updateRegistrationFormSettings(
         stripeSkipWhenFieldKey: data.stripeCheckoutEnabled ? stripeSkipWhenFieldKey : null,
         stripeSkipWhenFieldValue: data.stripeCheckoutEnabled ? stripeSkipWhenFieldValue : null,
         registrantLookupEnabled: data.registrantLookupEnabled,
+        adminRegistrationEditEnabled: data.adminRegistrationEditEnabled,
         waiverEnabled: data.waiverEnabled,
         waiverTitle: data.waiverEnabled ? data.waiverTitle?.trim() || "Medical Liability Release Form" : null,
         waiverDescription: data.waiverEnabled ? data.waiverDescription?.trim() || null : null,
@@ -426,6 +430,7 @@ export async function cloneRegistrationFormFromSeason(
       stripeSkipWhenFieldKey: srcForm.stripeSkipWhenFieldKey,
       stripeSkipWhenFieldValue: srcForm.stripeSkipWhenFieldValue,
       registrantLookupEnabled: srcForm.registrantLookupEnabled,
+      adminRegistrationEditEnabled: srcForm.adminRegistrationEditEnabled,
       waiverEnabled: srcForm.waiverEnabled,
       waiverTitle: srcForm.waiverTitle,
       waiverDescription: srcForm.waiverDescription,
@@ -602,6 +607,87 @@ export async function updateSubmissionGuardianAndResponses(
   return { ok: true, message: "Guardian and response data saved." };
 }
 
+export async function updateSubmissionFormEntries(
+  submissionId: string,
+  formData: FormData,
+): Promise<ActionState> {
+  const session = await auth();
+  if (!session?.user?.role || !canManageDirectory(session.user.role)) {
+    return { ok: false, message: "Unauthorized." };
+  }
+
+  const registrationIds = formData
+    .getAll("registrationIds")
+    .map((v) => String(v).trim())
+    .filter(Boolean);
+  if (registrationIds.length === 0) {
+    return { ok: false, message: "No registration rows to update." };
+  }
+
+  const submission = await prisma.formSubmission.findUnique({
+    where: { id: submissionId },
+    include: {
+      guardian: true,
+      form: true,
+      registrations: { include: { child: true } },
+      season: { include: { publicRegistrationSettings: true, registrationForm: true } },
+    },
+  });
+  if (!submission) return { ok: false, message: "Submission not found." };
+
+  const formRow = submission.form ?? submission.season.registrationForm;
+  if (!formRow?.adminRegistrationEditEnabled) {
+    return { ok: false, message: "Staff form editing is disabled for this season." };
+  }
+
+  const allowedIds = new Set(submission.registrations.map((r) => r.id));
+  if (!registrationIds.every((id) => allowedIds.has(id))) {
+    return { ok: false, message: "One or more registrations could not be updated." };
+  }
+
+  const definition =
+    getEffectiveDefinition(
+      {
+        publishedDefinitionJson: formRow.publishedDefinitionJson ?? null,
+        draftDefinitionJson: formRow.draftDefinitionJson ?? null,
+      },
+      false,
+    ) ?? createDefaultFormDefinition();
+  const rules = rulesFromDb(submission.season.publicRegistrationSettings);
+  const parsed = parseRegistrantEditForm(formData, definition, registrationIds, rules);
+  if (!parsed.ok) return { ok: false, message: parsed.message };
+
+  const priorResponses = (submission.guardianResponses as Record<string, unknown> | null) ?? {};
+  const persistResult = await prisma.$transaction(async (tx) =>
+    persistSubmissionFormEntries(tx, {
+      submissionId: submission.id,
+      guardianId: submission.guardianId,
+      priorGuardianResponses: priorResponses,
+      parsed,
+      registrations: submission.registrations.map((r) => ({
+        id: r.id,
+        childId: r.childId,
+        customResponses: r.customResponses,
+      })),
+    }),
+  );
+  if (!persistResult.ok) return persistResult;
+
+  if (submission.formId) {
+    await auditForm(submission.formId, session.user.id, "SUBMISSION_FORM_ENTRIES_UPDATED", {
+      submissionId,
+    });
+  }
+
+  revalidatePath(`${RF_PATH}/${submission.seasonId}/submissions`);
+  revalidatePath(`${RF_PATH}/${submission.seasonId}/submissions/${submissionId}`);
+  revalidatePath("/registrations");
+  for (const id of registrationIds) {
+    revalidatePath(`/registrations/${id}`);
+  }
+  return { ok: true, message: "Registration form entries saved." };
+}
+
 export async function bulkMoveSubmissionToWaitlist(submissionId: string): Promise<ActionState> {
   const session = await auth();
   if (!session?.user?.role || !canManageDirectory(session.user.role)) {
@@ -742,6 +828,7 @@ export type FormWorkspacePayload = {
     stripeSkipWhenFieldKey: string | null;
     stripeSkipWhenFieldValue: string | null;
     registrantLookupEnabled: boolean;
+    adminRegistrationEditEnabled: boolean;
     waiverEnabled: boolean;
     waiverTitle: string | null;
     waiverDescription: string | null;
@@ -890,6 +977,7 @@ export async function loadFormWorkspacePayload(
         stripeSkipWhenFieldKey: form.stripeSkipWhenFieldKey,
         stripeSkipWhenFieldValue: form.stripeSkipWhenFieldValue,
         registrantLookupEnabled: form.registrantLookupEnabled,
+        adminRegistrationEditEnabled: form.adminRegistrationEditEnabled,
         waiverEnabled: form.waiverEnabled,
         waiverTitle: form.waiverTitle,
         waiverDescription: form.waiverDescription,

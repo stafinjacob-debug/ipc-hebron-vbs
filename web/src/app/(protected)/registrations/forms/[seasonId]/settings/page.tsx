@@ -112,6 +112,7 @@ export default async function RegistrationFormSettingsPage({
           stripeSkipWhenFieldKey: form.stripeSkipWhenFieldKey,
           stripeSkipWhenFieldValue: form.stripeSkipWhenFieldValue,
           registrantLookupEnabled: form.registrantLookupEnabled,
+          adminRegistrationEditEnabled: form.adminRegistrationEditEnabled,
           waiverEnabled: form.waiverEnabled,
           waiverTitle: form.waiverTitle,
           waiverDescription: form.waiverDescription,

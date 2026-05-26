@@ -71,6 +71,7 @@ export function FormSettingsForm({
     stripeSkipWhenFieldKey: string | null;
     stripeSkipWhenFieldValue: string | null;
     registrantLookupEnabled: boolean;
+    adminRegistrationEditEnabled: boolean;
     waiverEnabled: boolean;
     waiverTitle: string | null;
     waiverDescription: string | null;
@@ -190,6 +191,7 @@ export function FormSettingsForm({
         const stripeProductLabel = String(fd.get("stripeProductLabel") ?? "").trim() || null;
         const helpContactEmail = String(fd.get("helpContactEmail") ?? "").trim() || null;
         const registrantLookupEnabled = fd.get("registrantLookupEnabled") === "on";
+        const adminRegistrationEditEnabled = fd.get("adminRegistrationEditEnabled") === "on";
         let stripeSkipWhenFieldKey = String(fd.get("stripeSkipWhenFieldKey") ?? "").trim() || null;
         let stripeSkipWhenFieldValue = String(fd.get("stripeSkipWhenFieldValue") ?? "").trim() || null;
         if (!stripeSkipWhenFieldKey) {
@@ -250,6 +252,7 @@ export function FormSettingsForm({
             stripeSkipWhenFieldKey,
             stripeSkipWhenFieldValue,
             registrantLookupEnabled,
+            adminRegistrationEditEnabled,
             helpContactEmail,
             waiverEnabled,
             waiverTitle: waiverTitle.trim() || null,
@@ -342,6 +345,19 @@ export function FormSettingsForm({
           <span>
             Show a <strong>look up or edit registration</strong> button on the public registration page (links to email
             verification at <code className="text-xs">/register/lookup</code>).
+          </span>
+        </label>
+        <label className="flex items-start gap-2 text-sm font-medium">
+          <input
+            type="checkbox"
+            name="adminRegistrationEditEnabled"
+            defaultChecked={initial.adminRegistrationEditEnabled}
+            className="mt-0.5 size-4 rounded border-foreground/30"
+          />
+          <span>
+            Allow staff with <strong>registration directory access</strong> (Super Admin, Church Admin, Registration
+            Manager) to edit all registration form fields on submissions — guardian info, custom answers, child
+            details, and allergies — from the admin console.
           </span>
         </label>
       </div>

@@ -1,6 +1,13 @@
 import { auth } from "@/auth";
+import { getEffectiveDefinition } from "@/lib/ensure-registration-form";
 import { prisma } from "@/lib/prisma";
 import { isCheckoutPendingRegistration } from "@/lib/registration-list-payment";
+import { createDefaultFormDefinition } from "@/lib/registration-form-definition";
+import { rulesFromDb } from "@/lib/public-registration";
+import {
+  buildChildFieldValues,
+  buildGuardianFieldValues,
+} from "@/lib/registrant-edit-form";
 import { canManageDirectory, canViewOperations } from "@/lib/roles";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
@@ -22,10 +29,26 @@ export default async function FormSubmissionDetailPage({
     where: { id: submissionId, seasonId },
     include: {
       guardian: true,
-      registrations: { include: { child: true } },
+      form: true,
+      registrations: { include: { child: true }, orderBy: { child: { firstName: "asc" } } },
+      season: { include: { publicRegistrationSettings: true, registrationForm: true } },
     },
   });
   if (!submission) notFound();
+
+  const formRow = submission.form ?? submission.season.registrationForm;
+  const adminStructuredEditEnabled = Boolean(formRow?.adminRegistrationEditEnabled);
+
+  const definition =
+    getEffectiveDefinition(
+      {
+        publishedDefinitionJson: formRow?.publishedDefinitionJson ?? null,
+        draftDefinitionJson: formRow?.draftDefinitionJson ?? null,
+      },
+      false,
+    ) ?? createDefaultFormDefinition();
+  const rules = rulesFromDb(submission.season.publicRegistrationSettings);
+  const guardianResponses = (submission.guardianResponses as Record<string, unknown> | null) ?? {};
 
   const sampleReg = submission.registrations.find((r) => r.status !== "CANCELLED");
   const checkoutPending = sampleReg
@@ -60,6 +83,26 @@ export default async function FormSubmissionDetailPage({
         seasonId={seasonId}
         submissionId={submission.id}
         canEdit={canEdit}
+        adminStructuredEditEnabled={canEdit && adminStructuredEditEnabled}
+        definition={definition}
+        rules={rules}
+        guardianValues={buildGuardianFieldValues({
+          firstName: submission.guardian.firstName,
+          lastName: submission.guardian.lastName,
+          email: submission.guardian.email,
+          phone: submission.guardian.phone,
+          guardianResponses,
+        })}
+        children={submission.registrations.map((r) => ({
+          registrationId: r.id,
+          values: buildChildFieldValues({
+            firstName: r.child.firstName,
+            lastName: r.child.lastName,
+            dateOfBirth: r.child.dateOfBirth.toISOString().slice(0, 10),
+            allergiesNotes: r.child.allergiesNotes,
+            customResponses: (r.customResponses as Record<string, unknown> | null) ?? {},
+          }),
+        }))}
         guardian={{
           firstName: submission.guardian.firstName,
           lastName: submission.guardian.lastName,

@@ -7,9 +7,9 @@ import type { Prisma } from "@/generated/prisma";
 import { getEffectiveDefinition } from "@/lib/ensure-registration-form";
 import { prisma } from "@/lib/prisma";
 import { rulesFromDb } from "@/lib/public-registration";
+import { persistSingleRegistrationFormEntries, persistSubmissionFormEntries } from "@/lib/persist-submission-form-entries";
 import { parseRegistrantEditForm } from "@/lib/registrant-edit-form";
 import { createDefaultFormDefinition } from "@/lib/registration-form-definition";
-import { parseLocalDate } from "@/lib/schemas/vbs-registration";
 import { sendRegistrantLookupOtpEmail } from "@/lib/email/send-registrant-lookup-otp-email";
 import { isMicrosoftGraphEmailConfigured } from "@/lib/email/microsoft-graph";
 import {
@@ -393,38 +393,17 @@ export async function saveRegistrantSubmissionAction(
     if (!parsed.ok) return { ok: false, message: parsed.message };
 
     const child = parsed.children[0]!;
-    let childDob: Date;
-    try {
-      childDob = parseLocalDate(child.childDateOfBirth);
-    } catch {
-      return { ok: false, message: "Enter a valid date of birth." };
-    }
-
     const priorCustom = (reg.customResponses as Record<string, unknown> | null) ?? {};
-    await prisma.$transaction(async (tx) => {
-      await tx.guardian.update({
-        where: { id: reg.child.guardianId },
-        data: {
-          firstName: parsed.guardian.guardianFirstName,
-          lastName: parsed.guardian.guardianLastName,
-          email: parsed.guardian.guardianEmail ?? null,
-          phone: parsed.guardian.guardianPhone ?? null,
-        },
-      });
-      await tx.registration.update({
-        where: { id: reg.id },
-        data: { customResponses: { ...priorCustom, ...child.custom } as object },
-      });
-      await tx.child.update({
-        where: { id: reg.childId },
-        data: {
-          firstName: child.childFirstName,
-          lastName: child.childLastName,
-          dateOfBirth: childDob,
-          allergiesNotes: child.allergiesNotes,
-        },
-      });
-    });
+    const persistResult = await prisma.$transaction(async (tx) =>
+      persistSingleRegistrationFormEntries(tx, {
+        registrationId: reg.id,
+        guardianId: reg.child.guardianId,
+        childId: reg.childId,
+        priorCustom,
+        parsed,
+      }),
+    );
+    if (!persistResult.ok) return { ok: false, message: persistResult.message };
 
     revalidatePath("/register/lookup/edit");
     revalidatePath("/registrations");
@@ -473,52 +452,21 @@ export async function saveRegistrantSubmissionAction(
   const parsed = parseRegistrantEditForm(formData, definition, registrationIds, rules);
   if (!parsed.ok) return { ok: false, message: parsed.message };
 
-  const childByRegId = new Map(parsed.children.map((c) => [c.registrationId, c]));
   const priorResponses = (submission.guardianResponses as Record<string, unknown> | null) ?? {};
-  const guardianResponses: Record<string, unknown> = {
-    ...priorResponses,
-    ...parsed.guardianCustom,
-  };
-
-  try {
-    await prisma.$transaction(async (tx) => {
-      await tx.guardian.update({
-        where: { id: submission.guardianId },
-        data: {
-          firstName: parsed.guardian.guardianFirstName,
-          lastName: parsed.guardian.guardianLastName,
-          email: parsed.guardian.guardianEmail ?? null,
-          phone: parsed.guardian.guardianPhone ?? null,
-        },
-      });
-      await tx.formSubmission.update({
-        where: { id: submission.id },
-        data: { guardianResponses: guardianResponses as object },
-      });
-
-      for (const reg of submission.registrations) {
-        const child = childByRegId.get(reg.id);
-        if (!child) continue;
-        const childDob = parseLocalDate(child.childDateOfBirth);
-        const priorCustom = (reg.customResponses as Record<string, unknown> | null) ?? {};
-        await tx.registration.update({
-          where: { id: reg.id },
-          data: { customResponses: { ...priorCustom, ...child.custom } as object },
-        });
-        await tx.child.update({
-          where: { id: reg.childId },
-          data: {
-            firstName: child.childFirstName,
-            lastName: child.childLastName,
-            dateOfBirth: childDob,
-            allergiesNotes: child.allergiesNotes,
-          },
-        });
-      }
-    });
-  } catch {
-    return { ok: false, message: "Enter a valid date of birth for each child." };
-  }
+  const persistResult = await prisma.$transaction(async (tx) =>
+    persistSubmissionFormEntries(tx, {
+      submissionId: submission.id,
+      guardianId: submission.guardianId,
+      priorGuardianResponses: priorResponses,
+      parsed,
+      registrations: submission.registrations.map((r) => ({
+        id: r.id,
+        childId: r.childId,
+        customResponses: r.customResponses,
+      })),
+    }),
+  );
+  if (!persistResult.ok) return { ok: false, message: persistResult.message };
 
   revalidatePath("/register/lookup/edit");
   revalidatePath("/registrations");

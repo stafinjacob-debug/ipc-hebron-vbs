@@ -397,6 +397,8 @@ model RegistrationForm {
 
   /// When true, the public registration page shows a link to look up and edit an existing registration.
   registrantLookupEnabled   Boolean @default(true)
+  /// When true, staff with registration directory access can edit all form fields on submissions.
+  adminRegistrationEditEnabled Boolean @default(true)
 
   draftDefinitionJson     String? @db.Text
   publishedDefinitionJson String? @db.Text
