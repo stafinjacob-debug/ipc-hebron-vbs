@@ -16,6 +16,7 @@ type ChildRow = {
 type Props = {
   registrationCode: string;
   seasonName: string;
+  showGuardianJson?: boolean;
   guardian: {
     firstName: string;
     lastName: string;
@@ -104,15 +105,17 @@ export function RegistrantEditForm(p: Props) {
               />
             </div>
           </div>
-          <div>
-            <label className="text-xs text-muted">Additional guardian answers (JSON)</label>
-            <textarea
-              name="g_json"
-              rows={5}
-              defaultValue={p.guardianResponsesJson}
-              className="mt-1 w-full rounded-md border border-foreground/15 px-2 py-1.5 font-mono text-xs"
-            />
-          </div>
+          {p.showGuardianJson !== false ? (
+            <div>
+              <label className="text-xs text-muted">Additional guardian answers (JSON)</label>
+              <textarea
+                name="g_json"
+                rows={5}
+                defaultValue={p.guardianResponsesJson}
+                className="mt-1 w-full rounded-md border border-foreground/15 px-2 py-1.5 font-mono text-xs"
+              />
+            </div>
+          ) : null}
         </section>
 
         {p.children.map((c) => (

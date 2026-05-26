@@ -52,17 +52,17 @@ export function RegistrantLookupForm() {
         setStep("pick");
         return;
       }
-      if (r.ok && r.step !== "pick_submission") {
+      if (r.ok && (!r.step || r.step !== "pick_submission")) {
         router.push("/register/lookup/edit");
         router.refresh();
       }
     });
   }
 
-  function openSubmission(submissionId: string) {
+  function openSubmission(item: NonNullable<RegistrantLookupActionState["submissions"]>[number]) {
     setMessage(null);
     startTransition(async () => {
-      const r = await openRegistrantSubmissionAction(submissionId, email);
+      const r = await openRegistrantSubmissionAction(item.key, item.kind, email);
       setOk(r.ok);
       setMessage(r.message);
       if (r.ok) {
@@ -168,15 +168,18 @@ export function RegistrantLookupForm() {
           <p className="text-sm text-foreground/75">Multiple registrations found. Choose one to open:</p>
           <ul className="space-y-2">
             {pickList.map((s) => (
-              <li key={s.id}>
+              <li key={`${s.kind}:${s.key}`}>
                 <button
                   type="button"
                   disabled={pending}
-                  onClick={() => openSubmission(s.id)}
+                  onClick={() => openSubmission(s)}
                   className="w-full rounded-lg border border-foreground/15 px-4 py-3 text-left hover:bg-foreground/[0.03] disabled:opacity-50"
                 >
                   <p className="font-medium">{s.seasonName}</p>
-                  <p className="text-sm text-muted">{s.childNames}</p>
+                  <p className="text-sm text-muted">{s.childNames || "Registration on file"}</p>
+                  {s.registrationNumbers ? (
+                    <p className="mt-1 text-xs text-muted">Reg # {s.registrationNumbers}</p>
+                  ) : null}
                   <p className="mt-1 font-mono text-xs text-muted">{s.registrationCode}</p>
                 </button>
               </li>

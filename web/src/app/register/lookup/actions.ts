@@ -3,6 +3,7 @@
 import { randomInt } from "crypto";
 import { compare, hash } from "bcryptjs";
 import { z } from "zod";
+import type { Prisma } from "@/generated/prisma";
 import { prisma } from "@/lib/prisma";
 import { sendRegistrantLookupOtpEmail } from "@/lib/email/send-registrant-lookup-otp-email";
 import { isMicrosoftGraphEmailConfigured } from "@/lib/email/microsoft-graph";
@@ -10,10 +11,15 @@ import {
   clearRegistrantLookupSessionCookie,
   readRegistrantLookupSession,
   setRegistrantLookupSessionCookie,
+  type RegistrantLookupSession,
 } from "@/lib/registrant-lookup-session";
 import {
+  normalizeRegistrantLookupEmail,
+  registrantLookupEmailMatchesSubmission,
+  registrantLookupRegistrationForEmail,
   registrantLookupRegistrationWhere,
-  registrantLookupSubmissionWhere,
+  registrantLookupSubmissionForEmail,
+  type RegistrantLookupPickItem,
 } from "@/lib/registrant-lookup";
 import { revalidatePath } from "next/cache";
 
@@ -21,22 +27,13 @@ export type RegistrantLookupActionState = {
   ok: boolean;
   message: string;
   step?: "pick_submission";
-  submissions?: Array<{
-    id: string;
-    registrationCode: string;
-    seasonName: string;
-    childNames: string;
-  }>;
+  submissions?: RegistrantLookupPickItem[];
 };
 
 const OTP_TTL_MIN = 15;
 const OTP_SENDS_PER_HOUR = 6;
 const MAX_OTP_ATTEMPTS = 8;
 const BCRYPT_OTP_ROUNDS = 10;
-
-function normalizeEmail(raw: string): string {
-  return raw.trim().toLowerCase();
-}
 
 const emailSchema = z.string().email();
 
@@ -49,46 +46,142 @@ const submissionLookupInclude = {
   season: { select: { name: true } },
   registrations: {
     where: registrantLookupRegistrationWhere,
-    include: { child: true },
+    include: { child: { include: { guardian: true } } },
   },
 } as const;
 
-async function findSubmissionsForLookup(emailNormalized: string, registrationCode?: string) {
-  if (registrationCode?.trim()) {
-    const code = registrationCode.trim();
-    const submission = await prisma.formSubmission.findFirst({
-      where: {
-        registrationCode: code,
-        ...registrantLookupSubmissionWhere,
+function childLabel(firstName: string, lastName: string): string {
+  const n = `${firstName} ${lastName}`.trim();
+  return n || "Child registration";
+}
+
+function pickItemFromSubmission(
+  submission: {
+    id: string;
+    registrationCode: string;
+    season: { name: string };
+    registrations: Array<{
+      registrationNumber: string | null;
+      child: { firstName: string; lastName: string };
+    }>;
+  },
+): RegistrantLookupPickItem {
+  return {
+    key: submission.id,
+    kind: "submission",
+    registrationCode: submission.registrationCode,
+    seasonName: submission.season.name,
+    childNames: submission.registrations.map((r) => childLabel(r.child.firstName, r.child.lastName)).join(", "),
+    registrationNumbers: submission.registrations
+      .map((r) => r.registrationNumber)
+      .filter(Boolean)
+      .join(", "),
+  };
+}
+
+/** Find editable registrations the same way the admin list does — by guardian email on the child profile. */
+async function findLookupPickItems(
+  emailNormalized: string,
+  registrationCode?: string,
+): Promise<RegistrantLookupPickItem[]> {
+  const registrationWhere: Prisma.RegistrationWhereInput = {
+    ...registrantLookupRegistrationForEmail(emailNormalized),
+    ...(registrationCode?.trim()
+      ? {
+          OR: [
+            { formSubmission: { registrationCode: registrationCode.trim() } },
+            {
+              registrationNumber: {
+                equals: registrationCode.trim(),
+                mode: "insensitive",
+              },
+            },
+          ],
+        }
+      : {}),
+  };
+
+  const registrations = await prisma.registration.findMany({
+    where: registrationWhere,
+    orderBy: { registeredAt: "desc" },
+    take: 50,
+    select: {
+      id: true,
+      registrationNumber: true,
+      formSubmissionId: true,
+      season: { select: { name: true } },
+      child: { select: { firstName: true, lastName: true } },
+      formSubmission: {
+        select: {
+          id: true,
+          registrationCode: true,
+          season: { select: { name: true } },
+        },
       },
-      include: submissionLookupInclude,
-    });
-    if (!submission) return [];
-    const guardianEmail = normalizeEmail(submission.guardian.email ?? "");
-    if (!guardianEmail || guardianEmail !== emailNormalized) return [];
-    return [submission];
+    },
+  });
+
+  type RegistrationRow = (typeof registrations)[number];
+  const submissionIdList: string[] = [];
+  const standalone: RegistrationRow[] = [];
+
+  for (const reg of registrations) {
+    if (reg.formSubmissionId && reg.formSubmission) {
+      if (!submissionIdList.includes(reg.formSubmissionId)) {
+        submissionIdList.push(reg.formSubmissionId);
+      }
+    } else {
+      standalone.push(reg);
+    }
   }
 
-  return prisma.formSubmission.findMany({
-    where: {
-      guardian: { email: { equals: emailNormalized, mode: "insensitive" } },
-      ...registrantLookupSubmissionWhere,
-    },
-    orderBy: { submittedAt: "desc" },
-    take: 20,
-    include: submissionLookupInclude,
-  });
+  const pickItems: RegistrantLookupPickItem[] = [];
+
+  if (submissionIdList.length > 0) {
+    const submissions = await prisma.formSubmission.findMany({
+      where: {
+        id: { in: submissionIdList },
+        ...registrantLookupSubmissionForEmail(emailNormalized),
+      },
+      orderBy: { submittedAt: "desc" },
+      include: submissionLookupInclude,
+    });
+    for (const submission of submissions) {
+      if (submission.registrations.length === 0) continue;
+      pickItems.push(pickItemFromSubmission(submission));
+    }
+  }
+
+  for (const reg of standalone) {
+    pickItems.push({
+      key: reg.id,
+      kind: "registration",
+      registrationCode: reg.registrationNumber ?? reg.id.slice(-8).toUpperCase(),
+      seasonName: reg.season.name,
+      childNames: childLabel(reg.child.firstName, reg.child.lastName),
+      registrationNumbers: reg.registrationNumber ?? "",
+    });
+  }
+
+  return pickItems;
+}
+
+async function openLookupSession(item: RegistrantLookupPickItem, emailNormalized: string): Promise<boolean> {
+  const session: RegistrantLookupSession =
+    item.kind === "submission"
+      ? { kind: "submission", submissionId: item.key, emailNormalized }
+      : { kind: "registration", registrationId: item.key, emailNormalized };
+  return setRegistrantLookupSessionCookie(session);
 }
 
 export async function requestRegistrantLookupOtpAction(
   formData: FormData,
 ): Promise<RegistrantLookupActionState> {
-  const rawEmail = normalizeEmail(String(formData.get("email") ?? ""));
-  const parsedEmail = emailSchema.safeParse(rawEmail);
+  const emailNormalized = normalizeRegistrantLookupEmail(String(formData.get("email") ?? ""));
+  const parsedEmail = emailSchema.safeParse(emailNormalized);
   if (!parsedEmail.success) {
     return { ok: false, message: "Enter the email address used on your registration." };
   }
-  const emailNormalized = parsedEmail.data;
 
   const registrationCode = String(formData.get("registrationCode") ?? "").trim() || undefined;
 
@@ -100,26 +193,23 @@ export async function requestRegistrantLookupOtpAction(
     };
   }
 
-  const submissions = await findSubmissionsForLookup(emailNormalized, registrationCode);
-  if (submissions.length === 0) {
+  const pickItems = await findLookupPickItems(parsedEmail.data, registrationCode);
+  if (pickItems.length === 0) {
     return { ok: true, message: neutralMessage() };
   }
 
-  const sendTo = submissions[0]!.guardian.email?.trim();
-  if (!sendTo) {
-    return { ok: true, message: neutralMessage() };
-  }
+  const sendTo = parsedEmail.data;
 
   const hourAgo = new Date(Date.now() - 60 * 60 * 1000);
   const recentSends = await prisma.registrantLookupOtp.count({
-    where: { emailNormalized, createdAt: { gte: hourAgo } },
+    where: { emailNormalized: parsedEmail.data, createdAt: { gte: hourAgo } },
   });
   if (recentSends >= OTP_SENDS_PER_HOUR) {
     return { ok: true, message: neutralMessage() };
   }
 
   await prisma.registrantLookupOtp.deleteMany({
-    where: { emailNormalized, consumedAt: null },
+    where: { emailNormalized: parsedEmail.data, consumedAt: null },
   });
 
   const code = String(randomInt(0, 1_000_000)).padStart(6, "0");
@@ -128,21 +218,16 @@ export async function requestRegistrantLookupOtpAction(
 
   const otpRow = await prisma.registrantLookupOtp.create({
     data: {
-      emailNormalized,
+      emailNormalized: parsedEmail.data,
       registrationCode: registrationCode ?? null,
       codeHash,
       expiresAt,
     },
   });
 
-  const toName =
-    `${submissions[0]!.guardian.firstName} ${submissions[0]!.guardian.lastName}`.trim() ||
-    sendTo.split("@")[0] ||
-    "there";
-
   const send = await sendRegistrantLookupOtpEmail({
     toEmail: sendTo,
-    toName,
+    toName: sendTo.split("@")[0] || "there",
     code,
     minutesValid: OTP_TTL_MIN,
   });
@@ -161,23 +246,20 @@ export async function requestRegistrantLookupOtpAction(
 export async function verifyRegistrantLookupOtpAction(
   formData: FormData,
 ): Promise<RegistrantLookupActionState> {
-  const rawEmail = normalizeEmail(String(formData.get("email") ?? ""));
-  const parsedEmail = emailSchema.safeParse(rawEmail);
+  const emailNormalized = normalizeRegistrantLookupEmail(String(formData.get("email") ?? ""));
+  const parsedEmail = emailSchema.safeParse(emailNormalized);
   if (!parsedEmail.success) {
     return { ok: false, message: "Enter a valid email address." };
   }
-  const emailNormalized = parsedEmail.data;
 
   const code = String(formData.get("code") ?? "").replace(/\D/g, "").slice(0, 6);
   if (code.length !== 6) {
     return { ok: false, message: "Enter the 6-digit code from your email." };
   }
 
-  const registrationCode = String(formData.get("registrationCode") ?? "").trim() || undefined;
-
   const otp = await prisma.registrantLookupOtp.findFirst({
     where: {
-      emailNormalized,
+      emailNormalized: parsedEmail.data,
       consumedAt: null,
       expiresAt: { gt: new Date() },
     },
@@ -210,13 +292,16 @@ export async function verifyRegistrantLookupOtpAction(
     data: { consumedAt: new Date() },
   });
 
-  const submissions = await findSubmissionsForLookup(emailNormalized, registrationCode);
-  if (submissions.length === 0) {
+  const registrationCode =
+    String(formData.get("registrationCode") ?? "").trim() || otp.registrationCode?.trim() || undefined;
+
+  const pickItems = await findLookupPickItems(parsedEmail.data, registrationCode);
+  if (pickItems.length === 0) {
     return { ok: false, message: "Registration not found. Request a new code." };
   }
 
-  if (submissions.length === 1) {
-    const ok = await setRegistrantLookupSessionCookie(submissions[0]!.id, emailNormalized);
+  if (pickItems.length === 1) {
+    const ok = await openLookupSession(pickItems[0]!, parsedEmail.data);
     if (!ok) {
       return { ok: false, message: "Could not start your session. Try again." };
     }
@@ -227,33 +312,23 @@ export async function verifyRegistrantLookupOtpAction(
     ok: true,
     message: "Verified. Choose which registration to open.",
     step: "pick_submission",
-    submissions: submissions.map((s) => ({
-      id: s.id,
-      registrationCode: s.registrationCode,
-      seasonName: s.season.name,
-      childNames: s.registrations.map((r) => `${r.child.firstName} ${r.child.lastName}`).join(", "),
-    })),
+    submissions: pickItems,
   };
 }
 
 export async function openRegistrantSubmissionAction(
-  submissionId: string,
+  lookupKey: string,
+  lookupKind: RegistrantLookupPickItem["kind"],
   emailNormalized: string,
 ): Promise<RegistrantLookupActionState> {
-  const email = normalizeEmail(emailNormalized);
-  const submission = await prisma.formSubmission.findFirst({
-    where: {
-      id: submissionId,
-      guardian: { email: { equals: email, mode: "insensitive" } },
-      ...registrantLookupSubmissionWhere,
-    },
-    select: { id: true },
-  });
-  if (!submission) {
+  const email = normalizeRegistrantLookupEmail(emailNormalized);
+  const pickItems = await findLookupPickItems(email);
+  const item = pickItems.find((p) => p.key === lookupKey && p.kind === lookupKind);
+  if (!item) {
     return { ok: false, message: "Registration not found for this email." };
   }
 
-  const ok = await setRegistrantLookupSessionCookie(submission.id, email);
+  const ok = await openLookupSession(item, email);
   if (!ok) {
     return { ok: false, message: "Could not start your session. Try again." };
   }
@@ -268,28 +343,6 @@ export async function saveRegistrantSubmissionAction(
     return { ok: false, message: "Your session expired. Look up your registration again." };
   }
 
-  const submission = await prisma.formSubmission.findFirst({
-    where: {
-      id: session.submissionId,
-      ...registrantLookupSubmissionWhere,
-    },
-    include: {
-      guardian: true,
-      registrations: {
-        where: registrantLookupRegistrationWhere,
-        include: { child: true },
-      },
-    },
-  });
-  if (!submission) {
-    return { ok: false, message: "Registration not found." };
-  }
-
-  const guardianEmail = normalizeEmail(submission.guardian.email ?? "");
-  if (guardianEmail !== session.emailNormalized) {
-    return { ok: false, message: "Session mismatch. Look up your registration again." };
-  }
-
   const fn = String(formData.get("g_first") ?? "").trim();
   const ln = String(formData.get("g_last") ?? "").trim();
   const email = String(formData.get("g_email") ?? "").trim() || null;
@@ -297,6 +350,79 @@ export async function saveRegistrantSubmissionAction(
 
   if (!fn || !ln) {
     return { ok: false, message: "Guardian first and last name are required." };
+  }
+
+  if (session.kind === "registration") {
+    const reg = await prisma.registration.findFirst({
+      where: {
+        id: session.registrationId,
+        ...registrantLookupRegistrationForEmail(session.emailNormalized),
+      },
+      include: { child: { include: { guardian: true } } },
+    });
+    if (!reg) {
+      return { ok: false, message: "Registration not found." };
+    }
+
+    let customResponses: object | undefined;
+    const childJson = String(formData.get(`child_json_${reg.id}`) ?? "").trim();
+    if (childJson) {
+      try {
+        customResponses = JSON.parse(childJson) as object;
+      } catch {
+        return { ok: false, message: "Custom child responses must be valid JSON." };
+      }
+    }
+
+    const allergies = String(formData.get(`allergies_${reg.id}`) ?? "").trim() || null;
+
+    await prisma.$transaction(async (tx) => {
+      await tx.guardian.update({
+        where: { id: reg.child.guardianId },
+        data: { firstName: fn, lastName: ln, email, phone },
+      });
+      if (customResponses) {
+        await tx.registration.update({
+          where: { id: reg.id },
+          data: { customResponses },
+        });
+      }
+      await tx.child.update({
+        where: { id: reg.childId },
+        data: { allergiesNotes: allergies },
+      });
+    });
+
+    revalidatePath("/register/lookup/edit");
+    revalidatePath("/registrations");
+    return { ok: true, message: "Your registration has been updated." };
+  }
+
+  const submission = await prisma.formSubmission.findFirst({
+    where: {
+      id: session.submissionId,
+      ...registrantLookupSubmissionForEmail(session.emailNormalized),
+    },
+    include: {
+      guardian: true,
+      registrations: {
+        where: registrantLookupRegistrationWhere,
+        include: { child: { include: { guardian: true } } },
+      },
+    },
+  });
+  if (!submission) {
+    return { ok: false, message: "Registration not found." };
+  }
+
+  if (
+    !registrantLookupEmailMatchesSubmission({
+      emailNormalized: session.emailNormalized,
+      submissionGuardianEmail: submission.guardian.email,
+      registrationGuardianEmails: submission.registrations.map((r) => r.child.guardian.email),
+    })
+  ) {
+    return { ok: false, message: "Session mismatch. Look up your registration again." };
   }
 
   let guardianResponses: object = {};
