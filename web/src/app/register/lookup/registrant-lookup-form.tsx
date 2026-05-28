@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { formatPhoneInput, phoneDigits } from "@/lib/phone-format";
+import type { RegistrantLookupEmailOption, RegistrantLookupMethod } from "@/lib/registrant-lookup";
 import {
   openRegistrantSubmissionAction,
   requestRegistrantLookupOtpAction,
@@ -8,28 +10,81 @@ import {
   type RegistrantLookupActionState,
 } from "./actions";
 
-type Step = "request" | "verify" | "pick";
+type Step = "request" | "pick_email" | "verify" | "pick";
+
+const METHOD_LABELS: Record<RegistrantLookupMethod, string> = {
+  registration_number: "Registration number",
+  email: "Email address",
+  phone: "Phone number",
+};
 
 export function RegistrantLookupForm() {
   const [step, setStep] = useState<Step>("request");
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
   const [ok, setOk] = useState<boolean | null>(null);
+  const [lookupMethod, setLookupMethod] = useState<RegistrantLookupMethod>("email");
   const [email, setEmail] = useState("");
   const [registrationCode, setRegistrationCode] = useState("");
+  const [phone, setPhone] = useState("");
+  const [otpSentTo, setOtpSentTo] = useState("");
+  const [emailOptions, setEmailOptions] = useState<RegistrantLookupEmailOption[]>([]);
   const [pickList, setPickList] = useState<RegistrantLookupActionState["submissions"]>([]);
+
+  function resetFlow() {
+    setStep("request");
+    setMessage(null);
+    setOk(null);
+    setEmail("");
+    setRegistrationCode("");
+    setPhone("");
+    setOtpSentTo("");
+    setEmailOptions([]);
+    setPickList([]);
+  }
 
   function handleRequest(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
+    fd.set("lookupMethod", lookupMethod);
     setMessage(null);
     startTransition(async () => {
       const r = await requestRegistrantLookupOtpAction(fd);
       setOk(r.ok);
       setMessage(r.message);
-      if (r.ok) {
-        setEmail(String(fd.get("email") ?? ""));
-        setRegistrationCode(String(fd.get("registrationCode") ?? ""));
+      if (!r.ok) return;
+
+      if (r.step === "pick_email" && r.emailOptions?.length) {
+        setEmailOptions(r.emailOptions);
+        setPhone(String(fd.get("phone") ?? r.phone ?? ""));
+        setLookupMethod("phone");
+        setStep("pick_email");
+        return;
+      }
+
+      if (r.step === "verify" && r.email) {
+        setEmail(r.email);
+        setOtpSentTo(r.otpSentTo ?? "");
+        setRegistrationCode(r.registrationCode ?? "");
+        setPhone(r.phone ?? "");
+        setStep("verify");
+      }
+    });
+  }
+
+  function handlePickEmail(option: RegistrantLookupEmailOption) {
+    setMessage(null);
+    startTransition(async () => {
+      const fd = new FormData();
+      fd.set("lookupMethod", "phone");
+      fd.set("phone", phone);
+      fd.set("selectedEmail", option.emailNormalized);
+      const r = await requestRegistrantLookupOtpAction(fd);
+      setOk(r.ok);
+      setMessage(r.message);
+      if (r.ok && r.step === "verify" && r.email) {
+        setEmail(r.email);
+        setOtpSentTo(r.otpSentTo ?? option.maskedEmail);
         setStep("verify");
       }
     });
@@ -78,33 +133,99 @@ export function RegistrantLookupForm() {
       {step === "request" ? (
         <form onSubmit={handleRequest} className="space-y-4">
           <p className="text-sm text-foreground/75">
-            Enter your registration reference code <em>or</em> just your email. We&apos;ll send a
-            one-time code to the email on your registration.
+            Choose how you want to find your registration. We&apos;ll send a one-time verification code to
+            the email on file.
           </p>
-          <div>
-            <label htmlFor="registrationCode" className="block text-sm font-medium">
-              Registration code <span className="font-normal text-muted">(optional)</span>
-            </label>
-            <input
-              id="registrationCode"
-              name="registrationCode"
-              placeholder="VBS-…"
-              className="mt-1 w-full rounded-lg border border-foreground/15 bg-background px-3 py-2 text-sm font-mono"
-            />
+
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+            {(Object.keys(METHOD_LABELS) as RegistrantLookupMethod[]).map((method) => (
+              <label
+                key={method}
+                className={`flex cursor-pointer items-center justify-center rounded-lg border px-3 py-2.5 text-center text-sm font-medium ${
+                  lookupMethod === method
+                    ? "border-brand bg-brand/10 text-brand"
+                    : "border-foreground/15 hover:bg-foreground/[0.03]"
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="lookupMethodChoice"
+                  value={method}
+                  checked={lookupMethod === method}
+                  onChange={() => setLookupMethod(method)}
+                  className="sr-only"
+                />
+                {METHOD_LABELS[method]}
+              </label>
+            ))}
           </div>
-          <div>
-            <label htmlFor="email" className="block text-sm font-medium">
-              Email on registration
-            </label>
-            <input
-              id="email"
-              name="email"
-              type="email"
-              required
-              autoComplete="email"
-              className="mt-1 w-full rounded-lg border border-foreground/15 bg-background px-3 py-2 text-sm"
-            />
-          </div>
+
+          {lookupMethod === "registration_number" ? (
+            <div>
+              <label htmlFor="registrationCode" className="block text-sm font-medium">
+                Registration number
+              </label>
+              <p className="mt-0.5 text-xs text-muted">
+                Enter the registration or family reference number from your confirmation email or badge.
+              </p>
+              <input
+                id="registrationCode"
+                name="registrationCode"
+                required
+                value={registrationCode}
+                onChange={(e) => setRegistrationCode(e.target.value)}
+                placeholder="e.g. VBS-2026-001 or VBS-…"
+                className="mt-1 w-full rounded-lg border border-foreground/15 bg-background px-3 py-2 text-sm font-mono"
+              />
+            </div>
+          ) : null}
+
+          {lookupMethod === "email" ? (
+            <div>
+              <label htmlFor="email" className="block text-sm font-medium">
+                Email address
+              </label>
+              <p className="mt-0.5 text-xs text-muted">Use the same email you entered when you registered.</p>
+              <input
+                id="email"
+                name="email"
+                type="email"
+                required
+                autoComplete="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="mt-1 w-full rounded-lg border border-foreground/15 bg-background px-3 py-2 text-sm"
+              />
+            </div>
+          ) : null}
+
+          {lookupMethod === "phone" ? (
+            <div>
+              <label htmlFor="phone" className="block text-sm font-medium">
+                Phone number
+              </label>
+              <p className="mt-0.5 text-xs text-muted">
+                Enter the phone number on your registration. If several emails are on file, you&apos;ll choose
+                which one receives the code.
+              </p>
+              <input
+                id="phone"
+                name="phone"
+                type="tel"
+                required
+                autoComplete="tel"
+                inputMode="tel"
+                value={phone}
+                onChange={(e) => setPhone(formatPhoneInput(e.target.value))}
+                placeholder="(555) 123-4567"
+                className="mt-1 w-full rounded-lg border border-foreground/15 bg-background px-3 py-2 text-sm"
+              />
+              {phoneDigits(phone).length > 0 && phoneDigits(phone).length < 10 ? (
+                <p className="mt-1 text-xs text-muted">Enter all 10 digits.</p>
+              ) : null}
+            </div>
+          ) : null}
+
           <button
             type="submit"
             disabled={pending}
@@ -115,10 +236,45 @@ export function RegistrantLookupForm() {
         </form>
       ) : null}
 
+      {step === "pick_email" && emailOptions.length > 0 ? (
+        <div className="space-y-3">
+          <p className="text-sm text-foreground/75">
+            Multiple email addresses are linked to this phone number. Choose where to send your verification
+            code:
+          </p>
+          <ul className="space-y-2">
+            {emailOptions.map((opt) => (
+              <li key={opt.emailNormalized}>
+                <button
+                  type="button"
+                  disabled={pending}
+                  onClick={() => handlePickEmail(opt)}
+                  className="w-full rounded-lg border border-foreground/15 px-4 py-3 text-left hover:bg-foreground/[0.03] disabled:opacity-50"
+                >
+                  <p className="font-medium">{opt.maskedEmail}</p>
+                  {opt.childSummary ? (
+                    <p className="mt-0.5 text-sm text-muted">Registrations: {opt.childSummary}</p>
+                  ) : null}
+                </button>
+              </li>
+            ))}
+          </ul>
+          <button
+            type="button"
+            disabled={pending}
+            onClick={resetFlow}
+            className="w-full text-sm font-medium text-brand underline"
+          >
+            Start over
+          </button>
+        </div>
+      ) : null}
+
       {step === "verify" ? (
         <form onSubmit={handleVerify} className="space-y-4">
           <p className="text-sm text-foreground/75">
-            Enter the 6-digit code sent to <strong>{email}</strong>.
+            Enter the 6-digit code sent to{" "}
+            <strong>{otpSentTo || email}</strong>.
           </p>
           <div>
             <label htmlFor="code" className="block text-sm font-medium">
@@ -144,7 +300,7 @@ export function RegistrantLookupForm() {
           <button
             type="button"
             disabled={pending}
-            onClick={() => setStep("request")}
+            onClick={resetFlow}
             className="w-full text-sm font-medium text-brand underline"
           >
             Start over

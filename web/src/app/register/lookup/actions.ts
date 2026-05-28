@@ -20,20 +20,35 @@ import {
 } from "@/lib/registrant-lookup-session";
 import {
   normalizeRegistrantLookupEmail,
+  maskRegistrantLookupEmail,
+  normalizeRegistrantLookupPhone,
   registrantLookupEmailMatchesSubmission,
   registrantLookupRegistrationForEmail,
   registrantLookupRegistrationWhere,
   registrantLookupSubmissionForEmail,
+  type RegistrantLookupEmailOption,
+  type RegistrantLookupMethod,
   type RegistrantLookupPickItem,
 } from "@/lib/registrant-lookup";
+import {
+  emailMatchesPhoneForLookup,
+  findEmailOptionsForPhoneLookup,
+  resolveEmailForRegistrationNumberLookup,
+} from "@/lib/registrant-lookup-resolve";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 export type RegistrantLookupActionState = {
   ok: boolean;
   message: string;
-  step?: "pick_submission";
+  step?: "verify" | "pick_submission" | "pick_email";
+  email?: string;
+  otpSentTo?: string;
+  registrationCode?: string;
+  lookupMethod?: RegistrantLookupMethod;
+  phone?: string;
   submissions?: RegistrantLookupPickItem[];
+  emailOptions?: RegistrantLookupEmailOption[];
 };
 
 const OTP_TTL_MIN = 15;
@@ -44,7 +59,67 @@ const BCRYPT_OTP_ROUNDS = 10;
 const emailSchema = z.string().email();
 
 function neutralMessage(): string {
-  return "If we found a matching registration with that email, we sent a 6-digit code. It expires in 15 minutes.";
+  return "If we found a matching registration, we sent a 6-digit code to the email on file. It expires in 15 minutes.";
+}
+
+function otpSentMessage(maskedEmail: string): string {
+  return `We sent a 6-digit verification code to ${maskedEmail}. It expires in ${OTP_TTL_MIN} minutes.`;
+}
+
+function parseLookupMethod(raw: string): RegistrantLookupMethod {
+  if (raw === "registration_number" || raw === "phone") return raw;
+  return "email";
+}
+
+async function sendOtpToEmail(args: {
+  emailNormalized: string;
+  registrationCode?: string;
+}): Promise<
+  | { ok: true; otpSentTo: string }
+  | { ok: false; message: string }
+  | { ok: true; throttled: true }
+> {
+  const hourAgo = new Date(Date.now() - 60 * 60 * 1000);
+  const recentSends = await prisma.registrantLookupOtp.count({
+    where: { emailNormalized: args.emailNormalized, createdAt: { gte: hourAgo } },
+  });
+  if (recentSends >= OTP_SENDS_PER_HOUR) {
+    return { ok: true, throttled: true };
+  }
+
+  await prisma.registrantLookupOtp.deleteMany({
+    where: { emailNormalized: args.emailNormalized, consumedAt: null },
+  });
+
+  const code = String(randomInt(0, 1_000_000)).padStart(6, "0");
+  const codeHash = await hash(code, BCRYPT_OTP_ROUNDS);
+  const expiresAt = new Date(Date.now() + OTP_TTL_MIN * 60 * 1000);
+
+  const otpRow = await prisma.registrantLookupOtp.create({
+    data: {
+      emailNormalized: args.emailNormalized,
+      registrationCode: args.registrationCode ?? null,
+      codeHash,
+      expiresAt,
+    },
+  });
+
+  const send = await sendRegistrantLookupOtpEmail({
+    toEmail: args.emailNormalized,
+    toName: args.emailNormalized.split("@")[0] || "there",
+    code,
+    minutesValid: OTP_TTL_MIN,
+  });
+
+  if (send.mode !== "sent") {
+    await prisma.registrantLookupOtp.delete({ where: { id: otpRow.id } }).catch(() => {});
+    if (send.mode === "skipped_no_provider") {
+      return { ok: false, message: "Email is not configured. Contact the VBS team for help." };
+    }
+    return { ok: false, message: `Could not send the code: ${send.error}` };
+  }
+
+  return { ok: true, otpSentTo: maskRegistrantLookupEmail(args.emailNormalized) };
 }
 
 const submissionLookupInclude = {
@@ -183,13 +258,11 @@ async function openLookupSession(item: RegistrantLookupPickItem, emailNormalized
 export async function requestRegistrantLookupOtpAction(
   formData: FormData,
 ): Promise<RegistrantLookupActionState> {
-  const emailNormalized = normalizeRegistrantLookupEmail(String(formData.get("email") ?? ""));
-  const parsedEmail = emailSchema.safeParse(emailNormalized);
-  if (!parsedEmail.success) {
-    return { ok: false, message: "Enter the email address used on your registration." };
-  }
-
-  const registrationCode = String(formData.get("registrationCode") ?? "").trim() || undefined;
+  const lookupMethod = parseLookupMethod(String(formData.get("lookupMethod") ?? "email"));
+  const registrationCodeInput = String(formData.get("registrationCode") ?? "").trim();
+  const emailInput = normalizeRegistrantLookupEmail(String(formData.get("email") ?? ""));
+  const phoneInput = String(formData.get("phone") ?? "").trim();
+  const selectedEmail = normalizeRegistrantLookupEmail(String(formData.get("selectedEmail") ?? ""));
 
   if (!isMicrosoftGraphEmailConfigured()) {
     return {
@@ -199,54 +272,91 @@ export async function requestRegistrantLookupOtpAction(
     };
   }
 
-  const pickItems = await findLookupPickItems(parsedEmail.data, registrationCode);
-  if (pickItems.length === 0) {
-    return { ok: true, message: neutralMessage() };
-  }
+  let targetEmail: string | null = null;
+  let registrationCode: string | undefined;
 
-  const sendTo = parsedEmail.data;
-
-  const hourAgo = new Date(Date.now() - 60 * 60 * 1000);
-  const recentSends = await prisma.registrantLookupOtp.count({
-    where: { emailNormalized: parsedEmail.data, createdAt: { gte: hourAgo } },
-  });
-  if (recentSends >= OTP_SENDS_PER_HOUR) {
-    return { ok: true, message: neutralMessage() };
-  }
-
-  await prisma.registrantLookupOtp.deleteMany({
-    where: { emailNormalized: parsedEmail.data, consumedAt: null },
-  });
-
-  const code = String(randomInt(0, 1_000_000)).padStart(6, "0");
-  const codeHash = await hash(code, BCRYPT_OTP_ROUNDS);
-  const expiresAt = new Date(Date.now() + OTP_TTL_MIN * 60 * 1000);
-
-  const otpRow = await prisma.registrantLookupOtp.create({
-    data: {
-      emailNormalized: parsedEmail.data,
-      registrationCode: registrationCode ?? null,
-      codeHash,
-      expiresAt,
-    },
-  });
-
-  const send = await sendRegistrantLookupOtpEmail({
-    toEmail: sendTo,
-    toName: sendTo.split("@")[0] || "there",
-    code,
-    minutesValid: OTP_TTL_MIN,
-  });
-
-  if (send.mode !== "sent") {
-    await prisma.registrantLookupOtp.delete({ where: { id: otpRow.id } }).catch(() => {});
-    if (send.mode === "skipped_no_provider") {
-      return { ok: false, message: "Email is not configured. Contact the VBS team for help." };
+  if (lookupMethod === "registration_number") {
+    if (!registrationCodeInput) {
+      return { ok: false, message: "Enter your registration number." };
     }
-    return { ok: false, message: `Could not send the code: ${send.error}` };
+    const resolved = await resolveEmailForRegistrationNumberLookup(registrationCodeInput);
+    if (!resolved) {
+      return { ok: true, message: neutralMessage(), lookupMethod };
+    }
+    targetEmail = resolved.emailNormalized;
+    registrationCode = resolved.registrationCode;
+  } else if (lookupMethod === "email") {
+    const parsedEmail = emailSchema.safeParse(emailInput);
+    if (!parsedEmail.success) {
+      return { ok: false, message: "Enter the email address used on your registration." };
+    }
+    targetEmail = parsedEmail.data;
+    registrationCode = registrationCodeInput || undefined;
+  } else {
+    const phoneDigits = normalizeRegistrantLookupPhone(phoneInput);
+    if (phoneDigits.length < 10) {
+      return { ok: false, message: "Enter a valid 10-digit phone number." };
+    }
+
+    if (selectedEmail) {
+      const parsedSelected = emailSchema.safeParse(selectedEmail);
+      if (!parsedSelected.success) {
+        return { ok: false, message: "Choose a valid email address." };
+      }
+      const phoneOk = await emailMatchesPhoneForLookup(parsedSelected.data, phoneInput);
+      if (!phoneOk) {
+        return { ok: false, message: "That email is not linked to this phone number." };
+      }
+      targetEmail = parsedSelected.data;
+    } else {
+      const options = await findEmailOptionsForPhoneLookup(phoneInput);
+      if (options.length === 0) {
+        return { ok: true, message: neutralMessage(), lookupMethod, phone: phoneInput };
+      }
+      if (options.length > 1) {
+        return {
+          ok: true,
+          step: "pick_email",
+          lookupMethod,
+          phone: phoneInput,
+          emailOptions: options,
+          message: "We found more than one email for this phone number. Choose where to send your verification code.",
+        };
+      }
+      targetEmail = options[0]!.emailNormalized;
+    }
   }
 
-  return { ok: true, message: neutralMessage() };
+  if (!targetEmail) {
+    return { ok: true, message: neutralMessage(), lookupMethod };
+  }
+
+  const pickItems = await findLookupPickItems(targetEmail, registrationCode);
+  if (pickItems.length === 0) {
+    return { ok: true, message: neutralMessage(), lookupMethod };
+  }
+
+  const sendResult = await sendOtpToEmail({
+    emailNormalized: targetEmail,
+    registrationCode,
+  });
+
+  if (!sendResult.ok) {
+    return { ok: false, message: sendResult.message, lookupMethod };
+  }
+
+  const otpSentTo = "otpSentTo" in sendResult ? sendResult.otpSentTo : maskRegistrantLookupEmail(targetEmail);
+
+  return {
+    ok: true,
+    step: "verify",
+    lookupMethod,
+    email: targetEmail,
+    otpSentTo,
+    registrationCode,
+    phone: lookupMethod === "phone" ? phoneInput : undefined,
+    message: "throttled" in sendResult && sendResult.throttled ? neutralMessage() : otpSentMessage(otpSentTo),
+  };
 }
 
 export async function verifyRegistrantLookupOtpAction(

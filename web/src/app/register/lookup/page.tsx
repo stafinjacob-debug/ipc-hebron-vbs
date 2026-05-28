@@ -7,8 +7,8 @@ export default function RegistrantLookupPage() {
       <div className="text-center">
         <h1 className="text-2xl font-semibold tracking-tight">Find your registration</h1>
         <p className="mt-2 text-sm text-muted">
-          View or update your VBS registration. We&apos;ll verify your identity with a code sent to
-          your email.
+          View or update your VBS registration using your registration number, email, or phone. We&apos;ll
+          verify your identity with a code sent to the email on file.
         </p>
       </div>
 
