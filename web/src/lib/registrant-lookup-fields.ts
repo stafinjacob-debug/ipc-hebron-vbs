@@ -225,9 +225,19 @@ function buildEmailLookupOr(emailNormalized: string, emailKeys: string[]): Prism
 
 function buildPhoneLookupOr(phoneDigits: string, phoneKeys: string[]): Prisma.RegistrationWhereInput[] {
   const or: Prisma.RegistrationWhereInput[] = [];
+  const area = phoneDigits.slice(0, 3);
+  const last4 = phoneDigits.slice(-4);
+  /** Match formatted numbers like (346) 208-0014 — full digit string is not contiguous in storage. */
+  const formattedPhoneMatch: Prisma.RegistrationWhereInput = {
+    AND: [
+      { child: { guardian: { phone: { contains: area } } } },
+      { child: { guardian: { phone: { contains: last4 } } } },
+    ],
+  };
+
   for (const key of phoneKeys) {
     if (key === DEFAULT_REGISTRANT_LOOKUP_PHONE_FIELD) {
-      or.push({ child: { guardian: { phone: { contains: phoneDigits } } } });
+      or.push(formattedPhoneMatch);
       continue;
     }
     or.push({ formSubmissionId: { not: null } });

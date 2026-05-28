@@ -228,6 +228,7 @@ export async function requestRegistrantLookupOtpAction(
   const phoneInput = String(formData.get("phone") ?? "").trim();
   const selectedEmail = normalizeRegistrantLookupEmail(String(formData.get("selectedEmail") ?? ""));
 
+  try {
   if (!isMicrosoftGraphEmailConfigured()) {
     return {
       ok: false,
@@ -321,6 +322,14 @@ export async function requestRegistrantLookupOtpAction(
     phone: lookupMethod === "phone" ? phoneInput : undefined,
     message: "throttled" in sendResult && sendResult.throttled ? neutralMessage() : otpSentMessage(otpSentTo),
   };
+  } catch (err) {
+    console.error("[requestRegistrantLookupOtpAction]", err);
+    return {
+      ok: false,
+      message: "Something went wrong while looking up your registration. Please try again in a moment.",
+      lookupMethod,
+    };
+  }
 }
 
 export async function verifyRegistrantLookupOtpAction(
