@@ -63,6 +63,8 @@ export function FormWorkspacePanel({
   hasPublishedDefinition,
   settingsInitial,
   paymentConditionFieldOptions,
+  lookupEmailFieldOptions,
+  lookupPhoneFieldOptions,
   waiverMergeFieldOptions,
   publicSignupUrl,
   publicDisplayInitial,
@@ -279,6 +281,8 @@ export function FormWorkspacePanel({
               initial={settingsParsed}
               hidePublicRegistrationOpen={variant === "embed"}
               paymentConditionFieldOptions={paymentConditionFieldOptions}
+              lookupEmailFieldOptions={lookupEmailFieldOptions}
+              lookupPhoneFieldOptions={lookupPhoneFieldOptions}
               waiverMergeFieldOptions={waiverMergeFieldOptions}
               onSaveSuccess={onFormSettingsSaveSuccess}
             />

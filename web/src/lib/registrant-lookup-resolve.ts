@@ -1,19 +1,25 @@
-import { prisma } from "@/lib/prisma";
+import {
+  findRegistrationsForLookupEmail,
+  findRegistrationsForLookupPhone,
+  registrantLookupRegistrationInclude,
+  registrationLookupEmail,
+  registrationMatchesLookupEmail,
+} from "@/lib/registrant-lookup-fields";
 import {
   maskRegistrantLookupEmail,
   normalizeRegistrantLookupEmail,
   normalizeRegistrantLookupPhone,
-  registrantLookupRegistrationForEmail,
   registrantLookupRegistrationWhere,
   type RegistrantLookupEmailOption,
 } from "@/lib/registrant-lookup";
+import { prisma } from "@/lib/prisma";
 
 function childLabel(firstName: string, lastName: string): string {
   const n = `${firstName} ${lastName}`.trim();
   return n || "Child";
 }
 
-/** Resolve guardian email for a registration or family submission code. */
+/** Resolve the configured email field for a registration or family submission code. */
 export async function resolveEmailForRegistrationNumberLookup(
   code: string,
 ): Promise<{ emailNormalized: string; registrationCode: string } | null> {
@@ -28,15 +34,14 @@ export async function resolveEmailForRegistrationNumberLookup(
         { formSubmission: { registrationCode: { equals: trimmed, mode: "insensitive" } } },
       ],
     },
-    include: {
-      child: { include: { guardian: true } },
-      formSubmission: { select: { registrationCode: true } },
-    },
+    include: registrantLookupRegistrationInclude,
     orderBy: { registeredAt: "desc" },
   });
 
-  const email = reg?.child.guardian.email?.trim();
-  if (!reg || !email) return null;
+  if (!reg) return null;
+
+  const email = registrationLookupEmail(reg).trim();
+  if (!email) return null;
 
   return {
     emailNormalized: normalizeRegistrantLookupEmail(email),
@@ -44,33 +49,15 @@ export async function resolveEmailForRegistrationNumberLookup(
   };
 }
 
-/** Distinct guardian emails on active registrations matching a phone number. */
+/** Distinct emails on active registrations matching a phone number via the configured phone field. */
 export async function findEmailOptionsForPhoneLookup(
   phoneRaw: string,
 ): Promise<RegistrantLookupEmailOption[]> {
-  const digits = normalizeRegistrantLookupPhone(phoneRaw);
-  if (digits.length < 10) return [];
-
-  const registrations = await prisma.registration.findMany({
-    where: {
-      ...registrantLookupRegistrationWhere,
-      child: {
-        guardian: {
-          phone: { contains: digits },
-        },
-      },
-    },
-    include: {
-      child: { include: { guardian: true } },
-    },
-    orderBy: { registeredAt: "desc" },
-    take: 100,
-  });
-
+  const registrations = await findRegistrationsForLookupPhone(phoneRaw);
   const byEmail = new Map<string, Set<string>>();
 
   for (const reg of registrations) {
-    const email = reg.child.guardian.email?.trim();
+    const email = registrationLookupEmail(reg).trim();
     if (!email) continue;
     const normalized = normalizeRegistrantLookupEmail(email);
     const names = byEmail.get(normalized) ?? new Set<string>();
@@ -85,24 +72,16 @@ export async function findEmailOptionsForPhoneLookup(
   }));
 }
 
-/** Ensure the email belongs to an active registration with the given phone. */
+/** Ensure the email belongs to an active registration with the given phone on the configured fields. */
 export async function emailMatchesPhoneForLookup(
   emailNormalized: string,
   phoneRaw: string,
 ): Promise<boolean> {
-  const digits = normalizeRegistrantLookupPhone(phoneRaw);
-  if (digits.length < 10) return false;
+  const phoneDigits = normalizeRegistrantLookupPhone(phoneRaw);
+  if (phoneDigits.length < 10) return false;
 
-  const reg = await prisma.registration.findFirst({
-    where: {
-      ...registrantLookupRegistrationForEmail(emailNormalized),
-      child: {
-        guardian: {
-          phone: { contains: digits },
-        },
-      },
-    },
-    select: { id: true },
-  });
-  return Boolean(reg);
+  const phoneMatches = await findRegistrationsForLookupPhone(phoneRaw);
+  return phoneMatches.some((reg) => registrationMatchesLookupEmail(reg, emailNormalized));
 }
+
+export { findRegistrationsForLookupEmail };

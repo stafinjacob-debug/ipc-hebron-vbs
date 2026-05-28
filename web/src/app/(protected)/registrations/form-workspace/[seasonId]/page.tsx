@@ -8,6 +8,10 @@ import {
   createDefaultFormDefinition,
   fieldsForAudience,
 } from "@/lib/registration-form-definition";
+import {
+  listLookupEmailFieldOptions,
+  listLookupPhoneFieldOptions,
+} from "@/lib/registrant-lookup-fields";
 import { getPublicBaseUrl } from "@/lib/public-base-url";
 import { prisma } from "@/lib/prisma";
 import { parsePublicRegistrationLayout } from "@/lib/public-registration-layout";
@@ -92,6 +96,9 @@ export default async function RegistrationFormWorkspacePage({
     .filter((f) => f.type !== "sectionHeader" && f.type !== "staticText")
     .map(({ key, label, audience }) => ({ key, label, audience }));
 
+  const lookupEmailFieldOptions = listLookupEmailFieldOptions(initialDefinition);
+  const lookupPhoneFieldOptions = listLookupPhoneFieldOptions(initialDefinition);
+
   return (
     <Suspense fallback={<p className="text-sm text-foreground/70">Loading workspace…</p>}>
       <FormWorkspacePageClient
@@ -150,6 +157,8 @@ export default async function RegistrationFormWorkspacePage({
           stripeSkipWhenFieldKey: form.stripeSkipWhenFieldKey,
           stripeSkipWhenFieldValue: form.stripeSkipWhenFieldValue,
           registrantLookupEnabled: form.registrantLookupEnabled,
+          registrantLookupEmailFieldKey: form.registrantLookupEmailFieldKey,
+          registrantLookupPhoneFieldKey: form.registrantLookupPhoneFieldKey,
           adminRegistrationEditEnabled: form.adminRegistrationEditEnabled,
           waiverEnabled: form.waiverEnabled,
           waiverTitle: form.waiverTitle,
@@ -162,6 +171,8 @@ export default async function RegistrationFormWorkspacePage({
           settingsStamp: form.updatedAt.toISOString(),
         }}
         paymentConditionFieldOptions={paymentConditionFieldOptions}
+        lookupEmailFieldOptions={lookupEmailFieldOptions}
+        lookupPhoneFieldOptions={lookupPhoneFieldOptions}
         waiverMergeFieldOptions={waiverMergeFieldOptions}
       />
     </Suspense>

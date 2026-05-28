@@ -37,6 +37,8 @@ export function FormSettingsForm({
   initial,
   hidePublicRegistrationOpen = false,
   paymentConditionFieldOptions = [],
+  lookupEmailFieldOptions = [],
+  lookupPhoneFieldOptions = [],
   waiverMergeFieldOptions,
   onSaveSuccess,
 }: {
@@ -71,6 +73,8 @@ export function FormSettingsForm({
     stripeSkipWhenFieldKey: string | null;
     stripeSkipWhenFieldValue: string | null;
     registrantLookupEnabled: boolean;
+    registrantLookupEmailFieldKey?: string | null;
+    registrantLookupPhoneFieldKey?: string | null;
     adminRegistrationEditEnabled: boolean;
     waiverEnabled: boolean;
     waiverTitle: string | null;
@@ -89,6 +93,16 @@ export function FormSettingsForm({
     key: string;
     label: string;
     audience: "guardian" | "eachChild";
+  }>;
+  lookupEmailFieldOptions?: Array<{
+    key: string;
+    label: string;
+    audience: "guardian" | "eachChild" | "consent";
+  }>;
+  lookupPhoneFieldOptions?: Array<{
+    key: string;
+    label: string;
+    audience: "guardian" | "eachChild" | "consent";
   }>;
   /** Guardian + consent + per-child fields offered for “include on waiver PDF”. Defaults to payment options + consent. */
   waiverMergeFieldOptions?: Array<{
@@ -191,6 +205,10 @@ export function FormSettingsForm({
         const stripeProductLabel = String(fd.get("stripeProductLabel") ?? "").trim() || null;
         const helpContactEmail = String(fd.get("helpContactEmail") ?? "").trim() || null;
         const registrantLookupEnabled = fd.get("registrantLookupEnabled") === "on";
+        const registrantLookupEmailFieldKey =
+          String(fd.get("registrantLookupEmailFieldKey") ?? "").trim() || null;
+        const registrantLookupPhoneFieldKey =
+          String(fd.get("registrantLookupPhoneFieldKey") ?? "").trim() || null;
         const adminRegistrationEditEnabled = fd.get("adminRegistrationEditEnabled") === "on";
         let stripeSkipWhenFieldKey = String(fd.get("stripeSkipWhenFieldKey") ?? "").trim() || null;
         let stripeSkipWhenFieldValue = String(fd.get("stripeSkipWhenFieldValue") ?? "").trim() || null;
@@ -252,6 +270,8 @@ export function FormSettingsForm({
             stripeSkipWhenFieldKey,
             stripeSkipWhenFieldValue,
             registrantLookupEnabled,
+            registrantLookupEmailFieldKey,
+            registrantLookupPhoneFieldKey,
             adminRegistrationEditEnabled,
             helpContactEmail,
             waiverEnabled,
@@ -347,6 +367,60 @@ export function FormSettingsForm({
             verification at <code className="text-xs">/register/lookup</code>).
           </span>
         </label>
+        {initial.registrantLookupEnabled || lookupEmailFieldOptions.length > 0 ? (
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label htmlFor="registrantLookupEmailFieldKey" className="block text-xs font-medium text-foreground/70">
+                Email field for lookup &amp; OTP
+              </label>
+              <select
+                id="registrantLookupEmailFieldKey"
+                name="registrantLookupEmailFieldKey"
+                defaultValue={initial.registrantLookupEmailFieldKey ?? "guardianEmail"}
+                className="mt-1 w-full rounded-md border border-foreground/15 bg-background px-3 py-2 text-sm"
+              >
+                {lookupEmailFieldOptions.map((f) => (
+                  <option key={f.key} value={f.key}>
+                    {f.audience === "guardian"
+                      ? "Guardian"
+                      : f.audience === "consent"
+                        ? "Consent"
+                        : "Child"}
+                    : {f.label} ({f.key})
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-xs text-foreground/60">
+                Used when families look up by email or choose where to send the verification code after a phone lookup.
+              </p>
+            </div>
+            <div>
+              <label htmlFor="registrantLookupPhoneFieldKey" className="block text-xs font-medium text-foreground/70">
+                Phone field for lookup
+              </label>
+              <select
+                id="registrantLookupPhoneFieldKey"
+                name="registrantLookupPhoneFieldKey"
+                defaultValue={initial.registrantLookupPhoneFieldKey ?? "guardianPhone"}
+                className="mt-1 w-full rounded-md border border-foreground/15 bg-background px-3 py-2 text-sm"
+              >
+                {lookupPhoneFieldOptions.map((f) => (
+                  <option key={f.key} value={f.key}>
+                    {f.audience === "guardian"
+                      ? "Guardian"
+                      : f.audience === "consent"
+                        ? "Consent"
+                        : "Child"}
+                    : {f.label} ({f.key})
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-xs text-foreground/60">
+                Used when families look up their registration by phone number.
+              </p>
+            </div>
+          </div>
+        ) : null}
         <label className="flex items-start gap-2 text-sm font-medium">
           <input
             type="checkbox"

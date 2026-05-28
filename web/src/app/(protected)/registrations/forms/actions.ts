@@ -22,6 +22,14 @@ import {
   sendAllApprovedRegistrationsEmailForSubmission,
   sendSubmissionCancelledEmail,
 } from "@/lib/email/registration-emails";
+import {
+  DEFAULT_REGISTRANT_LOOKUP_EMAIL_FIELD,
+  DEFAULT_REGISTRANT_LOOKUP_PHONE_FIELD,
+  isValidLookupEmailFieldKey,
+  isValidLookupPhoneFieldKey,
+  listLookupEmailFieldOptions,
+  listLookupPhoneFieldOptions,
+} from "@/lib/registrant-lookup-fields";
 import { canManageDirectory } from "@/lib/roles";
 import {
   filterWaiverMergeKeysToDef,
@@ -196,6 +204,8 @@ export async function updateRegistrationFormSettings(
     stripeSkipWhenFieldKey: string | null;
     stripeSkipWhenFieldValue: string | null;
     registrantLookupEnabled: boolean;
+    registrantLookupEmailFieldKey: string | null;
+    registrantLookupPhoneFieldKey: string | null;
     adminRegistrationEditEnabled: boolean;
     waiverEnabled: boolean;
     waiverTitle: string | null;
@@ -293,6 +303,23 @@ export async function updateRegistrationFormSettings(
     ? sanitizeWaiverSupplementalFieldsForSave(data.waiverSupplementalFields)
     : [];
 
+  const registrantLookupEmailFieldKey = data.registrantLookupEmailFieldKey?.trim() || null;
+  const registrantLookupPhoneFieldKey = data.registrantLookupPhoneFieldKey?.trim() || null;
+  if (activeDefForSettings) {
+    if (!isValidLookupEmailFieldKey(activeDefForSettings, registrantLookupEmailFieldKey)) {
+      return {
+        ok: false,
+        message: "Choose a valid email field for registration lookup (email or text field).",
+      };
+    }
+    if (!isValidLookupPhoneFieldKey(activeDefForSettings, registrantLookupPhoneFieldKey)) {
+      return {
+        ok: false,
+        message: "Choose a valid phone field for registration lookup (phone or text field).",
+      };
+    }
+  }
+
   if (stripeSkipWhenFieldKey) {
     const activeDef = activeDefForSettings;
     if (!activeDef) {
@@ -347,6 +374,12 @@ export async function updateRegistrationFormSettings(
         stripeSkipWhenFieldKey: data.stripeCheckoutEnabled ? stripeSkipWhenFieldKey : null,
         stripeSkipWhenFieldValue: data.stripeCheckoutEnabled ? stripeSkipWhenFieldValue : null,
         registrantLookupEnabled: data.registrantLookupEnabled,
+        registrantLookupEmailFieldKey: data.registrantLookupEnabled
+          ? registrantLookupEmailFieldKey ?? DEFAULT_REGISTRANT_LOOKUP_EMAIL_FIELD
+          : null,
+        registrantLookupPhoneFieldKey: data.registrantLookupEnabled
+          ? registrantLookupPhoneFieldKey ?? DEFAULT_REGISTRANT_LOOKUP_PHONE_FIELD
+          : null,
         adminRegistrationEditEnabled: data.adminRegistrationEditEnabled,
         waiverEnabled: data.waiverEnabled,
         waiverTitle: data.waiverEnabled ? data.waiverTitle?.trim() || "Medical Liability Release Form" : null,
@@ -430,6 +463,8 @@ export async function cloneRegistrationFormFromSeason(
       stripeSkipWhenFieldKey: srcForm.stripeSkipWhenFieldKey,
       stripeSkipWhenFieldValue: srcForm.stripeSkipWhenFieldValue,
       registrantLookupEnabled: srcForm.registrantLookupEnabled,
+      registrantLookupEmailFieldKey: srcForm.registrantLookupEmailFieldKey,
+      registrantLookupPhoneFieldKey: srcForm.registrantLookupPhoneFieldKey,
       adminRegistrationEditEnabled: srcForm.adminRegistrationEditEnabled,
       waiverEnabled: srcForm.waiverEnabled,
       waiverTitle: srcForm.waiverTitle,
@@ -829,6 +864,8 @@ export type FormWorkspacePayload = {
     stripeSkipWhenFieldKey: string | null;
     stripeSkipWhenFieldValue: string | null;
     registrantLookupEnabled: boolean;
+    registrantLookupEmailFieldKey: string | null;
+    registrantLookupPhoneFieldKey: string | null;
     adminRegistrationEditEnabled: boolean;
     waiverEnabled: boolean;
     waiverTitle: string | null;
@@ -845,6 +882,16 @@ export type FormWorkspacePayload = {
     key: string;
     label: string;
     audience: "guardian" | "eachChild";
+  }>;
+  lookupEmailFieldOptions: Array<{
+    key: string;
+    label: string;
+    audience: "guardian" | "eachChild" | "consent";
+  }>;
+  lookupPhoneFieldOptions: Array<{
+    key: string;
+    label: string;
+    audience: "guardian" | "eachChild" | "consent";
   }>;
   waiverMergeFieldOptions: Array<{
     key: string;
@@ -920,6 +967,9 @@ export async function loadFormWorkspacePayload(
     .filter((f) => f.type !== "sectionHeader" && f.type !== "staticText")
     .map(({ key, label, audience }) => ({ key, label, audience }));
 
+  const lookupEmailFieldOptions = listLookupEmailFieldOptions(initialDefinition);
+  const lookupPhoneFieldOptions = listLookupPhoneFieldOptions(initialDefinition);
+
   return {
     ok: true,
     payload: {
@@ -978,6 +1028,8 @@ export async function loadFormWorkspacePayload(
         stripeSkipWhenFieldKey: form.stripeSkipWhenFieldKey,
         stripeSkipWhenFieldValue: form.stripeSkipWhenFieldValue,
         registrantLookupEnabled: form.registrantLookupEnabled,
+        registrantLookupEmailFieldKey: form.registrantLookupEmailFieldKey,
+        registrantLookupPhoneFieldKey: form.registrantLookupPhoneFieldKey,
         adminRegistrationEditEnabled: form.adminRegistrationEditEnabled,
         waiverEnabled: form.waiverEnabled,
         waiverTitle: form.waiverTitle,
@@ -990,6 +1042,8 @@ export async function loadFormWorkspacePayload(
         settingsStamp: form.updatedAt.toISOString(),
       },
       paymentConditionFieldOptions,
+      lookupEmailFieldOptions,
+      lookupPhoneFieldOptions,
       waiverMergeFieldOptions,
     },
   };

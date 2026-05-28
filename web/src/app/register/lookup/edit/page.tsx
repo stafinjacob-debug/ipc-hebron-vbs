@@ -5,8 +5,11 @@ import { prisma } from "@/lib/prisma";
 import { rulesFromDb } from "@/lib/public-registration";
 import { readRegistrantLookupSession } from "@/lib/registrant-lookup-session";
 import {
-  registrantLookupEmailMatchesSubmission,
-  registrantLookupRegistrationForEmail,
+  registrantLookupRegistrationInclude,
+  registrationMatchesLookupEmail,
+  submissionMatchesLookupEmail,
+} from "@/lib/registrant-lookup-fields";
+import {
   registrantLookupRegistrationWhere,
 } from "@/lib/registrant-lookup";
 import {
@@ -49,21 +52,23 @@ export default async function RegistrantLookupEditPage() {
     const reg = await prisma.registration.findUnique({
       where: { id: session.registrationId },
       include: {
-        season: { select: { id: true, name: true } },
+        season: registrantLookupRegistrationInclude.season,
+        formSubmission: registrantLookupRegistrationInclude.formSubmission,
         child: { include: { guardian: true } },
       },
     });
     if (!reg) redirect("/register/lookup");
     const active =
       reg.status === "PENDING" || reg.status === "CONFIRMED" || reg.status === "WAITLIST";
-    const emailOk =
-      (reg.child.guardian.email ?? "").trim().toLowerCase() === session.emailNormalized;
+    const emailOk = registrationMatchesLookupEmail(reg, session.emailNormalized);
     if (!active || !emailOk) redirect("/register/lookup");
 
     const formContext = await loadSeasonFormContext(reg.seasonId);
     if (!formContext) redirect("/register/lookup");
 
     const guardian = reg.child.guardian;
+    const guardianResponses =
+      (reg.formSubmission?.guardianResponses as Record<string, unknown> | null) ?? {};
     return (
       <div className="mx-auto max-w-2xl space-y-6 px-4 py-10">
         <div>
@@ -84,7 +89,7 @@ export default async function RegistrantLookupEditPage() {
             lastName: guardian.lastName,
             email: guardian.email,
             phone: guardian.phone,
-            guardianResponses: {},
+            guardianResponses,
           })}
           children={[
             {
@@ -107,7 +112,20 @@ export default async function RegistrantLookupEditPage() {
     where: { id: session.submissionId },
     include: {
       guardian: true,
-      season: { select: { id: true, name: true } },
+      season: {
+        select: {
+          id: true,
+          name: true,
+          registrationForm: {
+            select: {
+              registrantLookupEmailFieldKey: true,
+              registrantLookupPhoneFieldKey: true,
+              publishedDefinitionJson: true,
+              draftDefinitionJson: true,
+            },
+          },
+        },
+      },
       registrations: {
         where: registrantLookupRegistrationWhere,
         include: { child: { include: { guardian: true } } },
@@ -119,10 +137,12 @@ export default async function RegistrantLookupEditPage() {
   if (!submission || submission.registrations.length === 0) redirect("/register/lookup");
 
   if (
-    !registrantLookupEmailMatchesSubmission({
+    !submissionMatchesLookupEmail({
       emailNormalized: session.emailNormalized,
-      submissionGuardianEmail: submission.guardian.email,
-      registrationGuardianEmails: submission.registrations.map((r) => r.child.guardian.email),
+      form: submission.season.registrationForm,
+      guardian: submission.guardian,
+      guardianResponses: (submission.guardianResponses as Record<string, unknown> | null) ?? {},
+      registrations: submission.registrations,
     })
   ) {
     redirect("/register/lookup");

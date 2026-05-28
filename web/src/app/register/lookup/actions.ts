@@ -3,7 +3,6 @@
 import { randomInt } from "crypto";
 import { compare, hash } from "bcryptjs";
 import { z } from "zod";
-import type { Prisma } from "@/generated/prisma";
 import { getEffectiveDefinition } from "@/lib/ensure-registration-form";
 import { prisma } from "@/lib/prisma";
 import { rulesFromDb } from "@/lib/public-registration";
@@ -22,19 +21,22 @@ import {
   normalizeRegistrantLookupEmail,
   maskRegistrantLookupEmail,
   normalizeRegistrantLookupPhone,
-  registrantLookupEmailMatchesSubmission,
-  registrantLookupRegistrationForEmail,
   registrantLookupRegistrationWhere,
-  registrantLookupSubmissionForEmail,
   type RegistrantLookupEmailOption,
   type RegistrantLookupMethod,
   type RegistrantLookupPickItem,
 } from "@/lib/registrant-lookup";
 import {
+  findRegistrationsForLookupEmail,
   emailMatchesPhoneForLookup,
   findEmailOptionsForPhoneLookup,
   resolveEmailForRegistrationNumberLookup,
 } from "@/lib/registrant-lookup-resolve";
+import {
+  registrantLookupRegistrationInclude,
+  registrationMatchesLookupEmail,
+  submissionMatchesLookupEmail,
+} from "@/lib/registrant-lookup-fields";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
@@ -160,47 +162,12 @@ function pickItemFromSubmission(
   };
 }
 
-/** Find editable registrations the same way the admin list does — by guardian email on the child profile. */
+/** Find editable registrations using each season's configured lookup email field. */
 async function findLookupPickItems(
   emailNormalized: string,
   registrationCode?: string,
 ): Promise<RegistrantLookupPickItem[]> {
-  const registrationWhere: Prisma.RegistrationWhereInput = {
-    ...registrantLookupRegistrationForEmail(emailNormalized),
-    ...(registrationCode?.trim()
-      ? {
-          OR: [
-            { formSubmission: { registrationCode: registrationCode.trim() } },
-            {
-              registrationNumber: {
-                equals: registrationCode.trim(),
-                mode: "insensitive",
-              },
-            },
-          ],
-        }
-      : {}),
-  };
-
-  const registrations = await prisma.registration.findMany({
-    where: registrationWhere,
-    orderBy: { registeredAt: "desc" },
-    take: 50,
-    select: {
-      id: true,
-      registrationNumber: true,
-      formSubmissionId: true,
-      season: { select: { name: true } },
-      child: { select: { firstName: true, lastName: true } },
-      formSubmission: {
-        select: {
-          id: true,
-          registrationCode: true,
-          season: { select: { name: true } },
-        },
-      },
-    },
-  });
+  const registrations = await findRegistrationsForLookupEmail(emailNormalized, registrationCode);
 
   type RegistrationRow = (typeof registrations)[number];
   const submissionIdList: string[] = [];
@@ -220,10 +187,7 @@ async function findLookupPickItems(
 
   if (submissionIdList.length > 0) {
     const submissions = await prisma.formSubmission.findMany({
-      where: {
-        id: { in: submissionIdList },
-        ...registrantLookupSubmissionForEmail(emailNormalized),
-      },
+      where: { id: { in: submissionIdList } },
       orderBy: { submittedAt: "desc" },
       include: submissionLookupInclude,
     });
@@ -479,14 +443,15 @@ export async function saveRegistrantSubmissionAction(
     const reg = await prisma.registration.findFirst({
       where: {
         id: session.registrationId,
-        ...registrantLookupRegistrationForEmail(session.emailNormalized),
+        ...registrantLookupRegistrationWhere,
       },
       include: {
+        ...registrantLookupRegistrationInclude,
         child: { include: { guardian: true } },
         season: { include: { publicRegistrationSettings: true, registrationForm: true } },
       },
     });
-    if (!reg) {
+    if (!reg || !registrationMatchesLookupEmail(reg, session.emailNormalized)) {
       return { ok: false, message: "Registration not found." };
     }
 
@@ -536,10 +501,12 @@ export async function saveRegistrantSubmissionAction(
   }
 
   if (
-    !registrantLookupEmailMatchesSubmission({
+    !submissionMatchesLookupEmail({
       emailNormalized: session.emailNormalized,
-      submissionGuardianEmail: submission.guardian.email,
-      registrationGuardianEmails: submission.registrations.map((r) => r.child.guardian.email),
+      form: submission.season.registrationForm,
+      guardian: submission.guardian,
+      guardianResponses: (submission.guardianResponses as Record<string, unknown> | null) ?? {},
+      registrations: submission.registrations,
     })
   ) {
     return { ok: false, message: "Session mismatch. Look up your registration again." };
