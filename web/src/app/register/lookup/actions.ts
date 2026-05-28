@@ -313,17 +313,17 @@ export async function requestRegistrantLookupOtpAction(
       if (options.length === 0) {
         return { ok: true, message: neutralMessage(), lookupMethod, phone: phoneInput };
       }
-      if (options.length > 1) {
-        return {
-          ok: true,
-          step: "pick_email",
-          lookupMethod,
-          phone: phoneInput,
-          emailOptions: options,
-          message: "We found more than one email for this phone number. Choose where to send your verification code.",
-        };
-      }
-      targetEmail = options[0]!.emailNormalized;
+      return {
+        ok: true,
+        step: "pick_email",
+        lookupMethod,
+        phone: phoneInput,
+        emailOptions: options,
+        message:
+          options.length === 1
+            ? "We found one email linked to this phone number. Confirm where to send your verification code."
+            : "We found several emails linked to this phone number. Choose where to send your verification code.",
+      };
     }
   }
 

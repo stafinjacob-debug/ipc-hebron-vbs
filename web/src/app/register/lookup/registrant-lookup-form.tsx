@@ -205,8 +205,8 @@ export function RegistrantLookupForm() {
                 Phone number
               </label>
               <p className="mt-0.5 text-xs text-muted">
-                Enter the phone number on your registration. If several emails are on file, you&apos;ll choose
-                which one receives the code.
+                Enter the phone number from your registration. We&apos;ll show matching email addresses on
+                file so you can choose where to receive your verification code.
               </p>
               <input
                 id="phone"
@@ -231,7 +231,13 @@ export function RegistrantLookupForm() {
             disabled={pending}
             className="w-full rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-brand-foreground hover:opacity-90 disabled:opacity-50"
           >
-            {pending ? "Sending…" : "Send verification code"}
+            {pending
+              ? lookupMethod === "phone"
+                ? "Looking…"
+                : "Sending…"
+              : lookupMethod === "phone"
+                ? "Find email addresses"
+                : "Send verification code"}
           </button>
         </form>
       ) : null}
@@ -239,8 +245,9 @@ export function RegistrantLookupForm() {
       {step === "pick_email" && emailOptions.length > 0 ? (
         <div className="space-y-3">
           <p className="text-sm text-foreground/75">
-            Multiple email addresses are linked to this phone number. Choose where to send your verification
-            code:
+            {emailOptions.length === 1
+              ? "This email is linked to your phone number on file. Send the verification code here:"
+              : "These email addresses are linked to your phone number on registrations. Choose where to send your verification code:"}
           </p>
           <ul className="space-y-2">
             {emailOptions.map((opt) => (
@@ -249,12 +256,15 @@ export function RegistrantLookupForm() {
                   type="button"
                   disabled={pending}
                   onClick={() => handlePickEmail(opt)}
-                  className="w-full rounded-lg border border-foreground/15 px-4 py-3 text-left hover:bg-foreground/[0.03] disabled:opacity-50"
+                  className="w-full rounded-lg border border-foreground/15 px-4 py-3 text-left hover:border-brand/40 hover:bg-brand/5 disabled:opacity-50"
                 >
-                  <p className="font-medium">{opt.maskedEmail}</p>
+                  <p className="font-medium text-foreground">{opt.maskedEmail}</p>
                   {opt.childSummary ? (
                     <p className="mt-0.5 text-sm text-muted">Registrations: {opt.childSummary}</p>
                   ) : null}
+                  <p className="mt-2 text-xs font-medium text-brand">
+                    {pending ? "Sending code…" : "Send verification code to this email"}
+                  </p>
                 </button>
               </li>
             ))}
