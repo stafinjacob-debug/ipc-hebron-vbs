@@ -16,6 +16,12 @@ import {
   syncSentMessagesByDelta,
 } from "@/lib/messages/graph-mailbox";
 import { sendMailViaMicrosoftGraph } from "@/lib/email/microsoft-graph";
+import {
+  COMPOSE_TO_EMAIL_RE,
+  guardianEmailsForComposeRegistrantAudience,
+  parseComposeRegistrantAudience,
+  statsForComposeRegistrantAudience,
+} from "@/lib/compose-registrant-audience";
 
 export type IncomingMessageActionState = {
   ok: boolean;
@@ -374,7 +380,40 @@ function escapeHtmlEmailBody(s: string): string {
     .replace(/'/g, "&#39;");
 }
 
-const COMPOSE_TO_EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const COMPOSE_TO_EMAIL_RE_LEGACY = COMPOSE_TO_EMAIL_RE;
+
+const MAX_MANUAL_COMPOSE_RECIPIENTS = 25;
+const MAX_REGISTRANT_AUDIENCE_SEND = 1000;
+
+export async function previewComposeRegistrantAudienceAction(
+  seasonId: string,
+  audienceRaw: string,
+): Promise<
+  | { ok: true; recipientCount: number; matchingRegistrations: number; skippedNoEmail: number }
+  | { ok: false; error: string }
+> {
+  const session = await auth();
+  if (!session?.user?.role || !canManageDirectory(session.user.role)) {
+    return { ok: false, error: "You do not have permission to preview recipients." };
+  }
+
+  const season = seasonId.trim();
+  if (!season) return { ok: false, error: "Choose a season." };
+
+  const audience = parseComposeRegistrantAudience(audienceRaw);
+  if (!audience) return { ok: false, error: "Choose a registrant group." };
+
+  const seasonRow = await prisma.vbsSeason.findUnique({ where: { id: season }, select: { id: true } });
+  if (!seasonRow) return { ok: false, error: "Season not found." };
+
+  const stats = await statsForComposeRegistrantAudience(season, audience);
+  return {
+    ok: true,
+    recipientCount: stats.recipientCount,
+    matchingRegistrations: stats.matchingRegistrations,
+    skippedNoEmail: stats.skippedNoEmail,
+  };
+}
 
 export async function sendComposedEmailAction(
   _prevState: IncomingMessageActionState,
@@ -386,24 +425,91 @@ export async function sendComposedEmailAction(
     return { ok: false, error: "You do not have permission to send email." };
   }
 
+  const recipientMode = String(formData.get("recipientMode") ?? "manual").trim();
+  const seasonId = String(formData.get("seasonId") ?? "").trim();
+  const audienceRaw = String(formData.get("registrantAudience") ?? "").trim();
   const toRaw = String(formData.get("toAddresses") ?? "").trim();
   const subject = String(formData.get("subject") ?? "").trim();
   const body = String(formData.get("body") ?? "").trim();
 
-  if (!toRaw) return { ok: false, error: "Add at least one recipient email." };
   if (!subject) return { ok: false, error: "Subject is required." };
   if (!body) return { ok: false, error: "Message body cannot be empty." };
+
+  const htmlBody = `<div style="font-family:system-ui,-apple-system,Segoe UI,sans-serif;font-size:15px;line-height:1.55;color:#0f172a">${escapeHtmlEmailBody(body).replace(/\r?\n/g, "<br/>")}</div>`;
+
+  if (recipientMode === "registrants") {
+    const audience = parseComposeRegistrantAudience(audienceRaw);
+    if (!audience) return { ok: false, error: "Choose a registrant group to email." };
+    if (!seasonId) return { ok: false, error: "Choose a season." };
+
+    const seasonRow = await prisma.vbsSeason.findUnique({ where: { id: seasonId }, select: { id: true } });
+    if (!seasonRow) return { ok: false, error: "Season not found." };
+
+    const { emails, stats } = await guardianEmailsForComposeRegistrantAudience(seasonId, audience);
+    if (emails.length === 0) {
+      return {
+        ok: false,
+        error: "No guardian email addresses match this group. Check that families have email on file.",
+      };
+    }
+    if (emails.length > MAX_REGISTRANT_AUDIENCE_SEND) {
+      return {
+        ok: false,
+        error: `Too many recipients (${emails.length}). Narrow the group or split into smaller sends (max ${MAX_REGISTRANT_AUDIENCE_SEND}).`,
+      };
+    }
+
+    let sent = 0;
+    let failed = 0;
+    let lastError = "";
+
+    for (const email of emails) {
+      const result = await sendMailViaMicrosoftGraph({
+        toAddress: email,
+        subject,
+        htmlBody,
+      });
+      if (result.ok) {
+        sent += 1;
+      } else {
+        failed += 1;
+        lastError = result.error;
+      }
+    }
+
+    revalidatePath("/messages");
+    revalidatePath("/messages/sent");
+    revalidatePath("/messages/compose");
+
+    if (sent === 0) {
+      return { ok: false, error: lastError || "Could not send email." };
+    }
+
+    const skipNote =
+      stats.skippedNoEmail > 0
+        ? ` ${stats.skippedNoEmail} registration(s) skipped (no valid guardian email).`
+        : "";
+    const failNote = failed > 0 ? ` ${failed} failed.` : "";
+
+    return {
+      ok: true,
+      message: `Sent to ${sent} guardian email address${sent === 1 ? "" : "es"}.${failNote}${skipNote}`,
+    };
+  }
+
+  if (!toRaw) return { ok: false, error: "Add at least one recipient email." };
 
   const addresses = toRaw
     .split(/[,;\n]+/)
     .map((a) => a.trim())
     .filter(Boolean);
-  const invalid = addresses.filter((a) => !COMPOSE_TO_EMAIL_RE.test(a));
+  const invalid = addresses.filter((a) => !COMPOSE_TO_EMAIL_RE_LEGACY.test(a));
   if (invalid.length) return { ok: false, error: `Invalid email address(es): ${invalid.join(", ")}` };
-  if (addresses.length > 25) return { ok: false, error: "Too many recipients (max 25)." };
+  if (addresses.length > MAX_MANUAL_COMPOSE_RECIPIENTS) {
+    return { ok: false, error: `Too many recipients (max ${MAX_MANUAL_COMPOSE_RECIPIENTS}). Use registrant groups for larger sends.` };
+  }
 
   const [primary, ...additionalToAddresses] = addresses;
-  const htmlBody = `<div style="font-family:system-ui,-apple-system,Segoe UI,sans-serif;font-size:15px;line-height:1.55;color:#0f172a">${escapeHtmlEmailBody(body).replace(/\r?\n/g, "<br/>")}</div>`;
 
   const result = await sendMailViaMicrosoftGraph({
     toAddress: primary,

@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { ComposeEmailForm } from "@/app/(protected)/messages/compose-email-form";
 import { MessagesFolderNav } from "@/app/(protected)/messages/messages-folder-nav";
+import { prisma } from "@/lib/prisma";
 import { canManageDirectory, canViewOperations } from "@/lib/roles";
 
 export default async function ComposeMessagePage() {
@@ -11,6 +12,11 @@ export default async function ComposeMessagePage() {
   if (!session?.user?.role) redirect("/login");
   if (!canViewOperations(session.user.role)) redirect("/dashboard");
   if (!canManageDirectory(session.user.role)) redirect("/messages");
+
+  const seasons = await prisma.vbsSeason.findMany({
+    orderBy: [{ year: "desc" }, { startDate: "desc" }],
+    select: { id: true, name: true, year: true },
+  });
 
   return (
     <section className="space-y-5">
@@ -32,7 +38,7 @@ export default async function ComposeMessagePage() {
       </p>
 
       <div className="max-w-3xl rounded-xl border border-foreground/10 bg-surface-elevated p-5">
-        <ComposeEmailForm />
+        <ComposeEmailForm seasons={seasons} />
       </div>
     </section>
   );
