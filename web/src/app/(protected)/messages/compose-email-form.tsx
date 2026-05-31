@@ -7,7 +7,7 @@ import {
   sendComposedEmailAction,
   type IncomingMessageActionState,
 } from "@/app/(protected)/messages/actions";
-import { COMPOSE_REGISTRANT_AUDIENCE_OPTIONS } from "@/lib/compose-registrant-audience";
+import { COMPOSE_REGISTRANT_AUDIENCE_OPTIONS } from "@/lib/compose-registrant-audience-options";
 
 const INITIAL: IncomingMessageActionState = { ok: false };
 
