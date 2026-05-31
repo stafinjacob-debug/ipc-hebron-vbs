@@ -17,7 +17,33 @@ import {
   buildGuardianFieldValues,
 } from "@/lib/registrant-edit-form";
 import { createDefaultFormDefinition } from "@/lib/registration-form-definition";
+import { buildRegistrantPaymentDisplay } from "@/lib/registrant-lookup-payment";
+import { getStripeClient } from "@/lib/stripe-registration-payment";
 import { RegistrantEditForm } from "./registrant-edit-form";
+
+async function loadPaymentDisplay(args: {
+  expectsPayment: boolean;
+  paymentReceivedAt: Date | null;
+  formSubmissionId: string | null;
+  stripePaymentStatus: string | null;
+  stripeCheckoutSessionId: string | null;
+  stripeAmountChargedCents: number | null;
+}) {
+  const stripeConfigured = Boolean(getStripeClient());
+  return buildRegistrantPaymentDisplay({
+    payment: {
+      expectsPayment: args.expectsPayment,
+      paymentReceivedAt: args.paymentReceivedAt,
+      formSubmissionId: args.formSubmissionId,
+      formSubmission: {
+        stripePaymentStatus: args.stripePaymentStatus,
+        stripeCheckoutSessionId: args.stripeCheckoutSessionId,
+      },
+    },
+    stripeAmountChargedCents: args.stripeAmountChargedCents,
+    stripeConfigured,
+  });
+}
 
 async function loadSeasonFormContext(seasonId: string) {
   const season = await prisma.vbsSeason.findUnique({
@@ -44,7 +70,14 @@ async function loadSeasonFormContext(seasonId: string) {
   };
 }
 
-export default async function RegistrantLookupEditPage() {
+export default async function RegistrantLookupEditPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ payment?: string }>;
+}) {
+  const sp = searchParams ? await searchParams : {};
+  const paymentCanceled = sp.payment === "canceled";
+
   const session = await readRegistrantLookupSession();
   if (!session) redirect("/register/lookup");
 
@@ -53,7 +86,17 @@ export default async function RegistrantLookupEditPage() {
       where: { id: session.registrationId },
       include: {
         season: registrantLookupRegistrationInclude.season,
-        formSubmission: registrantLookupRegistrationInclude.formSubmission,
+        formSubmission: {
+          select: {
+            id: true,
+            registrationCode: true,
+            guardianResponses: true,
+            stripePaymentStatus: true,
+            stripeCheckoutSessionId: true,
+            stripeAmountChargedCents: true,
+            guardian: { select: { email: true, phone: true } },
+          },
+        },
         child: { include: { guardian: true } },
       },
     });
@@ -69,6 +112,14 @@ export default async function RegistrantLookupEditPage() {
     const guardian = reg.child.guardian;
     const guardianResponses =
       (reg.formSubmission?.guardianResponses as Record<string, unknown> | null) ?? {};
+    const payment = await loadPaymentDisplay({
+      expectsPayment: reg.expectsPayment,
+      paymentReceivedAt: reg.paymentReceivedAt,
+      formSubmissionId: reg.formSubmissionId,
+      stripePaymentStatus: reg.formSubmission?.stripePaymentStatus ?? null,
+      stripeCheckoutSessionId: reg.formSubmission?.stripeCheckoutSessionId ?? null,
+      stripeAmountChargedCents: reg.formSubmission?.stripeAmountChargedCents ?? null,
+    });
     return (
       <div className="mx-auto max-w-2xl space-y-6 px-4 py-10">
         <div>
@@ -84,6 +135,8 @@ export default async function RegistrantLookupEditPage() {
           seasonName={formContext.seasonName}
           definition={formContext.definition}
           rules={formContext.rules}
+          payment={payment}
+          paymentCanceled={paymentCanceled}
           guardianValues={buildGuardianFieldValues({
             firstName: guardian.firstName,
             lastName: guardian.lastName,
@@ -152,6 +205,15 @@ export default async function RegistrantLookupEditPage() {
   if (!formContext) redirect("/register/lookup");
 
   const guardianResponses = (submission.guardianResponses as Record<string, unknown> | null) ?? {};
+  const sampleReg = submission.registrations[0]!;
+  const payment = await loadPaymentDisplay({
+    expectsPayment: sampleReg.expectsPayment,
+    paymentReceivedAt: sampleReg.paymentReceivedAt,
+    formSubmissionId: submission.id,
+    stripePaymentStatus: submission.stripePaymentStatus,
+    stripeCheckoutSessionId: submission.stripeCheckoutSessionId,
+    stripeAmountChargedCents: submission.stripeAmountChargedCents,
+  });
 
   return (
     <div className="mx-auto max-w-2xl space-y-6 px-4 py-10">
@@ -168,6 +230,8 @@ export default async function RegistrantLookupEditPage() {
         seasonName={formContext.seasonName}
         definition={formContext.definition}
         rules={formContext.rules}
+        payment={payment}
+        paymentCanceled={paymentCanceled}
         guardianValues={buildGuardianFieldValues({
           firstName: submission.guardian.firstName,
           lastName: submission.guardian.lastName,

@@ -16,11 +16,23 @@ export type RegistrationPaymentBadgeInput = {
   } | null;
 };
 
+export function registrationPaymentIsComplete(r: RegistrationPaymentBadgeInput): boolean {
+  if (r.paymentReceivedAt) return true;
+  const stripeStatus = (r.formSubmission?.stripePaymentStatus ?? "").toLowerCase();
+  return stripeStatus === "paid";
+}
+
 export function isCheckoutPendingRegistration(r: RegistrationPaymentBadgeInput): boolean {
-  if (r.paymentReceivedAt) return false;
+  if (registrationPaymentIsComplete(r)) return false;
   if (!r.expectsPayment) return false;
   const stripeStatus = (r.formSubmission?.stripePaymentStatus ?? "").toLowerCase();
   return stripeStatus === "pending" && Boolean(r.formSubmission?.stripeCheckoutSessionId);
+}
+
+export function canPayRegistrationOnline(
+  r: RegistrationPaymentBadgeInput & { formSubmissionId: string | null },
+): boolean {
+  return Boolean(r.formSubmissionId) && r.expectsPayment && !registrationPaymentIsComplete(r);
 }
 
 export function registrationListPaymentBadge(r: RegistrationPaymentBadgeInput): {

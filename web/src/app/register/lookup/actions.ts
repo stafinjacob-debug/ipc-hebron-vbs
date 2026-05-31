@@ -39,6 +39,9 @@ import {
 } from "@/lib/registrant-lookup-fields";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { getPublicAppBaseUrl } from "@/lib/public-app-url";
+import { canPayRegistrationOnline } from "@/lib/registration-list-payment";
+import { resolveCheckoutResumeUrlForSubmission } from "@/lib/stripe-registration-payment";
 
 export type RegistrantLookupActionState = {
   ok: boolean;
@@ -51,6 +54,8 @@ export type RegistrantLookupActionState = {
   phone?: string;
   submissions?: RegistrantLookupPickItem[];
   emailOptions?: RegistrantLookupEmailOption[];
+  /** When set, the browser should redirect to Stripe Checkout. */
+  stripeCheckoutUrl?: string;
 };
 
 const OTP_TTL_MIN = 15;
@@ -562,4 +567,118 @@ export async function saveRegistrantSubmissionAction(
 
 export async function signOutRegistrantLookupAction(): Promise<void> {
   await clearRegistrantLookupSessionCookie();
+}
+
+async function resolveLookupFormSubmissionId(
+  session: RegistrantLookupSession,
+): Promise<
+  | { ok: true; formSubmissionId: string }
+  | { ok: false; message: string }
+> {
+  if (session.kind === "submission") {
+    const submission = await prisma.formSubmission.findUnique({
+      where: { id: session.submissionId },
+      include: {
+        guardian: true,
+        season: { select: { registrationForm: true } },
+        registrations: {
+          where: registrantLookupRegistrationWhere,
+          include: { child: { include: { guardian: true } } },
+        },
+      },
+    });
+    if (!submission || submission.registrations.length === 0) {
+      return { ok: false, message: "Registration not found." };
+    }
+    if (
+      !submissionMatchesLookupEmail({
+        emailNormalized: session.emailNormalized,
+        form: submission.season.registrationForm,
+        guardian: submission.guardian,
+        guardianResponses: (submission.guardianResponses as Record<string, unknown> | null) ?? {},
+        registrations: submission.registrations,
+      })
+    ) {
+      return { ok: false, message: "Session mismatch. Look up your registration again." };
+    }
+    return { ok: true, formSubmissionId: submission.id };
+  }
+
+  const reg = await prisma.registration.findFirst({
+    where: {
+      id: session.registrationId,
+      ...registrantLookupRegistrationWhere,
+    },
+    include: registrantLookupRegistrationInclude,
+  });
+  if (!reg || !registrationMatchesLookupEmail(reg, session.emailNormalized)) {
+    return { ok: false, message: "Registration not found." };
+  }
+  if (!reg.formSubmissionId) {
+    return { ok: false, message: "This registration does not have an online payment on file." };
+  }
+  return { ok: true, formSubmissionId: reg.formSubmissionId };
+}
+
+export async function startRegistrantLookupPaymentAction(): Promise<RegistrantLookupActionState> {
+  const session = await readRegistrantLookupSession();
+  if (!session) {
+    return { ok: false, message: "Your session expired. Look up your registration again." };
+  }
+
+  const resolved = await resolveLookupFormSubmissionId(session);
+  if (!resolved.ok) return { ok: false, message: resolved.message };
+
+  const submission = await prisma.formSubmission.findUnique({
+    where: { id: resolved.formSubmissionId },
+    include: {
+      registrations: {
+        where: registrantLookupRegistrationWhere,
+        select: {
+          expectsPayment: true,
+          paymentReceivedAt: true,
+        },
+      },
+    },
+  });
+  if (!submission) {
+    return { ok: false, message: "Registration not found." };
+  }
+
+  const sample = submission.registrations[0];
+  if (!sample) {
+    return { ok: false, message: "Registration not found." };
+  }
+
+  const paymentInput = {
+    expectsPayment: sample.expectsPayment,
+    paymentReceivedAt: sample.paymentReceivedAt,
+    formSubmission: {
+      stripePaymentStatus: submission.stripePaymentStatus,
+      stripeCheckoutSessionId: submission.stripeCheckoutSessionId,
+    },
+  };
+
+  if (
+    !canPayRegistrationOnline({
+      ...paymentInput,
+      formSubmissionId: submission.id,
+    })
+  ) {
+    return { ok: false, message: "No online payment is due for this registration." };
+  }
+
+  const base = getPublicAppBaseUrl();
+  const resume = await resolveCheckoutResumeUrlForSubmission(submission.id, {
+    cancelUrl: `${base}/register/lookup/edit?payment=canceled`,
+  });
+  if ("error" in resume) {
+    return { ok: false, message: resume.error };
+  }
+
+  return {
+    ok: true,
+    message: "Redirecting to secure checkout…",
+    stripeCheckoutUrl: resume.url,
+  };
 }

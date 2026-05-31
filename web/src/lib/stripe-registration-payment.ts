@@ -25,6 +25,8 @@ export async function createRegistrationStripeCheckoutSession(params: {
   totalCents: number;
   processingCents: number;
   coverProcessingFee: boolean;
+  successUrl?: string;
+  cancelUrl?: string;
 }): Promise<{ url: string; sessionId: string } | { error: string }> {
   const stripe = getStripeClient();
   if (!stripe) {
@@ -35,8 +37,11 @@ export async function createRegistrationStripeCheckoutSession(params: {
   }
 
   const base = getPublicAppBaseUrl();
-  const successUrl = `${base}/register/thanks?session_id={CHECKOUT_SESSION_ID}`;
-  const cancelUrl = `${base}/register?season=${encodeURIComponent(params.seasonId)}&payment=canceled`;
+  const successUrl =
+    params.successUrl ?? `${base}/register/thanks?session_id={CHECKOUT_SESSION_ID}`;
+  const cancelUrl =
+    params.cancelUrl ??
+    `${base}/register?season=${encodeURIComponent(params.seasonId)}&payment=canceled`;
 
   const session = await stripe.checkout.sessions.create({
     mode: "payment",
@@ -90,6 +95,7 @@ export async function createRegistrationStripeCheckoutSession(params: {
 /** Open Stripe Checkout URL for an unpaid submission (reuses open session or creates a new one). */
 export async function resolveCheckoutResumeUrlForSubmission(
   formSubmissionId: string,
+  options?: { cancelUrl?: string },
 ): Promise<{ url: string } | { error: string }> {
   const stripe = getStripeClient();
   if (!stripe) {
@@ -191,5 +197,6 @@ export async function resolveCheckoutResumeUrlForSubmission(
     totalCents,
     processingCents,
     coverProcessingFee,
+    cancelUrl: options?.cancelUrl,
   });
 }

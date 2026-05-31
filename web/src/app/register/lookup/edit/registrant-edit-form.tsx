@@ -5,8 +5,10 @@ import { useMemo, useState, useTransition } from "react";
 import type { FormDefinitionV1 } from "@/lib/registration-form-definition";
 import { fieldsForSection, sortSections } from "@/lib/registration-form-definition";
 import type { PublicRegistrationFieldRules } from "@/lib/public-registration";
+import type { RegistrantPaymentDisplay } from "@/lib/registrant-lookup-payment";
 import { saveRegistrantSubmissionAction, signOutRegistrantLookupAction } from "../actions";
 import { RegistrantEditFieldGroup } from "./registrant-edit-field-input";
+import { RegistrantPaymentSection } from "./registrant-payment-section";
 
 type ChildRow = {
   registrationId: string;
@@ -18,6 +20,8 @@ type Props = {
   seasonName: string;
   definition: FormDefinitionV1;
   rules: PublicRegistrationFieldRules;
+  payment: RegistrantPaymentDisplay;
+  paymentCanceled?: boolean;
   guardianValues: Record<string, string>;
   children: ChildRow[];
 };
@@ -55,6 +59,8 @@ export function RegistrantEditForm(p: Props) {
         <p className="font-medium">{p.seasonName}</p>
         <p className="mt-1 font-mono text-xs text-muted">Reference {p.registrationCode}</p>
       </div>
+
+      <RegistrantPaymentSection payment={p.payment} paymentCanceled={p.paymentCanceled} />
 
       {message ? (
         <div
