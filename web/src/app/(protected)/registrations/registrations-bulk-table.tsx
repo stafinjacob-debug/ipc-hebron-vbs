@@ -328,11 +328,12 @@ export function RegistrationsBulkTable({
         />
       </div>
 
-      <table className="w-full text-left text-sm">
+      <div className="overflow-x-auto">
+      <table className="w-full min-w-[64rem] text-left text-sm">
         <thead className="bg-foreground/[0.04] text-foreground/70">
           <tr>
             {canBulkAct ? (
-              <th className="w-10 px-2 py-3">
+              <th className="sticky left-0 z-20 w-10 bg-foreground/[0.04] px-2 py-3">
                 <input
                   type="checkbox"
                   className="h-4 w-4 rounded border-foreground/30"
@@ -359,7 +360,9 @@ export function RegistrationsBulkTable({
                 {col.label}
               </th>
             ))}
-            <th className="px-4 py-3 font-medium text-right">Actions</th>
+            <th className="sticky right-0 z-20 min-w-[7.5rem] bg-foreground/[0.04] px-4 py-3 font-medium text-right shadow-[-6px_0_10px_-6px_rgba(0,0,0,0.15)]">
+              Actions
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -371,7 +374,7 @@ export function RegistrationsBulkTable({
             return (
               <tr key={r.id} className="border-t border-foreground/10">
                 {canBulkAct ? (
-                  <td className="px-2 py-3 align-top">
+                  <td className="sticky left-0 z-10 bg-background px-2 py-3 align-top">
                     <input
                       type="checkbox"
                       className="h-4 w-4 rounded border-foreground/30"
@@ -416,7 +419,7 @@ export function RegistrationsBulkTable({
                     {r.extraCells?.[col.key]?.trim() || "—"}
                   </td>
                 ))}
-                <td className="px-4 py-3 text-right">
+                <td className="sticky right-0 z-10 min-w-[7.5rem] bg-background px-4 py-3 text-right shadow-[-6px_0_10px_-6px_rgba(0,0,0,0.12)]">
                   <div className="flex flex-col items-end gap-1">
                     <Link
                       href={`/registrations/${r.id}`}
@@ -447,6 +450,7 @@ export function RegistrationsBulkTable({
           })}
         </tbody>
       </table>
+      </div>
 
       {rows.length === 0 && (
         <p className="px-4 py-8 text-center text-foreground/60">No registrations yet.</p>

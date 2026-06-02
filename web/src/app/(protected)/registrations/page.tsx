@@ -431,8 +431,11 @@ export default async function RegistrationsPage({
   const qsBase = new URLSearchParams();
   for (const [k, v] of Object.entries(sp)) {
     if (v == null || v === "") continue;
-    if (k === "page") continue;
+    if (k === "page" || k === "col") continue;
     qsBase.set(k, String(v));
+  }
+  for (const key of extraColumnKeys) {
+    qsBase.append("col", key);
   }
   const seasonExportConfigs = seasons.map((s) => ({
     id: s.id,
@@ -571,6 +574,9 @@ export default async function RegistrationsPage({
         </div>
         <form method="get" className="space-y-3">
           <input type="hidden" name="page" value="1" />
+          {extraColumnKeys.map((key) => (
+            <input key={key} type="hidden" name="col" value={key} />
+          ))}
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
             <div className="lg:col-span-2">
               <label htmlFor="q" className="block text-xs font-medium text-foreground/70">
