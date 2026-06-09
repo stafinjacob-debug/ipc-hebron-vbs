@@ -15,6 +15,10 @@ import { saveBadgePrintSettings, type SaveBadgePrintSettingsState } from "./acti
 
 type Props = {
   seasonId: string;
+  seasonName: string;
+  seasonYear: number;
+  registrationNumberPrefix: string | null;
+  registrationNumberSeqDigits: number;
   settings: ResolvedBadgePrintSettings;
   formFieldOptions: ExportFieldOption[];
 };
@@ -51,7 +55,15 @@ function FieldCheckbox({
   );
 }
 
-export function BadgePrintSettingsForm({ seasonId, settings, formFieldOptions }: Props) {
+export function BadgePrintSettingsForm({
+  seasonId,
+  seasonName,
+  seasonYear,
+  registrationNumberPrefix,
+  registrationNumberSeqDigits,
+  settings,
+  formFieldOptions,
+}: Props) {
   const [state, action, pending] = useActionState(
     saveBadgePrintSettings.bind(null, seasonId),
     initial,
@@ -66,8 +78,21 @@ export function BadgePrintSettingsForm({ seasonId, settings, formFieldOptions }:
     [draft, formFields, logoPreview],
   );
   const previewPayload = useMemo(
-    () => sampleBadgePreviewPayload(previewSettings, formFieldOptions),
-    [previewSettings, formFieldOptions],
+    () =>
+      sampleBadgePreviewPayload(previewSettings, formFieldOptions, {
+        seasonName,
+        seasonYear,
+        registrationNumberPrefix,
+        registrationNumberSeqDigits,
+      }),
+    [
+      previewSettings,
+      formFieldOptions,
+      seasonName,
+      seasonYear,
+      registrationNumberPrefix,
+      registrationNumberSeqDigits,
+    ],
   );
 
   function patchDraft(patch: Partial<ResolvedBadgePrintSettings>) {

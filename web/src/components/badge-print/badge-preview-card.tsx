@@ -53,8 +53,14 @@ function NameCodeHeaderPreview({ payload }: { payload: BadgePrintPayload }) {
     <div className="flex min-w-0 flex-1 flex-col gap-1 text-left">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <div className="text-lg font-extrabold leading-none">{s.firstName || payload.childName}</div>
-          {s.lastName ? <div className="text-sm font-bold text-slate-800">{s.lastName}</div> : null}
+          {payload.settings.showChildName ? (
+            <>
+              <div className="text-lg font-extrabold leading-none">
+                {s.firstName || payload.childName}
+              </div>
+              {s.lastName ? <div className="text-sm font-bold text-slate-800">{s.lastName}</div> : null}
+            </>
+          ) : null}
         </div>
         {s.securityCode ? (
           <div className="shrink-0 rounded bg-slate-900 px-2 py-1 text-center text-white">
@@ -100,7 +106,13 @@ function KidCheckPreview({ payload }: { payload: BadgePrintPayload }) {
     <div className="flex min-w-0 flex-1 gap-1">
       <div className="flex min-w-0 flex-1 flex-col gap-0.5 text-left text-[10px] leading-snug text-slate-800">
         <div className="flex items-start justify-between gap-2">
-          <div className="text-sm font-extrabold">{`${s.firstName} ${s.lastName}`.trim() || payload.childName}</div>
+          {payload.settings.showChildName ? (
+            <div className="text-sm font-extrabold">
+              {`${s.firstName} ${s.lastName}`.trim() || payload.childName}
+            </div>
+          ) : (
+            <div className="flex-1" />
+          )}
           {s.securityCode ? (
             <div className="shrink-0 border border-slate-900 px-1.5 py-0.5 text-[9px] font-extrabold tabular-nums">
               {s.securityCode}
@@ -129,6 +141,15 @@ function KidCheckPreview({ payload }: { payload: BadgePrintPayload }) {
             <strong>Note:</strong> {s.notesLine}
           </div>
         ) : null}
+        {s.answerLines.length ? (
+          <div>
+            {s.answerLines.map((l) => (
+              <div key={`${l.label}-${l.text}`}>
+                <strong>{l.label ?? "Answer"}:</strong> {l.text}
+              </div>
+            ))}
+          </div>
+        ) : null}
         <div className="mt-auto flex flex-col items-center gap-0.5 pt-1">
           {s.printedAt ? <div className="text-[8px] text-slate-400">{s.printedAt}</div> : null}
           {payload.barcodeDataUrl ? (
@@ -141,12 +162,14 @@ function KidCheckPreview({ payload }: { payload: BadgePrintPayload }) {
         </div>
       </div>
       {payload.settings.logoUrl ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={payload.settings.logoUrl}
-          alt=""
-          className="max-h-full w-5 shrink-0 rotate-[-90deg] object-contain opacity-90"
-        />
+        <div className="flex w-7 shrink-0 items-center justify-center self-stretch border-l border-slate-200 pl-1">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={payload.settings.logoUrl}
+            alt=""
+            className="max-h-[85%] w-6 rotate-[-90deg] object-contain opacity-90"
+          />
+        </div>
       ) : null}
     </div>
   );

@@ -276,6 +276,45 @@ function formatBirthdate(value: Date | string | null | undefined): string | null
   return d.toLocaleDateString("en-US", { month: "numeric", day: "numeric", year: "numeric" });
 }
 
+function formFieldsInclude(settings: ResolvedBadgePrintSettings, ...keys: string[]): boolean {
+  const wanted = new Set(keys);
+  return settings.formFields.some((f) => wanted.has(f.fieldKey));
+}
+
+function shouldShowGuardianOnStructuredBadge(settings: ResolvedBadgePrintSettings): boolean {
+  return formFieldsInclude(
+    settings,
+    "guardian:guardianFirstName",
+    "guardian:guardianLastName",
+    "guardian:guardianPhone",
+  );
+}
+
+function shouldShowBirthdateOnStructuredBadge(settings: ResolvedBadgePrintSettings): boolean {
+  return formFieldsInclude(settings, "child:childDateOfBirth");
+}
+
+function shouldShowStaffNotesOnStructuredBadge(settings: ResolvedBadgePrintSettings): boolean {
+  return formFieldsInclude(settings, "staffNotes");
+}
+
+function shouldShowAllergyDetailsOnStructuredBadge(settings: ResolvedBadgePrintSettings): boolean {
+  return formFieldsInclude(settings, "child:allergiesNotes");
+}
+
+export function formatSampleRegistrationNumber(
+  prefix: string | null | undefined,
+  seqDigits: number,
+  seasonYear: number,
+): string {
+  const p = prefix?.trim();
+  if (p) {
+    const digits = Math.min(8, Math.max(2, Math.floor(seqDigits) || 3));
+    return `${p}${String(1).padStart(digits, "0")}`;
+  }
+  return `VBS-${seasonYear}-001`;
+}
+
 function buildStructuredData(input: BuildBadgeInput, answerLines: BadgePrintLine[]): BadgePrintStructured {
   const classOrBadge =
     input.badgeDisplayName?.trim() ||
@@ -296,18 +335,23 @@ function buildStructuredData(input: BuildBadgeInput, answerLines: BadgePrintLine
       ? `${input.seasonName} — ${classOrBadge}`
       : locationLine;
 
-  const guardianFirst = input.guardianFirstName?.trim() ?? "";
-  const guardianLast = input.guardianLastName?.trim() ?? "";
+  const showGuardian = shouldShowGuardianOnStructuredBadge(input.settings);
+  const guardianFirst = showGuardian ? (input.guardianFirstName?.trim() ?? "") : "";
+  const guardianLast = showGuardian ? (input.guardianLastName?.trim() ?? "") : "";
   const guardianLine =
-    guardianLast || guardianFirst
+    showGuardian && (guardianLast || guardianFirst)
       ? `${guardianLast}${guardianLast && guardianFirst ? ", " : ""}${guardianFirst}`.trim()
       : null;
 
-  const medicalLine = input.allergiesNotes?.trim()
-    ? input.allergiesNotes.trim()
-    : input.settings.showAllergyFlag
-      ? "Allergies on file"
-      : null;
+  let medicalLine: string | null = null;
+  if (input.settings.showAllergyFlag && input.allergiesNotes?.trim()) {
+    medicalLine = "Allergies on file";
+  } else if (
+    shouldShowAllergyDetailsOnStructuredBadge(input.settings) &&
+    input.allergiesNotes?.trim()
+  ) {
+    medicalLine = input.allergiesNotes.trim();
+  }
 
   const securityCode =
     input.settings.showRegistrationNumber && input.registrationNumber
@@ -323,16 +367,23 @@ function buildStructuredData(input: BuildBadgeInput, answerLines: BadgePrintLine
   });
 
   return {
-    firstName: input.childFirstName.trim(),
-    lastName: input.childLastName.trim(),
+    firstName: input.settings.showChildName ? input.childFirstName.trim() : "",
+    lastName: input.settings.showChildName ? input.childLastName.trim() : "",
     securityCode,
     serviceLine,
     locationLine,
     guardianLine,
-    guardianPhone: input.guardianPhone?.trim() || null,
-    birthdate: formatBirthdate(input.childDateOfBirth),
+    guardianPhone:
+      showGuardian && formFieldsInclude(input.settings, "guardian:guardianPhone")
+        ? input.guardianPhone?.trim() || null
+        : null,
+    birthdate: shouldShowBirthdateOnStructuredBadge(input.settings)
+      ? formatBirthdate(input.childDateOfBirth)
+      : null,
     medicalLine,
-    notesLine: input.staffNotes?.trim() || null,
+    notesLine: shouldShowStaffNotesOnStructuredBadge(input.settings)
+      ? input.staffNotes?.trim() || null
+      : null,
     answerLines,
     printedAt,
   };
@@ -399,26 +450,53 @@ export function buildBadgePrintPayload(input: BuildBadgeInput): BadgePrintPayloa
   };
 }
 
+export type SampleBadgePreviewOptions = {
+  seasonName?: string;
+  seasonYear?: number;
+  registrationNumberPrefix?: string | null;
+  registrationNumberSeqDigits?: number;
+};
+
 export function sampleBadgePreviewPayload(
   settings: ResolvedBadgePrintSettings,
   fieldOptions: ExportFieldOption[] = [],
+  options: SampleBadgePreviewOptions = {},
 ): BadgePrintPayload {
+  const seasonName = options.seasonName ?? "Summer VBS";
+  const seasonYear = options.seasonYear ?? 2026;
+  const showGuardian = shouldShowGuardianOnStructuredBadge(settings);
+  const showBirthdate = shouldShowBirthdateOnStructuredBadge(settings);
+  const showStaffNotes = shouldShowStaffNotesOnStructuredBadge(settings);
+  const showAllergyDetails = shouldShowAllergyDetailsOnStructuredBadge(settings);
+
   return buildBadgePrintPayload({
     settings,
     registrationId: "preview",
     childFirstName: "Alex",
     childLastName: "Rivera",
-    childDateOfBirth: "2018-06-15",
-    allergiesNotes: settings.showAllergyFlag ? "Peanut / tree nut allergy" : "None",
-    registrationNumber: settings.showRegistrationNumber ? "VBS-2026-001" : null,
+    childDateOfBirth: showBirthdate ? "2018-06-15" : null,
+    allergiesNotes:
+      settings.showAllergyFlag || showAllergyDetails ? "Peanut / tree nut allergy" : null,
+    registrationNumber: settings.showRegistrationNumber
+      ? formatSampleRegistrationNumber(
+          options.registrationNumberPrefix,
+          options.registrationNumberSeqDigits ?? 3,
+          seasonYear,
+        )
+      : null,
     submissionCode: "ABC123",
-    staffNotes: "Potty training — please take to bathroom every 30 minutes.",
-    guardianFirstName: "Maria",
-    guardianLastName: "Rivera",
-    guardianPhone: "(555) 123-4567",
+    staffNotes: showStaffNotes
+      ? "Potty training — please take to bathroom every 30 minutes."
+      : null,
+    guardianFirstName: showGuardian ? "Maria" : null,
+    guardianLastName: showGuardian ? "Rivera" : null,
+    guardianPhone:
+      showGuardian && formFieldsInclude(settings, "guardian:guardianPhone")
+        ? "(555) 123-4567"
+        : null,
     checkInToken: settings.showQrCode ? "preview-token" : null,
-    seasonName: "Summer VBS",
-    seasonYear: 2026,
+    seasonName,
+    seasonYear,
     classroomName: "Explorers",
     badgeDisplayName: settings.showBadgeDisplayName ? "Explorers" : null,
     checkInLabel: settings.showCheckInLabel ? "Room B12" : null,

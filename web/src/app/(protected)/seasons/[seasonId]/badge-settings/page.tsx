@@ -20,7 +20,12 @@ export default async function BadgePrintSettingsPage({ params }: PageProps) {
     include: {
       badgePrintSettings: true,
       registrationForm: {
-        select: { publishedDefinitionJson: true, draftDefinitionJson: true },
+        select: {
+          publishedDefinitionJson: true,
+          draftDefinitionJson: true,
+          registrationNumberPrefix: true,
+          registrationNumberSeqDigits: true,
+        },
       },
     },
   });
@@ -52,6 +57,10 @@ export default async function BadgePrintSettingsPage({ params }: PageProps) {
 
       <BadgePrintSettingsForm
         seasonId={season.id}
+        seasonName={season.name}
+        seasonYear={season.year}
+        registrationNumberPrefix={season.registrationForm?.registrationNumberPrefix ?? null}
+        registrationNumberSeqDigits={season.registrationForm?.registrationNumberSeqDigits ?? 3}
         settings={settings}
         formFieldOptions={formFieldOptions}
       />

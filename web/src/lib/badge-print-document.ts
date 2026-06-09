@@ -87,8 +87,12 @@ function renderNameCodeHeader(payload: BadgePrintPayload): string {
   return `<div class="badge horizontal layout-name-code">
     <div class="header-row">
       <div class="name-stack">
-        <div class="first-name">${escapeHtml(s.firstName || payload.childName)}</div>
-        ${s.lastName ? `<div class="last-name">${escapeHtml(s.lastName)}</div>` : ""}
+        ${
+          payload.settings.showChildName
+            ? `<div class="first-name">${escapeHtml(s.firstName || payload.childName)}</div>
+        ${s.lastName ? `<div class="last-name">${escapeHtml(s.lastName)}</div>` : ""}`
+            : ""
+        }
       </div>
       <div class="header-right">${codeHtml}${checkInHtml}</div>
     </div>
@@ -119,7 +123,11 @@ function renderKidCheck(payload: BadgePrintPayload): string {
   return `<div class="badge horizontal layout-kidcheck">
     <div class="kidcheck-body">
       <div class="kidcheck-header">
-        <div class="kidcheck-name">${escapeHtml(`${s.firstName} ${s.lastName}`.trim() || payload.childName)}</div>
+        ${
+          payload.settings.showChildName
+            ? `<div class="kidcheck-name">${escapeHtml(`${s.firstName} ${s.lastName}`.trim() || payload.childName)}</div>`
+            : `<div class="kidcheck-name" style="flex:1"></div>`
+        }
         ${codeHtml}
       </div>
       <hr class="divider" />
