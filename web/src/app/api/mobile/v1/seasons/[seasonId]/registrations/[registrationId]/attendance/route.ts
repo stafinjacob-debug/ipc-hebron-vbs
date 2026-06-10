@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { resolveBadgePrintSettings } from "@/lib/badge-print";
 import {
   loadSeasonOr404,
   requireMobileAuth,
@@ -38,12 +39,18 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
   });
   if (!existing) return jsonError(404, "Registration not found");
 
+  const badgeSettings = await prisma.badgePrintSettings.findUnique({
+    where: { seasonId },
+  });
+  const resolvedBadge = resolveBadgePrintSettings(badgeSettings);
+
   if (body.checkedIn) {
     if (existing.checkedInAt) {
       return NextResponse.json({
         ok: true,
         alreadyCheckedIn: true,
         checkedInAt: existing.checkedInAt.toISOString(),
+        shouldPrintBadge: false,
       });
     }
     const updated = await prisma.registration.update({
@@ -63,6 +70,8 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     return NextResponse.json({
       ok: true,
       checkedInAt: updated.checkedInAt?.toISOString() ?? null,
+      shouldPrintBadge:
+        resolvedBadge.enabled && resolvedBadge.autoPrintOnCheckIn,
     });
   }
 
@@ -70,6 +79,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     return NextResponse.json({
       ok: true,
       alreadyCheckedOut: true,
+      shouldPrintBadge: false,
     });
   }
   await prisma.registration.update({
@@ -86,5 +96,5 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     })
     .catch(() => {});
 
-  return NextResponse.json({ ok: true, checkedOut: true });
+  return NextResponse.json({ ok: true, checkedOut: true, shouldPrintBadge: false });
 }
