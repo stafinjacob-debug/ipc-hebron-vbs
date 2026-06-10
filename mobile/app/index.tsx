@@ -2,11 +2,13 @@ import { Redirect } from 'expo-router';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { palette } from '@/constants/theme';
 import { useAuth } from '@/lib/auth-context';
+import { useStationMode } from '@/lib/station-mode-context';
 
 export default function Index() {
   const { ready, token, seasonId } = useAuth();
+  const { stationMode, ready: stationReady } = useStationMode();
 
-  if (!ready) {
+  if (!ready || !stationReady) {
     return (
       <View style={styles.center}>
         <ActivityIndicator size="large" color={palette.accent} />
@@ -19,6 +21,9 @@ export default function Index() {
   }
   if (!seasonId) {
     return <Redirect href="/(auth)/select-season" />;
+  }
+  if (stationMode) {
+    return <Redirect href="/(tabs)/check-in" />;
   }
   return <Redirect href="/(tabs)" />;
 }

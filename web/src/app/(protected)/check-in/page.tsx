@@ -41,8 +41,8 @@ export default async function CheckInPage() {
             Check-in desk
           </h1>
           <p className="mt-1 text-muted">
-            Mark arrivals for your active VBS season. Scan a QR code or enter a registration code to find a child,
-            then check in and print badges from an iPad.
+            Mark arrivals for your active VBS season. Scan a QR code or search by name or registration code to find a
+            child, then check in and print badges from an iPad.
           </p>
         </div>
         <Link

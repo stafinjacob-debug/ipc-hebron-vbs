@@ -1,0 +1,81 @@
+diff --git a/node_modules/react-native-brother-print/ios/ReactNativeBrotherPrint.swift b/node_modules/react-native-brother-print/ios/ReactNativeBrotherPrint.swift
+index 09976d9..67bbf7e 100644
+--- a/node_modules/react-native-brother-print/ios/ReactNativeBrotherPrint.swift
++++ b/node_modules/react-native-brother-print/ios/ReactNativeBrotherPrint.swift
+@@ -12,7 +12,7 @@ class ReactNativeBrotherPrint: NSObject {
+         DispatchQueue.global().async {
+             print("[BrotherPrint] Wifi printing ", ip, model)
+             let channel = BRLMChannel(wifiIPAddress: ip)
+-            self.printImage(channel, printURI, modelName: model, halftone: halftone, thresholdingValue: thresholdingValue) { (errorCode, errorMessage) in
++            self.printImage(channel, printURI, modelName: model) { (errorCode, errorMessage) in
+                 if errorCode != 0 {
+                     reject("ERROR_\(errorCode)", errorMessage ?? "Unknown error", nil)
+                 } else {
+@@ -44,7 +44,7 @@ class ReactNativeBrotherPrint: NSObject {
+                 return
+             }
+             
+-            self.printImage(optionalChannel!, printURI, modelName: model, halftone: halftone, thresholdingValue: thresholdingValue) { (errorCode, errorMessage) in
++            self.printImage(optionalChannel!, printURI, modelName: model) { (errorCode, errorMessage) in
+                 if errorCode != 0 {
+                     reject("ERROR_\(errorCode)", errorMessage ?? "Unknown error", nil)
+                 } else {
+@@ -54,31 +54,7 @@ class ReactNativeBrotherPrint: NSObject {
+         }
+     }
+     
+-    func configurePrintInfo(_ printInfo: BRPtouchPrintInfo, halftone: String?, thresholdingValue: NSNumber?) {
+-        if let halftoneValue = halftone {
+-            switch halftoneValue {
+-            case "THRESHOLD":
+-                printInfo.halftone = .threshold
+-            case "ERROR_DIFFUSION":
+-                printInfo.halftone = .errorDiffusion
+-            case "PATTERN_DITHER":
+-                printInfo.halftone = .patternDither
+-            default:
+-                print("[BrotherPrint] Unknown halftone value: \(halftoneValue), using default")
+-            }
+-        }
+-        
+-        if let thresholdValue = thresholdingValue {
+-            // Clamp thresholdingValue to valid range (0-255)
+-            let clampedValue = max(0, min(255, thresholdValue.intValue))
+-            printInfo.thresholdingValue = Int32(clampedValue)
+-            if clampedValue != thresholdValue.intValue {
+-                print("[BrotherPrint] ThresholdingValue clamped from \(thresholdValue.intValue) to \(clampedValue)")
+-            }
+-        }
+-    }
+-    
+-    func printImage(_ channel: BRLMChannel, _ printURI: String, modelName model: String, halftone: String?, thresholdingValue: NSNumber?, cb callback: @escaping (_ errorCode: Int, _ errorMessage: String?) -> Void) -> Void {
++    func printImage(_ channel: BRLMChannel, _ printURI: String, modelName model: String, cb callback: @escaping (_ errorCode: Int, _ errorMessage: String?) -> Void) -> Void {
+         let generateResult = BRLMPrinterDriverGenerator.open(channel)
+         guard generateResult.error.code == BRLMOpenChannelErrorCode.noError,
+             let printerDriver = generateResult.driver else {
+@@ -122,12 +98,8 @@ class ReactNativeBrotherPrint: NSObject {
+         pSettings.autoCut = true
+         pSettings.labelSize = labelSize!
+         
+-        // Create and configure print info for halftone and thresholding
+-        let printInfo = BRPtouchPrintInfo()
+-        configurePrintInfo(printInfo, halftone: halftone, thresholdingValue: thresholdingValue)
+-        
+         let url = URL(fileURLWithPath: printURI);
+-        let printError = printerDriver.printImage(with: url, settings: pSettings, printInfo: printInfo)
++        let printError = printerDriver.printImage(with: url, settings: pSettings)
+         
+         if (printError.code != .noError) {
+             print("[BrotherPrint] Error printing", printError.code)
+diff --git a/node_modules/react-native-brother-print/react-native-brother-print.podspec b/node_modules/react-native-brother-print/react-native-brother-print.podspec
+index fb9a49e..9cfc8b3 100644
+--- a/node_modules/react-native-brother-print/react-native-brother-print.podspec
++++ b/node_modules/react-native-brother-print/react-native-brother-print.podspec
+@@ -20,5 +20,5 @@ Pod::Spec.new do |s|
+   s.resources = 'ios/**/*.plist'
+ 
+   s.dependency "React"
+-  s.dependency "BRLMPrinterKitSDK"
++  s.dependency "BRLMPrinterKit"
+ end 
+\ No newline at end of file

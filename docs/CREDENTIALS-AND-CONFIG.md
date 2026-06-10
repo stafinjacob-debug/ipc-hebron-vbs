@@ -153,9 +153,9 @@ Badge templates and field toggles are **admin configuration stored in the databa
 
 ### 6a. Admin configuration (no secrets)
 
-| Where (planned) | Who | What |
-|-----------------|-----|------|
-| Season settings → **Badge printing** | `ADMIN` (and optionally `COORDINATOR`) | Label size, which fields to print (name, registration #, class, QR, etc.), optional logo, auto-print on check-in, preview. |
+| Where | Who | What |
+|-------|-----|------|
+| Season settings → **Badge printing** | Admin | Label size, fields, logo, auto-print on check-in, preview. |
 | **Classes** (`/classes`) | Staff with class edit access | **Badge display name** and **Check-in label** per classroom — already on each class; used as badge lines when enabled in the template. |
 | **Registration form settings** | Admin | **Registration number prefix** — affects the number printed on badges. |
 
@@ -163,12 +163,17 @@ No entries in GitHub Secrets or Azure App Service are required for the default d
 
 ### 6b. Check-in desk (iPad + printer)
 
+**Option A — Native iOS app (recommended):** Install the staff app from `mobile/` (TestFlight or EAS Build). Configure **More → Brother label printer** on each iPad for silent QL-series printing. Set `EXPO_PUBLIC_API_URL` to production `AUTH_URL` at build time. Enable **Station mode** and **Face ID lock**.
+
+**Option B — Safari:** Bookmark **Check-in desk** (`/check-in`) on each iPad.
+
 | Item | Configuration |
 |------|----------------|
-| **Portal URL** | Production `AUTH_URL` (e.g. `https://your-app.azurewebsites.net`). Bookmark **Check-in desk** (`/check-in`) on each iPad. |
-| **Staff login** | Check-in volunteers need accounts with a role that includes check-in (`COORDINATOR`, check-in volunteer, or `ADMIN`). |
-| **Printer** | Pair or join the thermal printer to the iPad per manufacturer instructions (USB adapter, Bluetooth, or Wi‑Fi). Prefer **AirPrint** or vendor **web print** (e.g. Star WebPRNT) for Safari. |
-| **Label stock** | Physical labels must match the admin **label size** setting. |
+| **Portal / API URL** | Production `AUTH_URL` (e.g. `https://your-app.azurewebsites.net`). Native app: `EXPO_PUBLIC_API_URL` must match. |
+| **Staff login** | Check-in volunteers need accounts with a role that includes check-in (`CHECK_IN_VOLUNTEER`, `TEACHER`, or admin roles). |
+| **Printer** | Pair or join the thermal printer to the iPad per manufacturer instructions (USB adapter, Bluetooth, or Wi‑Fi). Prefer **AirPrint** for the native app or Safari. |
+| **Label stock** | Physical labels must match the admin **label size** setting under Season → Badge printing. |
+| **Auto-print** | Configure in admin **Season → Badge printing → Auto-print on check-in**. |
 
 Operational checklist (keep in an internal runbook, not in this repo):
 
@@ -187,4 +192,4 @@ Use these **only** if implementation uses a server-side print proxy or vendor cl
 | `STAR_WEBPRNT_HOST` | Per-station or app setting | Hostname/IP of a Star WebPRNT-enabled printer on the LAN (if not chosen in the browser UI). |
 | `ZEBRA_CLOUD_API_KEY` | Azure Key Vault / app setting | Only if using Zebra’s cloud print API instead of local ZPL. |
 
-See commented placeholders in `web/.env.example`. Until badge printing ships, these can stay unset.
+See commented placeholders in `web/.env.example`. These can stay unset when using AirPrint from Safari or the native iOS app.

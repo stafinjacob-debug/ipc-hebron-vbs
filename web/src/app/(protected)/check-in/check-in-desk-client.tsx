@@ -67,7 +67,7 @@ export function CheckInDeskClient({ seasonId, rows, badgePrintingEnabled, autoPr
   function runLookup(rawInput: string) {
     const value = rawInput.trim();
     if (!value) {
-      setLookupMessage("Enter a registration code or scan a QR code.");
+      setLookupMessage("Enter a name, registration code, or scan a QR code.");
       closeLookupModal();
       return;
     }
@@ -155,7 +155,8 @@ export function CheckInDeskClient({ seasonId, rows, badgePrintingEnabled, autoPr
       <div className="rounded-xl border border-foreground/10 bg-surface-elevated p-4 shadow-sm">
         <h2 className="text-sm font-semibold">Find registration</h2>
         <p className="mt-1 text-xs text-muted">
-          Scan a ticket or badge QR code, or type a registration number / family submission code.
+          Scan a ticket or badge QR code, or search by child name, registration number (e.g. IPC--001), or family
+          submission code.
         </p>
         <form
           className="mt-3 flex flex-col gap-2 sm:flex-row"
@@ -168,7 +169,7 @@ export function CheckInDeskClient({ seasonId, rows, badgePrintingEnabled, autoPr
             type="text"
             value={lookupQuery}
             onChange={(e) => setLookupQuery(e.target.value)}
-            placeholder="Registration code, e.g. VBS-2026-001"
+            placeholder="Name, registration # (IPC--001), or submission code"
             className="min-w-0 flex-1 rounded-lg border border-foreground/15 bg-background px-3 py-2 text-sm"
             autoComplete="off"
             spellCheck={false}

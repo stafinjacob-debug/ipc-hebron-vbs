@@ -4,46 +4,17 @@ import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { resolveBadgePrintSettings } from "@/lib/badge-print";
-import { parseCheckInLookupInput, type CheckInLookupMatch } from "@/lib/check-in-lookup";
+import {
+  findCheckInRegistrationsForInput,
+  mapRegistrationToCheckInLookupMatch,
+  parseCheckInLookupInput,
+  type CheckInLookupMatch,
+} from "@/lib/check-in-lookup";
 import { canUseCheckInActions } from "@/lib/permissions";
 
 export type LookupRegistrationForCheckInResult =
   | { ok: true; matches: CheckInLookupMatch[] }
   | { ok: false; message: string };
-
-function mapRegistrationToLookupMatch(r: {
-  id: string;
-  status: string;
-  checkedInAt: Date | null;
-  registrationNumber: string | null;
-  child: {
-    firstName: string;
-    lastName: string;
-    dateOfBirth: Date;
-    allergiesNotes: string | null;
-    guardian: { firstName: string; lastName: string };
-  };
-  classroom: { name: string } | null;
-  formSubmission: { registrationCode: string } | null;
-}): CheckInLookupMatch {
-  const guardian = r.child.guardian;
-  return {
-    id: r.id,
-    studentName: `${r.child.firstName} ${r.child.lastName}`.trim(),
-    className: r.classroom?.name ?? "—",
-    checkedIn: Boolean(r.checkedInAt),
-    registrationNumber: r.registrationNumber,
-    submissionCode: r.formSubmission?.registrationCode ?? null,
-    guardianName: `${guardian.firstName} ${guardian.lastName}`.trim() || null,
-    dateOfBirth: r.child.dateOfBirth.toLocaleDateString("en-US", {
-      month: "numeric",
-      day: "numeric",
-      year: "numeric",
-    }),
-    allergiesNotes: r.child.allergiesNotes?.trim() || null,
-    registrationStatus: r.status,
-  };
-}
 
 export async function lookupRegistrationForCheckIn(
   seasonId: string,
@@ -59,60 +30,19 @@ export async function lookupRegistrationForCheckIn(
 
   const parsed = parseCheckInLookupInput(rawInput);
   if (!parsed.checkInToken && !parsed.plainCode) {
-    return { ok: false, message: "Enter a registration code or scan a check-in QR code." };
+    return { ok: false, message: "Enter a name, registration code, or scan a check-in QR code." };
   }
 
-  const baseWhere = {
-    seasonId,
-    status: { not: "CANCELLED" as const },
-  };
-
-  const include = {
-    child: { include: { guardian: true } },
-    classroom: true,
-    formSubmission: { select: { registrationCode: true } },
-  } as const;
-
-  if (parsed.checkInToken) {
-    const reg = await prisma.registration.findFirst({
-      where: { ...baseWhere, checkInToken: parsed.checkInToken },
-      include,
-    });
-    if (!reg) {
-      return { ok: false, message: "No registration found for that QR code in the active season." };
-    }
-    return { ok: true, matches: [mapRegistrationToLookupMatch(reg)] };
+  const rows = await findCheckInRegistrationsForInput(seasonId, rawInput);
+  if (rows.length === 0) {
+    const label = parsed.plainCode ?? "that code";
+    return {
+      ok: false,
+      message: `No registration found for “${label}” in ${season.name}. Try the child’s full name, registration number (e.g. IPC--001), or family submission code.`,
+    };
   }
 
-  const code = parsed.plainCode!;
-  const byNumber = await prisma.registration.findMany({
-    where: {
-      ...baseWhere,
-      registrationNumber: { equals: code, mode: "insensitive" },
-    },
-    include,
-    orderBy: [{ child: { lastName: "asc" } }, { child: { firstName: "asc" } }],
-  });
-  if (byNumber.length > 0) {
-    return { ok: true, matches: byNumber.map(mapRegistrationToLookupMatch) };
-  }
-
-  const bySubmission = await prisma.registration.findMany({
-    where: {
-      ...baseWhere,
-      formSubmission: { registrationCode: { equals: code, mode: "insensitive" } },
-    },
-    include,
-    orderBy: [{ child: { lastName: "asc" } }, { child: { firstName: "asc" } }],
-  });
-  if (bySubmission.length > 0) {
-    return { ok: true, matches: bySubmission.map(mapRegistrationToLookupMatch) };
-  }
-
-  return {
-    ok: false,
-    message: `No registration found for “${code}” in ${season.name}. Try the child’s registration number or family submission code.`,
-  };
+  return { ok: true, matches: rows.map(mapRegistrationToCheckInLookupMatch) };
 }
 
 export type ToggleCheckInResult = {

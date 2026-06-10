@@ -1,4 +1,4 @@
-import { useRouter } from 'expo-router';
+import { type Href, useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
   Alert,
@@ -15,6 +15,7 @@ import { Card, PrimaryButton, SectionTitle } from '@/components/ui';
 import { getApiBase } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { isAdminLikeRole, roleLabel } from '@/lib/roles';
+import { useStationMode } from '@/lib/station-mode-context';
 
 export default function MoreScreen() {
   const router = useRouter();
@@ -26,6 +27,7 @@ export default function MoreScreen() {
     biometricGateEnabled,
     setBiometricGateEnabled,
   } = useAuth();
+  const { stationMode, setStationMode } = useStationMode();
   const [busy, setBusy] = useState(false);
   const admin = isAdminLikeRole(user?.role);
 
@@ -61,6 +63,42 @@ export default function MoreScreen() {
           </Text>
         </>
       ) : null}
+
+      <SectionTitle>Check-in printer</SectionTitle>
+      <Pressable
+        onPress={() => router.push('/printer-settings' as Href)}
+        style={styles.linkRow}
+      >
+        <Text style={styles.linkText}>Brother label printer</Text>
+        <Text style={styles.chev}>›</Text>
+      </Pressable>
+      <Text style={styles.small}>
+        Configure once per iPad for silent badge printing (no AirPrint dialog).
+      </Text>
+
+      <SectionTitle>iPad check-in station</SectionTitle>
+      <Card style={styles.switchCard}>
+        <View style={styles.switchRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.switchLabel}>Station mode</Text>
+            <Text style={styles.switchSub}>
+              Opens directly to Check-In and hides Home, Classes, and News tabs
+              for dedicated iPad desks.
+            </Text>
+          </View>
+          <Switch
+            value={stationMode}
+            onValueChange={async (v) => {
+              await setStationMode(v);
+              if (v) {
+                router.replace('/(tabs)/check-in');
+              } else {
+                router.replace('/(tabs)');
+              }
+            }}
+          />
+        </View>
+      </Card>
 
       <SectionTitle>Security</SectionTitle>
       <Card style={styles.switchCard}>

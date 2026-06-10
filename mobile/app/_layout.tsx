@@ -9,6 +9,7 @@ import 'react-native-reanimated';
 import { LockScreen } from '@/components/LockScreen';
 import { useColorScheme } from '@/components/useColorScheme';
 import { AuthProvider, useAuth } from '@/lib/auth-context';
+import { StationModeProvider } from '@/lib/station-mode-context';
 
 export { ErrorBoundary } from 'expo-router';
 
@@ -36,7 +37,9 @@ export default function RootLayout() {
 
   return (
     <AuthProvider>
-      <RootLayoutNav />
+      <StationModeProvider>
+        <RootLayoutNav />
+      </StationModeProvider>
     </AuthProvider>
   );
 }
@@ -80,6 +83,10 @@ function RootLayoutNav() {
           <Stack.Screen
             name="announcement/edit/[id]"
             options={{ title: 'Edit announcement', headerBackTitle: 'Back' }}
+          />
+          <Stack.Screen
+            name="printer-settings"
+            options={{ title: 'Brother printer', headerBackTitle: 'Back' }}
           />
         </Stack>
       )}

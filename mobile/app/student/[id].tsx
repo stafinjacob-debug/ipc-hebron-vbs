@@ -11,8 +11,15 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { palette } from '@/constants/theme';
-import { Card, PrimaryButton, StatusChip } from '@/components/ui';
+import { Card, PrimaryButton, SecondaryButton, StatusChip } from '@/components/ui';
 import { ApiError, apiFetch } from '@/lib/api';
+import {
+  badgePrintErrorMessage,
+  fetchCheckInDeskSettings,
+  printBadgeByRegistrationId,
+  printBadgeInBackground,
+  type CheckInDeskSettings,
+} from '@/lib/badge-print';
 import { useAuth } from '@/lib/auth-context';
 
 type Detail = {
@@ -51,6 +58,11 @@ export default function StudentDetailScreen() {
   const [data, setData] = useState<Detail | null>(null);
   const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState(false);
+  const [printing, setPrinting] = useState(false);
+  const [deskSettings, setDeskSettings] = useState<CheckInDeskSettings>({
+    badgePrintingEnabled: false,
+    autoPrintOnCheckIn: false,
+  });
   const dismissal = mode === 'dismissal';
 
   const load = useCallback(async () => {
@@ -73,11 +85,35 @@ export default function StudentDetailScreen() {
     void load();
   }, [load]);
 
+  useEffect(() => {
+    if (!token || !seasonId) return;
+    void fetchCheckInDeskSettings(token, seasonId)
+      .then(setDeskSettings)
+      .catch(() => {
+        setDeskSettings({
+          badgePrintingEnabled: false,
+          autoPrintOnCheckIn: false,
+        });
+      });
+  }, [token, seasonId]);
+
+  async function runPrintBadge() {
+    if (!token || !seasonId || !id) return;
+    setPrinting(true);
+    try {
+      await printBadgeByRegistrationId(token, seasonId, id);
+    } catch (e) {
+      Alert.alert('Print failed', badgePrintErrorMessage(e));
+    } finally {
+      setPrinting(false);
+    }
+  }
+
   async function patchAttendance(checkedIn: boolean) {
     if (!token || !seasonId || !id) return;
     setActing(true);
     try {
-      await apiFetch(
+      const result = await apiFetch<{ shouldPrintBadge?: boolean }>(
         `/api/mobile/v1/seasons/${seasonId}/registrations/${id}/attendance`,
         {
           method: 'PATCH',
@@ -86,6 +122,20 @@ export default function StudentDetailScreen() {
         },
       );
       await load();
+      if (
+        checkedIn &&
+        result.shouldPrintBadge &&
+        deskSettings.badgePrintingEnabled &&
+        token &&
+        seasonId &&
+        id
+      ) {
+        printBadgeInBackground(token, seasonId, id, (msg) => {
+          Alert.alert('Badge print failed', msg);
+        });
+        router.back();
+        return;
+      }
       Alert.alert(
         checkedIn ? 'Checked in' : 'Checked out',
         checkedIn
@@ -235,6 +285,12 @@ export default function StudentDetailScreen() {
           >
             View class roster
           </Text>
+        ) : null}
+        {deskSettings.badgePrintingEnabled ? (
+          <SecondaryButton
+            label={printing ? 'Opening print…' : 'Print badge'}
+            onPress={() => void runPrintBadge()}
+          />
         ) : null}
         <PrimaryButton
           label={primaryLabel}

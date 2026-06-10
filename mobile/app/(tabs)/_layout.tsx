@@ -5,6 +5,7 @@ import React from 'react';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 import { useClientOnlyValue } from '@/components/useClientOnlyValue';
+import { useStationMode } from '@/lib/station-mode-context';
 
 function TabIcon({
   name,
@@ -18,6 +19,7 @@ function TabIcon({
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
+  const { stationMode } = useStationMode();
 
   return (
     <Tabs
@@ -32,6 +34,7 @@ export default function TabLayout() {
         name="index"
         options={{
           title: 'Home',
+          href: stationMode ? null : undefined,
           tabBarIcon: ({ color }) => <TabIcon name="home-outline" color={color} />,
         }}
       />
@@ -48,6 +51,7 @@ export default function TabLayout() {
         name="classes"
         options={{
           title: 'Classes',
+          href: stationMode ? null : undefined,
           tabBarIcon: ({ color }) => (
             <TabIcon name="people-outline" color={color} />
           ),
@@ -57,6 +61,7 @@ export default function TabLayout() {
         name="announcements"
         options={{
           title: 'News',
+          href: stationMode ? null : undefined,
           tabBarIcon: ({ color }) => (
             <TabIcon name="megaphone-outline" color={color} />
           ),
