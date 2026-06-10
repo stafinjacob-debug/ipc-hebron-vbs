@@ -1,6 +1,7 @@
 "use server";
 
 import { auth } from "@/auth";
+import { ensureRegistrationFormForSeason } from "@/lib/ensure-registration-form";
 import { prisma } from "@/lib/prisma";
 import { canManageDirectory } from "@/lib/roles";
 import { parsePublicRegistrationLayout } from "@/lib/public-registration-layout";
@@ -89,6 +90,7 @@ export async function savePublicRegistrationSettings(
   );
 
   const publicOpen = formData.get("publicRegistrationOpen") === "on";
+  const registrantLookupEnabled = formData.get("registrantLookupEnabled") === "on";
   const requireGuardianEmail = formData.get("requireGuardianEmail") === "on";
   const requireGuardianPhone = formData.get("requireGuardianPhone") === "on";
   const requireAllergiesNotes = formData.get("requireAllergiesNotes") === "on";
@@ -117,14 +119,22 @@ export async function savePublicRegistrationSettings(
     return { ok: false, message: "Season end date must be on or after the start date." };
   }
 
-  await prisma.vbsSeason.update({
-    where: { id: seasonId },
-    data: {
-      publicRegistrationOpen: publicOpen,
-      startDate: seasonStartDate,
-      endDate: seasonEndDate,
-    },
-  });
+  const formRow = await ensureRegistrationFormForSeason(seasonId, season.name);
+
+  await prisma.$transaction([
+    prisma.vbsSeason.update({
+      where: { id: seasonId },
+      data: {
+        publicRegistrationOpen: publicOpen,
+        startDate: seasonStartDate,
+        endDate: seasonEndDate,
+      },
+    }),
+    prisma.registrationForm.update({
+      where: { id: formRow.id },
+      data: { registrantLookupEnabled },
+    }),
+  ]);
 
   await prisma.publicRegistrationSettings.upsert({
     where: { seasonId },
@@ -156,11 +166,22 @@ export async function savePublicRegistrationSettings(
   });
 
   revalidatePath("/register");
+  revalidatePath("/register/lookup");
   revalidatePath("/seasons");
   revalidatePath("/login");
   revalidatePath(`/seasons/${seasonId}/public-settings`);
   revalidatePath("/registrations/forms");
   revalidatePath(`/registrations/form-workspace/${seasonId}`);
+  revalidatePath(`/registrations/forms/${seasonId}/settings`);
 
-  return { ok: true, message: "Public registration settings saved." };
+  let message = "Public registration settings saved.";
+  if (!publicOpen) {
+    message =
+      "Public registration settings saved. Registration is now closed — families will see a closed message on /register.";
+    if (registrantLookupEnabled) {
+      message += " Registration lookup remains open at /register/lookup.";
+    }
+  }
+
+  return { ok: true, message };
 }

@@ -1,28 +1,80 @@
 import Link from "next/link";
 import type { PublicRegistrationLayout } from "@/generated/prisma";
 
-/** “Accept public responses” gate — same field as season `publicRegistrationOpen`. */
-export function PublicRegistrationGateFields({ publicRegistrationOpen }: { publicRegistrationOpen: boolean }) {
+/** Registration signup + family lookup gates for a season. */
+export function PublicRegistrationAccessFields({
+  publicRegistrationOpen,
+  registrantLookupEnabled,
+}: {
+  publicRegistrationOpen: boolean;
+  registrantLookupEnabled: boolean;
+}) {
   return (
     <div className="rounded-xl border border-foreground/10 p-4">
-      <h2 className="text-sm font-semibold text-foreground/90">Public signup page</h2>
+      <h2 className="text-sm font-semibold text-foreground/90">Public access</h2>
       <p className="mt-1 text-sm text-foreground/60">
-        Parents use{" "}
-        <Link href="/register" className="font-medium text-foreground underline">
-          /register
-        </Link>{" "}
-        when online registration is on for this season.
+        Control new signups and whether families can still look up an existing registration after signup closes.
       </p>
-      <label className="mt-4 flex cursor-pointer items-start gap-3">
-        <input type="checkbox" name="publicRegistrationOpen" defaultChecked={publicRegistrationOpen} className="mt-1" />
-        <span>
-          <span className="font-medium text-foreground">Accept public responses</span>
-          <span className="mt-0.5 block text-sm text-foreground/60">
-            When off, this season is hidden from the public form.
-          </span>
-        </span>
-      </label>
+      <ul className="mt-4 space-y-4">
+        <li>
+          <label className="flex cursor-pointer items-start gap-3">
+            <input
+              type="checkbox"
+              name="publicRegistrationOpen"
+              defaultChecked={publicRegistrationOpen}
+              className="mt-1"
+            />
+            <span>
+              <span className="font-medium text-foreground">Accept new registrations</span>
+              <span className="mt-0.5 block text-sm text-foreground/60">
+                When off, this season is hidden from{" "}
+                <Link href="/register" className="font-medium text-foreground underline">
+                  /register
+                </Link>{" "}
+                and the public landing page. Use this to close registration when you are no longer accepting
+                signups.
+              </span>
+            </span>
+          </label>
+        </li>
+        <li>
+          <label className="flex cursor-pointer items-start gap-3">
+            <input
+              type="checkbox"
+              name="registrantLookupEnabled"
+              defaultChecked={registrantLookupEnabled}
+              className="mt-1"
+            />
+            <span>
+              <span className="font-medium text-foreground">Registration lookup open</span>
+              <span className="mt-0.5 block text-sm text-foreground/60">
+                When on, families can verify by email and view or update their registration at{" "}
+                <Link href="/register/lookup" className="font-medium text-foreground underline">
+                  /register/lookup
+                </Link>
+                , even after new registrations are closed.
+              </span>
+            </span>
+          </label>
+        </li>
+      </ul>
     </div>
+  );
+}
+
+/** @deprecated Use {@link PublicRegistrationAccessFields}. */
+export function PublicRegistrationGateFields({
+  publicRegistrationOpen,
+  registrantLookupEnabled = true,
+}: {
+  publicRegistrationOpen: boolean;
+  registrantLookupEnabled?: boolean;
+}) {
+  return (
+    <PublicRegistrationAccessFields
+      publicRegistrationOpen={publicRegistrationOpen}
+      registrantLookupEnabled={registrantLookupEnabled}
+    />
   );
 }
 

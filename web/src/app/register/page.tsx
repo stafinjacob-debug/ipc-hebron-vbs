@@ -11,6 +11,7 @@ import { clampRegistrationBackgroundDimmingPercent } from "@/lib/registration-ba
 import { parsePublicRegistrationLayout } from "@/lib/public-registration-layout";
 import { rulesFromDb } from "@/lib/public-registration";
 import { calendarDateFromDate } from "@/lib/season-calendar-date";
+import { resolvePublicRegistrationClosedDisplay } from "@/lib/public-registration-closed-display";
 import { parseWaiverMergeFieldKeysFromDb, parseWaiverSupplementalDefsFromDb } from "@/lib/waiver-merge-fields";
 import { DynamicRegistrationWizard, type PublicSeasonWaiverSnapshot } from "./dynamic-registration-wizard";
 
@@ -128,6 +129,11 @@ export default async function PublicRegisterPage({
   const contactPhone = process.env.NEXT_PUBLIC_VBS_CONTACT_PHONE?.trim() ?? "";
   const clientSubmitKey = randomUUID();
 
+  const registrationClosedDisplay =
+    !dbUnavailable && options.length === 0
+      ? await resolvePublicRegistrationClosedDisplay()
+      : null;
+
   return (
     <div className="min-h-full bg-background">
       <header className="border-b border-neutral-200/80 bg-white/90 backdrop-blur dark:border-neutral-800 dark:bg-neutral-950/90">
@@ -158,6 +164,7 @@ export default async function PublicRegisterPage({
           churchDisplayName={CHURCH_DISPLAY_NAME}
           paymentCanceled={paymentCanceled}
           initialSeasonId={canceledSeasonId || undefined}
+          registrationClosedDisplay={registrationClosedDisplay}
         />
       </div>
 

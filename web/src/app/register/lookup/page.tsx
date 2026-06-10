@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { ensureRegistrationFormForSeason } from "@/lib/ensure-registration-form";
+import { ensureRegistrationFormForSeason, isFormRegistrationOpen } from "@/lib/ensure-registration-form";
 import { prisma } from "@/lib/prisma";
 import { clampRegistrationBackgroundDimmingPercent } from "@/lib/registration-background-scrim";
 import { calendarDateFromDate } from "@/lib/season-calendar-date";
@@ -36,6 +36,8 @@ function fallbackDisplay(): RegistrantLookupPageDisplay {
     backgroundImageUrl: null,
     backgroundVideoUrl: null,
     backgroundDimmingPercent: clampRegistrationBackgroundDimmingPercent(undefined),
+    lookupEnabled: false,
+    registrationOpen: false,
   };
 }
 
@@ -45,22 +47,22 @@ export default async function RegistrantLookupPage() {
   try {
     const seasons = await prisma.vbsSeason.findMany({
       where: {
-        OR: [
-          { publicRegistrationOpen: true },
-          { registrationForm: { is: { registrantLookupEnabled: true } } },
-        ],
+        registrationForm: { is: { registrantLookupEnabled: true } },
       },
       orderBy: [{ year: "desc" }, { startDate: "desc" }],
       include: { publicRegistrationSettings: true, registrationForm: true },
     });
 
-    const season =
-      seasons.find((s) => s.registrationForm?.registrantLookupEnabled) ?? seasons[0] ?? null;
+    const season = seasons[0] ?? null;
 
     if (season) {
       const formRow =
         season.registrationForm ?? (await ensureRegistrationFormForSeason(season.id, season.name));
       const settings = season.publicRegistrationSettings;
+      const registrationOpen =
+        season.publicRegistrationOpen &&
+        formRow.status === "PUBLISHED" &&
+        isFormRegistrationOpen(formRow);
 
       display = {
         churchDisplayName: CHURCH_DISPLAY_NAME,
@@ -84,6 +86,8 @@ export default async function RegistrantLookupPage() {
         backgroundDimmingPercent: clampRegistrationBackgroundDimmingPercent(
           settings?.registrationBackgroundDimmingPercent,
         ),
+        lookupEnabled: true,
+        registrationOpen,
       };
     }
   } catch (err) {

@@ -1,5 +1,8 @@
 import type { Metadata } from "next";
-import { listOpenPublicRegistrationSummaries } from "@/lib/open-public-registration-summaries";
+import {
+  hasPublicRegistrantLookupOpen,
+  listOpenPublicRegistrationSummaries,
+} from "@/lib/open-public-registration-summaries";
 import { LoginPageClient } from "./login-page-client";
 
 export const dynamic = "force-dynamic";
@@ -10,6 +13,9 @@ export const metadata: Metadata = {
 };
 
 export default async function LoginPage() {
-  const seasons = await listOpenPublicRegistrationSummaries();
-  return <LoginPageClient seasons={seasons} />;
+  const [seasons, lookupOpen] = await Promise.all([
+    listOpenPublicRegistrationSummaries(),
+    hasPublicRegistrantLookupOpen(),
+  ]);
+  return <LoginPageClient seasons={seasons} lookupOpen={lookupOpen} />;
 }

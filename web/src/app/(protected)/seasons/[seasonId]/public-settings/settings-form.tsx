@@ -9,7 +9,7 @@ import {
   type SavePublicSettingsState,
 } from "./actions";
 import {
-  PublicRegistrationGateFields,
+  PublicRegistrationAccessFields,
   PublicRegistrationHelpEmailField,
   PublicRegistrationSessionTimeField,
   RegistrationBackgroundFields,
@@ -18,6 +18,7 @@ import {
 type Props = {
   seasonId: string;
   publicRegistrationOpen: boolean;
+  registrantLookupEnabled: boolean;
   seasonStartDate: Date;
   seasonEndDate: Date;
   sessionTimeDescription: string | null;
@@ -50,7 +51,10 @@ export function PublicRegistrationSettingsForm(p: Props) {
         </div>
       )}
 
-      <PublicRegistrationGateFields publicRegistrationOpen={p.publicRegistrationOpen} />
+      <PublicRegistrationAccessFields
+        publicRegistrationOpen={p.publicRegistrationOpen}
+        registrantLookupEnabled={p.registrantLookupEnabled}
+      />
 
       <div className="rounded-xl border border-foreground/10 p-4">
         <h2 className="text-sm font-semibold text-foreground/90">Season dates</h2>

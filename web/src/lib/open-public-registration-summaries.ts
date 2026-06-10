@@ -77,3 +77,11 @@ export async function listOpenPublicRegistrationSummaries(): Promise<OpenPublicR
   }
   return out;
 }
+
+/** True when at least one season allows family self-service lookup at /register/lookup. */
+export async function hasPublicRegistrantLookupOpen(): Promise<boolean> {
+  const count = await prisma.registrationForm.count({
+    where: { registrantLookupEnabled: true },
+  });
+  return count > 0;
+}

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { auth } from "@/auth";
+import { ensureRegistrationFormForSeason } from "@/lib/ensure-registration-form";
 import { prisma } from "@/lib/prisma";
 import { canManageDirectory } from "@/lib/roles";
 import { clampRegistrationBackgroundDimmingPercent } from "@/lib/registration-background-scrim";
@@ -21,6 +22,8 @@ export default async function PublicRegistrationSettingsPage({ params }: PagePro
   });
   if (!season) notFound();
 
+  const form = await ensureRegistrationFormForSeason(season.id, season.name);
+
   return (
     <div className="space-y-8">
       <div>
@@ -39,6 +42,7 @@ export default async function PublicRegistrationSettingsPage({ params }: PagePro
       <PublicRegistrationSettingsForm
         seasonId={season.id}
         publicRegistrationOpen={season.publicRegistrationOpen}
+        registrantLookupEnabled={form.registrantLookupEnabled}
         seasonStartDate={season.startDate}
         seasonEndDate={season.endDate}
         sessionTimeDescription={season.publicRegistrationSettings?.sessionTimeDescription ?? null}

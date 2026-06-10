@@ -247,6 +247,7 @@ export function FormWorkspacePanel({
                 <WorkspacePublicDisplayForm
                   seasonId={seasonId}
                   publicRegistrationOpen={settingsInitial.publicRegistrationOpen}
+                  registrantLookupEnabled={settingsInitial.registrantLookupEnabled}
                   registrationBackgroundImageUrl={publicDisplayInitial.registrationBackgroundImageUrl}
                   registrationBackgroundVideoUrl={publicDisplayInitial.registrationBackgroundVideoUrl}
                   registrationBackgroundDimmingPercent={publicDisplayInitial.registrationBackgroundDimmingPercent}

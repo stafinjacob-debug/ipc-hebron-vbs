@@ -363,8 +363,9 @@ export function FormSettingsForm({
             className="mt-0.5 size-4 rounded border-foreground/30"
           />
           <span>
-            Show a <strong>look up or edit registration</strong> button on the public registration page (links to email
-            verification at <code className="text-xs">/register/lookup</code>).
+            Keep <strong>registration lookup</strong> open at <code className="text-xs">/register/lookup</code> so
+            families can verify by email and update their registration — even after new signups are closed. Also shows a
+            shortcut on the public registration page when signup is open.
           </span>
         </label>
         {initial.registrantLookupEnabled || lookupEmailFieldOptions.length > 0 ? (
@@ -1001,7 +1002,7 @@ export function FormSettingsForm({
               defaultChecked={initial.publicRegistrationOpen}
               className="size-4 rounded border-foreground/30"
             />
-            Public signup open for this season (master switch; same as season public settings)
+            Accept new registrations for this season (same switch as Public registration settings)
           </label>
         )}
       </div>

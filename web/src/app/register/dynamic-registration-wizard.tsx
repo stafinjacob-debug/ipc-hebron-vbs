@@ -50,6 +50,7 @@ import { RegistrationBackgroundMedia } from "./registration-background-media";
 import { RegistrationHeroBrand } from "./registration-hero-brand";
 import { payLaterNoticeParagraphs, resolvePayLaterNotice, VBS_PAYMENT_DEADLINE_NOTICE } from "@/lib/pay-later";
 import { formatSeasonDateRange } from "@/lib/season-calendar-date";
+import type { PublicRegistrationClosedDisplay } from "@/lib/public-registration-closed-display";
 import { submitPublicRegistration, type PublicRegisterState } from "./actions";
 
 /** Shown on the thank-you screen when card checkout was skipped by the form’s payment-skip rule. */
@@ -640,6 +641,7 @@ export function DynamicRegistrationWizard({
   churchDisplayName,
   paymentCanceled = false,
   initialSeasonId,
+  registrationClosedDisplay = null,
 }: {
   seasons: PublicSeasonOption[];
   /** Waiver settings keyed by season id (small payload; avoids losing `waiverEnabled` next to a large form definition). */
@@ -649,6 +651,7 @@ export function DynamicRegistrationWizard({
   paymentCanceled?: boolean;
   /** e.g. after Stripe Checkout cancel — pre-select season. */
   initialSeasonId?: string;
+  registrationClosedDisplay?: PublicRegistrationClosedDisplay | null;
 } & RegisterContactProps) {
   const [state, formAction, pending] = useActionState(submitPublicRegistration, initial);
   const [seasonId, setSeasonId] = useState(() => {
@@ -1111,16 +1114,45 @@ export function DynamicRegistrationWizard({
     emailBlurred && (guardian.guardianEmail?.trim() ?? "") && !emailLooksValid(guardian.guardianEmail ?? "");
 
   if (seasons.length === 0 || !def || !current) {
+    const headline = registrationClosedDisplay?.headline ?? "Online registration isn't open right now";
+    const detail =
+      registrationClosedDisplay?.message ??
+      `Please contact ${churchDisplayName}${contactPhone ? ` at ${contactPhone}` : ""}${contactEmail ? ` or ${contactEmail}` : ""}.`;
+
     return (
-      <div className="rounded-2xl border border-neutral-200 bg-white px-6 py-10 text-center text-neutral-600 shadow-sm dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300">
-        <p className="text-base font-medium text-neutral-900 dark:text-neutral-100">
-          Online registration isn’t open right now
-        </p>
-        <p className="mt-2 text-sm">
-          Please contact {churchDisplayName}
-          {contactPhone ? ` at ${contactPhone}` : ""}
-          {contactEmail ? ` or ${contactEmail}` : ""}.
-        </p>
+      <div className="relative z-0 mx-auto max-w-lg sm:max-w-xl">
+        <div className="rounded-3xl border border-white/10 bg-black/40 px-6 py-10 text-center shadow-[0_20px_60px_rgba(0,0,0,0.45),0_0_48px_rgba(255,220,100,0.12)] backdrop-blur-xl sm:px-8">
+          <RegistrationHeroBrand churchDisplayName={churchDisplayName} />
+          <p className="mt-3 text-xs font-semibold uppercase tracking-wider text-brand/90">{churchDisplayName}</p>
+          <h1 className="mt-2 text-2xl font-bold tracking-tight text-white sm:text-3xl">{headline}</h1>
+          <p className="mx-auto mt-4 max-w-md text-sm leading-relaxed text-neutral-200/90">{detail}</p>
+          {registrationClosedDisplay?.registrantLookupEnabled ? (
+            <div className="mx-auto mt-6 max-w-md">
+              <Link
+                href="/register/lookup"
+                className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-white/30 bg-white/10 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:border-white/45 hover:bg-white/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/70"
+              >
+                <Search className="size-4 shrink-0" aria-hidden />
+                Look up your registration
+              </Link>
+            </div>
+          ) : null}
+          <p className="mx-auto mt-6 max-w-md text-xs text-neutral-300/90">
+            Questions?{" "}
+            {contactEmail ? (
+              <a href={`mailto:${contactEmail}`} className="font-medium text-cyan-100 underline">
+                {contactEmail}
+              </a>
+            ) : null}
+            {contactEmail && contactPhone ? " · " : null}
+            {contactPhone ? (
+              <a href={`tel:${phoneDigits(contactPhone)}`} className="font-medium text-cyan-100 underline">
+                {contactPhone}
+              </a>
+            ) : null}
+            {!contactEmail && !contactPhone ? `Contact ${churchDisplayName}.` : null}
+          </p>
+        </div>
       </div>
     );
   }

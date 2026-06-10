@@ -22,6 +22,8 @@ export type RegistrantLookupPageDisplay = {
   backgroundImageUrl: string | null;
   backgroundVideoUrl: string | null;
   backgroundDimmingPercent: number;
+  lookupEnabled: boolean;
+  registrationOpen: boolean;
 };
 
 export function RegistrantLookupPageShell({ display }: { display: RegistrantLookupPageDisplay }) {
@@ -107,15 +109,29 @@ export function RegistrantLookupPageShell({ display }: { display: RegistrantLook
             </div>
 
             <div className="mt-5 border-t border-white/10 px-5 py-6 sm:px-8 sm:py-7">
-              <div className="rounded-2xl border border-neutral-200/80 bg-white/95 p-5 shadow-sm dark:border-neutral-700 dark:bg-neutral-950/95 sm:p-6">
-                <RegistrantLookupForm />
-              </div>
+              {display.lookupEnabled ? (
+                <div className="rounded-2xl border border-neutral-200/80 bg-white/95 p-5 shadow-sm dark:border-neutral-700 dark:bg-neutral-950/95 sm:p-6">
+                  <RegistrantLookupForm />
+                </div>
+              ) : (
+                <div className="rounded-2xl border border-amber-200/60 bg-amber-50/95 p-5 text-center text-sm text-amber-950 shadow-sm sm:p-6">
+                  <p className="font-semibold">Registration lookup is not available right now.</p>
+                  <p className="mt-2 text-amber-900/90">
+                    Online registration may be closed for the season. Contact the church office if you need help with
+                    your registration.
+                  </p>
+                </div>
+              )}
 
               <p className="mt-5 text-center text-sm text-neutral-200/90">
-                <Link href="/register" className="font-medium text-cyan-100 underline decoration-cyan-100/40">
-                  Register for VBS
-                </Link>
-                {" · "}
+                {display.registrationOpen ? (
+                  <>
+                    <Link href="/register" className="font-medium text-cyan-100 underline decoration-cyan-100/40">
+                      Register for VBS
+                    </Link>
+                    {" · "}
+                  </>
+                ) : null}
                 <Link href="/login" className="font-medium text-cyan-100 underline decoration-cyan-100/40">
                   Staff login
                 </Link>

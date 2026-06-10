@@ -76,7 +76,13 @@ function displayThemeTag(theme: string | null): string | null {
   return theme;
 }
 
-export function LoginPageClient({ seasons }: { seasons: OpenPublicRegistrationSummary[] }) {
+export function LoginPageClient({
+  seasons,
+  lookupOpen,
+}: {
+  seasons: OpenPublicRegistrationSummary[];
+  lookupOpen: boolean;
+}) {
   const [staffOpen, setStaffOpen] = useState(false);
   const [reduceMotion, setReduceMotion] = useState(false);
   const toggleStaff = useCallback(() => setStaffOpen((o) => !o), []);
@@ -236,17 +242,29 @@ export function LoginPageClient({ seasons }: { seasons: OpenPublicRegistrationSu
         {seasons.length === 0 ? (
           <div className="rounded-2xl border border-stone-200/60 bg-white/92 p-6 text-center shadow-lg ring-1 ring-stone-900/[0.04] backdrop-blur-md dark:bg-white/92 sm:p-8">
             <Sparkles className="mx-auto size-10 text-brand" aria-hidden />
-            <h2 className="mt-4 text-lg font-semibold text-stone-900">Registration is not open yet</h2>
+            <h2 className="mt-4 text-lg font-semibold text-stone-900">
+              {lookupOpen ? "Registration is now closed" : "Registration is not open yet"}
+            </h2>
             <p className="mt-2 text-sm leading-relaxed text-stone-700">
-              When a program is published and accepting responses, it will appear here. Check back soon, or contact the
-              church office.
+              {lookupOpen
+                ? "We are no longer accepting new signups, but you can still look up or update an existing registration."
+                : "When a program is published and accepting responses, it will appear here. Check back soon, or contact the church office."}
             </p>
-            <Link
-              href="/register"
-              className="mt-6 inline-flex rounded-xl bg-stone-900 px-5 py-2.5 text-sm font-semibold text-white hover:opacity-90"
-            >
-              Try registration page
-            </Link>
+            {lookupOpen ? (
+              <Link
+                href="/register/lookup"
+                className="mt-6 inline-flex rounded-xl bg-stone-900 px-5 py-2.5 text-sm font-semibold text-white hover:opacity-90"
+              >
+                Look up your registration
+              </Link>
+            ) : (
+              <Link
+                href="/register"
+                className="mt-6 inline-flex rounded-xl bg-stone-900 px-5 py-2.5 text-sm font-semibold text-white hover:opacity-90"
+              >
+                Try registration page
+              </Link>
+            )}
           </div>
         ) : (
           <>
