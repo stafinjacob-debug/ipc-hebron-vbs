@@ -16,6 +16,7 @@ import { clampRegistrationBackgroundDimmingPercent } from "@/lib/registration-ba
 import { parsePublicRegistrationLayout } from "@/lib/public-registration-layout";
 import { rulesFromDb } from "@/lib/public-registration";
 import { persistSubmissionFormEntries } from "@/lib/persist-submission-form-entries";
+import { syncSubmissionPaymentExpectation } from "@/lib/sync-submission-payment-expectation";
 import { parseRegistrantEditForm } from "@/lib/registrant-edit-form";
 import {
   formatCancellationEmailHint,
@@ -633,12 +634,15 @@ export async function updateSubmissionGuardianAndResponses(
     }),
   ]);
 
+  await syncSubmissionPaymentExpectation(submissionId);
+
   if (submission.formId) {
     await auditForm(submission.formId, session.user.id, "SUBMISSION_GUARDIAN_UPDATED", { submissionId });
   }
 
   revalidatePath(`${RF_PATH}/${submission.seasonId}/submissions`);
   revalidatePath(`${RF_PATH}/${submission.seasonId}/submissions/${submissionId}`);
+  revalidatePath("/registrations");
   return { ok: true, message: "Guardian and response data saved." };
 }
 

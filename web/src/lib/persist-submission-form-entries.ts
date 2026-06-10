@@ -1,6 +1,7 @@
 import type { Prisma } from "@/generated/prisma";
 import { parseLocalDate } from "@/lib/schemas/vbs-registration";
 import type { RegistrantEditParseResult } from "@/lib/registrant-edit-form";
+import { syncSubmissionPaymentExpectation } from "@/lib/sync-submission-payment-expectation";
 
 type ParsedSubmission = Extract<RegistrantEditParseResult, { ok: true }>;
 
@@ -69,6 +70,8 @@ export async function persistSubmissionFormEntries(
   } catch {
     return { ok: false, message: "Enter a valid date of birth for each child." };
   }
+
+  await syncSubmissionPaymentExpectation(args.submissionId, tx);
 
   return { ok: true };
 }
