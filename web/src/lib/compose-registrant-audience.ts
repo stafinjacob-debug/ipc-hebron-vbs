@@ -135,3 +135,148 @@ export async function guardianEmailsForComposeRegistrantAudience(
     },
   };
 }
+
+export type CheckInPacketChild = {
+  firstName: string;
+  lastName: string;
+  registrationNumber: string;
+  checkInToken: string;
+  status: string;
+  classroomName: string | null;
+  seasonName: string;
+};
+
+export type CheckInPacketRecipient = {
+  email: string;
+  guardianName: string;
+  children: CheckInPacketChild[];
+};
+
+export type CheckInPacketAudienceStats = {
+  recipientCount: number;
+  matchingRegistrations: number;
+  skippedNoEmail: number;
+  skippedNoCheckInIdentity: number;
+  eligibleChildren: number;
+};
+
+export async function statsForCheckInPacketAudience(
+  seasonId: string,
+  audience: ComposeRegistrantAudience,
+): Promise<CheckInPacketAudienceStats> {
+  const rows = await prisma.registration.findMany({
+    where: registrationWhereForAudience(seasonId, audience),
+    select: {
+      registrationNumber: true,
+      checkInToken: true,
+      child: { select: { guardian: { select: { email: true } } } },
+    },
+  });
+
+  const guardiansWithEligible = new Set<string>();
+  let skippedNoEmail = 0;
+  let skippedNoCheckInIdentity = 0;
+  let eligibleChildren = 0;
+
+  for (const row of rows) {
+    const raw = row.child.guardian.email?.trim() ?? "";
+    if (!raw || !COMPOSE_TO_EMAIL_RE.test(raw)) {
+      skippedNoEmail += 1;
+      continue;
+    }
+    if (!row.registrationNumber?.trim() || !row.checkInToken?.trim()) {
+      skippedNoCheckInIdentity += 1;
+      continue;
+    }
+    eligibleChildren += 1;
+    guardiansWithEligible.add(raw.toLowerCase());
+  }
+
+  return {
+    recipientCount: guardiansWithEligible.size,
+    matchingRegistrations: rows.length,
+    skippedNoEmail,
+    skippedNoCheckInIdentity,
+    eligibleChildren,
+  };
+}
+
+export async function recipientsForCheckInPacketAudience(
+  seasonId: string,
+  audience: ComposeRegistrantAudience,
+): Promise<{ recipients: CheckInPacketRecipient[]; stats: CheckInPacketAudienceStats }> {
+  const rows = await prisma.registration.findMany({
+    where: registrationWhereForAudience(seasonId, audience),
+    select: {
+      registrationNumber: true,
+      checkInToken: true,
+      status: true,
+      child: {
+        select: {
+          firstName: true,
+          lastName: true,
+          guardian: { select: { email: true, firstName: true, lastName: true } },
+        },
+      },
+      classroom: { select: { name: true } },
+      season: { select: { name: true } },
+    },
+    orderBy: [{ child: { firstName: "asc" } }, { child: { lastName: "asc" } }],
+  });
+
+  const byEmail = new Map<string, CheckInPacketRecipient>();
+  let skippedNoEmail = 0;
+  let skippedNoCheckInIdentity = 0;
+  let eligibleChildren = 0;
+
+  for (const row of rows) {
+    const guardian = row.child.guardian;
+    const raw = guardian.email?.trim() ?? "";
+    if (!raw || !COMPOSE_TO_EMAIL_RE.test(raw)) {
+      skippedNoEmail += 1;
+      continue;
+    }
+
+    const registrationNumber = row.registrationNumber?.trim() ?? "";
+    const checkInToken = row.checkInToken?.trim() ?? "";
+    if (!registrationNumber || !checkInToken) {
+      skippedNoCheckInIdentity += 1;
+      continue;
+    }
+
+    eligibleChildren += 1;
+    const lower = raw.toLowerCase();
+    let recipient = byEmail.get(lower);
+    if (!recipient) {
+      recipient = {
+        email: raw,
+        guardianName: `${guardian.firstName} ${guardian.lastName}`.trim() || raw,
+        children: [],
+      };
+      byEmail.set(lower, recipient);
+    }
+
+    recipient.children.push({
+      firstName: row.child.firstName,
+      lastName: row.child.lastName,
+      registrationNumber,
+      checkInToken,
+      status: row.status,
+      classroomName: row.classroom?.name ?? null,
+      seasonName: row.season.name,
+    });
+  }
+
+  const recipients = [...byEmail.values()].filter((r) => r.children.length > 0);
+
+  return {
+    recipients,
+    stats: {
+      recipientCount: recipients.length,
+      matchingRegistrations: rows.length,
+      skippedNoEmail,
+      skippedNoCheckInIdentity,
+      eligibleChildren,
+    },
+  };
+}

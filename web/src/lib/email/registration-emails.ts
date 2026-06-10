@@ -40,7 +40,7 @@ function escapeHtml(s: string): string {
 }
 
 /** Shared layout: header band, card body, footer. */
-function emailShell(inner: string): string {
+export function emailShell(inner: string): string {
   const brand = escapeHtml(brandName());
   return `<!DOCTYPE html>
 <html lang="en">
@@ -159,7 +159,7 @@ async function loadThemeLogoInlineAttachment(): Promise<{
   }
 }
 
-function compactTicketBlock(args: {
+export function compactTicketBlock(args: {
   childName: string;
   registrationNumber: string;
   detailLine: string;

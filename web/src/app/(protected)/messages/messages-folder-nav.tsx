@@ -4,7 +4,7 @@ export function MessagesFolderNav({
   current,
   showCompose,
 }: {
-  current: "inbox" | "sent" | "compose";
+  current: "inbox" | "sent" | "compose" | "check-in-packet";
   showCompose: boolean;
 }) {
   const tab =
@@ -21,12 +21,20 @@ export function MessagesFolderNav({
         Sent
       </Link>
       {showCompose ? (
-        <Link
-          href="/messages/compose"
-          className={`${tab} ${current === "compose" ? active : inactive}`}
-        >
-          Compose
-        </Link>
+        <>
+          <Link
+            href="/messages/compose"
+            className={`${tab} ${current === "compose" ? active : inactive}`}
+          >
+            Compose
+          </Link>
+          <Link
+            href="/messages/check-in-packet"
+            className={`${tab} ${current === "check-in-packet" ? active : inactive}`}
+          >
+            Check-in packet
+          </Link>
+        </>
       ) : null}
     </nav>
   );
