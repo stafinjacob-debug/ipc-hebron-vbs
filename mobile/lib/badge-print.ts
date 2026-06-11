@@ -117,7 +117,7 @@ export function badgePrintErrorMessage(error: unknown): string {
     if (code?.startsWith('ERROR_')) {
       const num = code.replace('ERROR_', '');
       if (num === 'NOT_FOUND') return error.message;
-      return `${error.message} (code ${num}). Confirm DK-2205 62 mm roll is loaded and the printer is on.`;
+      return `${error.message} (code ${num}). Load DK-2205, set the printer to 62 mm continuous roll (not die-cut), then retry.`;
     }
     return error.message;
   }

@@ -149,8 +149,8 @@ export function BadgePrintSettingsForm({
           Match your physical label stock. For iPad check-in with a Brother QL-820 on DK-2205 (62 mm
           tape), choose <strong className="font-medium text-foreground/80">62 mm continuous roll</strong>
           , <strong className="font-medium text-foreground/80">Horizontal</strong> orientation, and a
-          horizontal layout below. The app preview shows the web layout; iPads print a wide
-          text-left / QR-right badge on the roll.
+          horizontal layout below. On the printer, set media to <strong className="font-medium text-foreground/80">62 mm continuous</strong> (not die-cut).
+          The app preview shows the web layout; iPads print a landscape badge on the roll.
         </p>
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
           <div>

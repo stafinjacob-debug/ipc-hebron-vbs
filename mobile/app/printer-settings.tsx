@@ -197,7 +197,9 @@ export default function PrinterSettingsScreen() {
 
       <Text style={styles.footer}>
         Supported: QL-820NWB, QL-810W, QL-1110NWB and c variants. Load DK-2205
-        (62 mm continuous) or the label size configured in admin badge settings.
+        (62 mm continuous). On the printer itself, set media to{' '}
+        <Text style={styles.footerStrong}>62 mm continuous roll</Text> — not a die-cut
+        size like 62×100 mm, or labels will feed with extra blank tape.
       </Text>
     </ScrollView>
   );
@@ -277,5 +279,9 @@ const styles = StyleSheet.create({
     lineHeight: 17,
     color: palette.textSecondary,
     textAlign: 'center',
+  },
+  footerStrong: {
+    fontWeight: '700',
+    color: palette.text,
   },
 });

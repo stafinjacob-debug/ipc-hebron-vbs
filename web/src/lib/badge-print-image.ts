@@ -71,8 +71,8 @@ function brotherQlCanvas(
   const base = labelBaseInches(labelSize);
   const horizontal = orientation === "HORIZONTAL";
   const tapeWidthIn = base.widthIn;
-  /** Horizontal wide badges on 62 mm roll: ~2″ feed (compact strip), not full 100 mm roll length. */
-  const feedLengthIn = horizontal ? 2 : base.heightIn;
+  /** Horizontal badges: ~3″ feed on 62 mm roll (Planning Center–style landscape badge). */
+  const feedLengthIn = horizontal ? 3 : base.heightIn;
 
   const w =
     labelSize === "LABEL_4X6"
@@ -314,8 +314,8 @@ function trimBrotherHorizontalCanvas(
     layout === "KIDCHECK"
       ? measureKidCheckBrotherWideBottom(payload, canvas)
       : canvas.h - inchToPx(0.12, canvas);
-  const minH = Math.round(1.25 * BADGE_RENDER_DPI);
-  const h = Math.min(canvas.h, Math.max(minH, Math.ceil(bottom)));
+  const minH = Math.round(1.0 * BADGE_RENDER_DPI);
+  const h = Math.min(canvas.h, Math.max(minH, Math.ceil(bottom + inchToPx(0.03, canvas))));
   return { ...canvas, h, heightIn: h / BADGE_RENDER_DPI };
 }
 

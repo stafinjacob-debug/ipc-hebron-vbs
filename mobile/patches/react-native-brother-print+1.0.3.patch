@@ -1,5 +1,421 @@
+diff --git a/node_modules/react-native-brother-print/android 2/src/main/AndroidManifest.xml b/node_modules/react-native-brother-print/android 2/src/main/AndroidManifest.xml
+new file mode 100644
+index 0000000..dc94f1b
+--- /dev/null
++++ b/node_modules/react-native-brother-print/android 2/src/main/AndroidManifest.xml	
+@@ -0,0 +1,22 @@
++<?xml version="1.0" encoding="utf-8"?>
++<manifest xmlns:android="http://schemas.android.com/apk/res/android"
++    package="com.reactnativebrotherprintmodule">
++
++    <!-- Internet permissions -->
++    <uses-permission android:name="android.permission.INTERNET" />
++    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
++    
++    <!-- Bluetooth permissions -->
++    <uses-permission android:name="android.permission.BLUETOOTH" />
++    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
++    <!-- For Android 12+ -->
++    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
++    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
++    
++    <!-- Location permissions (required for Bluetooth scanning on Android 12+) -->
++    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
++    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
++
++    <application>
++    </application>
++</manifest> 
+\ No newline at end of file
+diff --git a/node_modules/react-native-brother-print/android 2/src/main/java/com/reactnativebrotherprintmodule/ReactNativeBrotherPrintModule.java b/node_modules/react-native-brother-print/android 2/src/main/java/com/reactnativebrotherprintmodule/ReactNativeBrotherPrintModule.java
+new file mode 100644
+index 0000000..8346f6e
+--- /dev/null
++++ b/node_modules/react-native-brother-print/android 2/src/main/java/com/reactnativebrotherprintmodule/ReactNativeBrotherPrintModule.java	
+@@ -0,0 +1,349 @@
++package com.reactnativebrotherprintmodule;
++
++import com.facebook.react.bridge.ReactApplicationContext;
++import com.facebook.react.bridge.ReactContextBaseJavaModule;
++import com.facebook.react.bridge.ReactMethod;
++import com.facebook.react.bridge.Promise;
++import android.util.Log;
++import android.net.Uri;
++import android.Manifest;
++import android.content.pm.PackageManager;
++import android.os.Build;
++import android.os.Handler;
++import android.os.HandlerThread;
++import android.os.Looper;
++import androidx.core.content.ContextCompat;
++
++// Brother SDK imports
++import com.brother.sdk.lmprinter.Channel;
++import com.brother.sdk.lmprinter.OpenChannelError;
++import com.brother.sdk.lmprinter.PrinterDriver;
++import com.brother.sdk.lmprinter.PrinterDriverGenerateResult;
++import com.brother.sdk.lmprinter.PrinterDriverGenerator;
++import com.brother.sdk.lmprinter.PrintError;
++import com.brother.sdk.lmprinter.setting.PrintImageSettings;
++import com.brother.sdk.lmprinter.setting.QLPrintSettings;
++import com.brother.sdk.lmprinter.PrinterModel;
++import com.brother.sdk.lmprinter.PrinterSearcher;
++import com.brother.sdk.lmprinter.PrinterSearchResult;
++import com.brother.sdk.lmprinter.PrinterSearchError;
++import com.brother.sdk.lmprinter.GetStatusResult;
++import com.brother.sdk.lmprinter.GetStatusError;
++import com.brother.sdk.lmprinter.MediaInfo;
++import com.brother.sdk.lmprinter.PrinterStatus;
++
++public class ReactNativeBrotherPrintModule extends ReactContextBaseJavaModule {
++    private static final String TAG = "BrotherPrint";
++    private final ReactApplicationContext reactContext;
++    private HandlerThread printerThread;
++    private Handler printerHandler;
++
++    ReactNativeBrotherPrintModule(ReactApplicationContext reactContext) {
++        super(reactContext);
++        this.reactContext = reactContext;
++        
++        printerThread = new HandlerThread("PrinterThread");
++        printerThread.start();
++        printerHandler = new Handler(printerThread.getLooper());
++    }
++
++    @Override
++    public void onCatalystInstanceDestroy() {
++        if (printerThread != null) {
++            printerThread.quitSafely();
++            printerThread = null;
++            printerHandler = null;
++        }
++        super.onCatalystInstanceDestroy();
++    }
++
++    @Override
++    public String getName() {
++        return "ReactNativeBrotherPrint";
++    }
++
++    private boolean checkBluetoothPermissions() {
++        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
++            return ContextCompat.checkSelfPermission(reactContext, Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
++                && ContextCompat.checkSelfPermission(reactContext, Manifest.permission.BLUETOOTH_SCAN) == PackageManager.PERMISSION_GRANTED;
++        }
++        return true;
++    }
++
++    private QLPrintSettings getPrinterSettings(String modelName, PrinterDriver printerDriver) {
++        try {
++            String cleanModelName = modelName.replace("Brother ", "").trim();
++            PrinterModel printerModel;
++            
++            switch (cleanModelName) {
++                case "QL-1100":
++                    printerModel = PrinterModel.QL_1100;
++                    break;
++                case "QL-1110NWB":
++                    printerModel = PrinterModel.QL_1110NWB;
++                    break;
++                case "QL-580N":
++                    printerModel = PrinterModel.QL_580N;
++                    break;
++                case "QL-710W":
++                    printerModel = PrinterModel.QL_710W;
++                    break;
++                case "QL-720NW":
++                    printerModel = PrinterModel.QL_720NW;
++                    break;
++                case "QL-800":
++                    printerModel = PrinterModel.QL_800;
++                    break;
++                case "QL-810W":
++                    printerModel = PrinterModel.QL_810W;
++                    break;
++                case "QL-820NWB":
++                    printerModel = PrinterModel.QL_820NWB;
++                    break;
++                case "QL-1115NWB":
++                    printerModel = PrinterModel.QL_1115NWB;
++                    break;
++                default:
++                    Log.e(TAG, "Unsupported printer model: " + modelName);
++                    return null;
++            }
++            
++            QLPrintSettings printSettings = new QLPrintSettings(printerModel);
++            
++            printSettings.setAutoCut(true);
++            printSettings.setWorkPath(reactContext.getExternalFilesDir(null).toString());
++            
++            if (printerDriver != null) {
++                GetStatusResult statusResult = printerDriver.getPrinterStatus();
++                
++                if (statusResult != null && 
++                    statusResult.getError().getCode() == GetStatusError.ErrorCode.NoError && 
++                    statusResult.getPrinterStatus() != null && 
++                    statusResult.getPrinterStatus().getMediaInfo() != null) {
++                    
++                    QLPrintSettings.LabelSize currentLabelSize = statusResult.getPrinterStatus().getMediaInfo().getQLLabelSize();
++                    if (currentLabelSize != null) {
++                        printSettings.setLabelSize(currentLabelSize);
++                    }
++                }
++            }
++            
++            return printSettings;
++        } catch (Exception e) {
++            Log.e(TAG, "Error creating print settings: " + e.getMessage());
++            return null;
++        }
++    }
++
++    private PrintImageSettings configurePrintImageSettings(String halftone, Integer thresholdingValue) {
++        PrintImageSettings imageSettings = new PrintImageSettings();
++        
++        if (halftone != null) {
++            switch (halftone) {
++                case "THRESHOLD":
++                    imageSettings.setHalftone(PrintImageSettings.Halftone.THRESHOLD);
++                    break;
++                case "ERROR_DIFFUSION":
++                    imageSettings.setHalftone(PrintImageSettings.Halftone.ERROR_DIFFUSION);
++                    break;
++                case "PATTERN_DITHER":
++                    imageSettings.setHalftone(PrintImageSettings.Halftone.PATTERN_DITHER);
++                    break;
++                default:
++                    Log.w(TAG, "Unknown halftone value: " + halftone + ", using default");
++                    break;
++            }
++        }
++        
++        if (thresholdingValue != null) {
++            // Clamp thresholdingValue to valid range (0-255)
++            int clampedValue = Math.max(0, Math.min(255, thresholdingValue));
++            imageSettings.setThresholdingValue(clampedValue);
++            if (clampedValue != thresholdingValue) {
++                Log.w(TAG, "ThresholdingValue clamped from " + thresholdingValue + " to " + clampedValue);
++            }
++        }
++        
++        return imageSettings;
++    }
++
++    @ReactMethod
++    public void printImageViaWifi(String uri, String ipAddress, String modelName, String halftone, Integer thresholdingValue, Promise promise) {
++        if (uri == null || uri.isEmpty()) {
++            promise.reject("INVALID_PARAMS", "URI cannot be empty");
++            return;
++        }
++
++        if (ipAddress == null || ipAddress.isEmpty()) {
++            promise.reject("INVALID_PARAMS", "IP address cannot be empty");
++            return;
++        }
++
++        if (modelName == null || modelName.isEmpty()) {
++            promise.reject("INVALID_PARAMS", "Model name cannot be empty");
++            return;
++        }
++
++        printerHandler.post(() -> {
++            PrinterDriver printerDriver = null;
++            try {
++                Channel channel = Channel.newWifiChannel(ipAddress);
++                PrinterDriverGenerateResult result = PrinterDriverGenerator.openChannel(channel);
++                
++                if (result.getError().getCode() != OpenChannelError.ErrorCode.NoError) {
++                    Log.e(TAG, "Error opening channel: " + result.getError().getCode());
++                    promise.reject("PRINTER_CONNECTION_ERROR", "Failed to open printer channel: " + result.getError().getCode());
++                    return;
++                }
++
++                printerDriver = result.getDriver();
++                if (printerDriver == null) {
++                    Log.e(TAG, "Printer driver is null");
++                    promise.reject("PRINTER_DRIVER_ERROR", "Failed to create printer driver");
++                    return;
++                }
++
++                try {
++                    QLPrintSettings printSettings = getPrinterSettings(modelName, printerDriver);
++                    if (printSettings == null) {
++                        promise.reject("INVALID_MODEL", "Failed to get printer settings for model: " + modelName);
++                        return;
++                    }
++                    
++                    Uri imageUri = Uri.parse(uri);
++                    String filePath = imageUri.getPath();
++                    
++                    if (filePath == null) {
++                        Log.e(TAG, "Invalid file path from URI");
++                        promise.reject("INVALID_PATH", "Could not get file path from URI");
++                        return;
++                    }
++
++                    // Configure image settings for halftone and thresholding
++                    PrintImageSettings imageSettings = configurePrintImageSettings(halftone, thresholdingValue);
++
++                    PrintError printError = printerDriver.printImage(filePath, printSettings, imageSettings);
++                    
++                    if (printError.getCode() != PrintError.ErrorCode.NoError) {
++                        Log.e(TAG, "Print error: " + printError.getCode());
++                        promise.reject("PRINT_ERROR", "Print error: " + printError.getCode());
++                        return;
++                    }
++
++                    promise.resolve(null);
++                } finally {
++                    printerDriver.closeChannel();
++                }
++            } catch (Exception e) {
++                Log.e(TAG, "Error in printImageViaWifi: " + e.getMessage());
++                e.printStackTrace();
++                promise.reject("PRINT_ERROR", "Error in printImageViaWifi: " + e.getMessage());
++            }
++        });
++    }
++
++    @ReactMethod
++    public void printImageViaBluetooth(String uri, String modelName, String halftone, Integer thresholdingValue, Promise promise) {
++        if (uri == null || uri.isEmpty()) {
++            promise.reject("INVALID_PARAMS", "URI cannot be empty");
++            return;
++        }
++
++        if (modelName == null || modelName.isEmpty()) {
++            promise.reject("INVALID_PARAMS", "Model name cannot be empty");
++            return;
++        }
++
++        if (!checkBluetoothPermissions()) {
++            promise.reject("BLUETOOTH_PERMISSION_ERROR", "Missing required Bluetooth permissions");
++            return;
++        }
++
++        printerHandler.post(() -> {
++            PrinterDriver printerDriver = null;
++            try {
++                PrinterSearchResult searchResult = PrinterSearcher.startBluetoothSearch(reactContext);
++                
++                if (searchResult.getError().getCode() != PrinterSearchError.ErrorCode.NoError) {
++                    Log.e(TAG, "Error searching for printer: " + searchResult.getError().getCode());
++                    promise.reject("SEARCH_ERROR", "Error searching for printer: " + searchResult.getError().getCode());
++                    return;
++                }
++
++                Channel printerChannel = null;
++                for (Channel channel : searchResult.getChannels()) {
++                    String foundModel = null;
++                    try {
++                        if (channel.getExtraInfo() != null) {
++                            foundModel = (String) channel.getExtraInfo().get(Channel.ExtraInfoKey.ModelName);
++                        }
++                    } catch (Exception e) {
++                        Log.w(TAG, "Could not get model name from channel: " + e.getMessage());
++                    }
++                    
++                    if (foundModel != null && foundModel.startsWith(modelName)) {
++                        printerChannel = channel;
++                        break;
++                    }
++                }
++
++                if (printerChannel == null) {
++                    Log.e(TAG, "Printer not found: " + modelName);
++                    promise.reject("PRINTER_NOT_FOUND", "Printer not connected");
++                    return;
++                }
++
++                PrinterDriverGenerateResult result = PrinterDriverGenerator.openChannel(printerChannel);
++                
++                if (result.getError().getCode() != OpenChannelError.ErrorCode.NoError) {
++                    Log.e(TAG, "Error opening channel: " + result.getError().getCode());
++                    promise.reject("PRINTER_CONNECTION_ERROR", "Failed to open printer channel: " + result.getError().getCode());
++                    return;
++                }
++
++                printerDriver = result.getDriver();
++                if (printerDriver == null) {
++                    Log.e(TAG, "Printer driver is null");
++                    promise.reject("PRINTER_DRIVER_ERROR", "Failed to create printer driver");
++                    return;
++                }
++
++                try {
++                    QLPrintSettings printSettings = getPrinterSettings(modelName, printerDriver);
++                    if (printSettings == null) {
++                        promise.reject("INVALID_MODEL", "Failed to get printer settings for model: " + modelName);
++                        return;
++                    }
++                    
++                    Uri imageUri = Uri.parse(uri);
++                    String filePath = imageUri.getPath();
++                    
++                    if (filePath == null) {
++                        Log.e(TAG, "Invalid file path from URI");
++                        promise.reject("INVALID_PATH", "Could not get file path from URI");
++                        return;
++                    }
++
++                    // Configure image settings for halftone and thresholding
++                    PrintImageSettings imageSettings = configurePrintImageSettings(halftone, thresholdingValue);
++
++                    PrintError printError = printerDriver.printImage(filePath, printSettings, imageSettings);
++                    
++                    if (printError.getCode() != PrintError.ErrorCode.NoError) {
++                        Log.e(TAG, "Print error: " + printError.getCode());
++                        promise.reject("PRINT_ERROR", "Print error: " + printError.getCode());
++                        return;
++                    }
++
++                    promise.resolve(null);
++                } finally {
++                    printerDriver.closeChannel();
++                }
++            } catch (Exception e) {
++                Log.e(TAG, "Error in printImageViaBluetooth: " + e.getMessage());
++                e.printStackTrace();
++                promise.reject("PRINT_ERROR", "Error in printImageViaBluetooth: " + e.getMessage());
++            }
++        });
++    }
++} 
+\ No newline at end of file
+diff --git a/node_modules/react-native-brother-print/android 2/src/main/java/com/reactnativebrotherprintmodule/ReactNativeBrotherPrintPackage.java b/node_modules/react-native-brother-print/android 2/src/main/java/com/reactnativebrotherprintmodule/ReactNativeBrotherPrintPackage.java
+new file mode 100644
+index 0000000..1129310
+--- /dev/null
++++ b/node_modules/react-native-brother-print/android 2/src/main/java/com/reactnativebrotherprintmodule/ReactNativeBrotherPrintPackage.java	
+@@ -0,0 +1,24 @@
++package com.reactnativebrotherprintmodule;
++
++import com.facebook.react.ReactPackage;
++import com.facebook.react.bridge.NativeModule;
++import com.facebook.react.bridge.ReactApplicationContext;
++import com.facebook.react.uimanager.ViewManager;
++
++import java.util.ArrayList;
++import java.util.Collections;
++import java.util.List;
++
++public class ReactNativeBrotherPrintPackage implements ReactPackage {
++    @Override
++    public List<ViewManager> createViewManagers(ReactApplicationContext reactContext) {
++        return Collections.emptyList();
++    }
++
++    @Override
++    public List<NativeModule> createNativeModules(ReactApplicationContext reactContext) {
++        List<NativeModule> modules = new ArrayList<>();
++        modules.add(new ReactNativeBrotherPrintModule(reactContext));
++        return modules;
++    }
++} 
+\ No newline at end of file
 diff --git a/node_modules/react-native-brother-print/ios/ReactNativeBrotherPrint.swift b/node_modules/react-native-brother-print/ios/ReactNativeBrotherPrint.swift
-index 09976d9..44fef65 100644
+index 09976d9..01fcd13 100644
 --- a/node_modules/react-native-brother-print/ios/ReactNativeBrotherPrint.swift
 +++ b/node_modules/react-native-brother-print/ios/ReactNativeBrotherPrint.swift
 @@ -12,7 +12,7 @@ class ReactNativeBrotherPrint: NSObject {
@@ -70,7 +486,7 @@ index 09976d9..44fef65 100644
          let generateResult = BRLMPrinterDriverGenerator.open(channel)
          guard generateResult.error.code == BRLMOpenChannelErrorCode.noError,
              let printerDriver = generateResult.driver else {
-@@ -120,18 +103,22 @@ class ReactNativeBrotherPrint: NSObject {
+@@ -120,18 +103,23 @@ class ReactNativeBrotherPrint: NSObject {
          }
                    
          pSettings.autoCut = true
@@ -79,15 +495,16 @@ index 09976d9..44fef65 100644
 -        // Create and configure print info for halftone and thresholding
 -        let printInfo = BRPtouchPrintInfo()
 -        configurePrintInfo(printInfo, halftone: halftone, thresholdingValue: thresholdingValue)
-+        // Use media the printer reports (DK-2205 continuous); fall back to 62 mm roll.
-+        if fetchedLabelSize, let detected = labelSize {
-+            pSettings.labelSize = detected
-+        } else {
-+            pSettings.labelSize = BRLMQLPrintSettingsLabelSize.rollW62
-+        }
++        pSettings.cutAtEnd = true
++        // VBS uses DK-2205 62 mm continuous roll. Printer-detected die-cut sizes (e.g. 62×100 mm)
++        // inflate the print area and waste tape — always force continuous roll.
++        pSettings.labelSize = BRLMQLPrintSettingsLabelSize.rollW62
 +        pSettings.scaleMode = BRLMPrintSettingsScaleMode.fitPageAspect
++        // Landscape: badge reads horizontally as it exits the printer (like Planning Center).
++        pSettings.imageRotation = BRLMPrintSettingsRotation.rotate90
 +        pSettings.hAlignment = BRLMPrintSettingsHorizontalAlignment.left
 +        pSettings.vAlignment = BRLMPrintSettingsVerticalAlignment.top
++        pSettings.feedDirectionMargins = 0
          
          let url = URL(fileURLWithPath: printURI);
 -        let printError = printerDriver.printImage(with: url, settings: pSettings, printInfo: printInfo)
