@@ -314,7 +314,7 @@ function trimBrotherHorizontalCanvas(
     layout === "KIDCHECK"
       ? measureKidCheckBrotherWideBottom(payload, canvas)
       : canvas.h - inchToPx(0.12, canvas);
-  const minH = Math.round(1.65 * BADGE_RENDER_DPI);
+  const minH = Math.round(1.15 * BADGE_RENDER_DPI);
   const h = Math.min(canvas.h, Math.max(minH, Math.ceil(bottom)));
   return { ...canvas, h, heightIn: h / BADGE_RENDER_DPI };
 }

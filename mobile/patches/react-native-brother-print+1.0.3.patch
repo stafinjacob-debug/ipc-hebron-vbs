@@ -1,5 +1,5 @@
 diff --git a/node_modules/react-native-brother-print/ios/ReactNativeBrotherPrint.swift b/node_modules/react-native-brother-print/ios/ReactNativeBrotherPrint.swift
-index 09976d9..7efa5fb 100644
+index 09976d9..199d4a4 100644
 --- a/node_modules/react-native-brother-print/ios/ReactNativeBrotherPrint.swift
 +++ b/node_modules/react-native-brother-print/ios/ReactNativeBrotherPrint.swift
 @@ -12,7 +12,7 @@ class ReactNativeBrotherPrint: NSObject {
@@ -70,17 +70,21 @@ index 09976d9..7efa5fb 100644
          let generateResult = BRLMPrinterDriverGenerator.open(channel)
          guard generateResult.error.code == BRLMOpenChannelErrorCode.noError,
              let printerDriver = generateResult.driver else {
-@@ -122,12 +105,11 @@ class ReactNativeBrotherPrint: NSObject {
+@@ -120,14 +103,14 @@ class ReactNativeBrotherPrint: NSObject {
+         }
+                   
          pSettings.autoCut = true
-         pSettings.labelSize = labelSize!
-+        pSettings.scaleMode = BRLMPrintSettingsScaleMode.fitPageAspect
-+        pSettings.hAlignment = BRLMPrintSettingsHorizontalAlignment.left
-+        pSettings.vAlignment = BRLMPrintSettingsVerticalAlignment.top
-         
+-        pSettings.labelSize = labelSize!
+-        
 -        // Create and configure print info for halftone and thresholding
 -        let printInfo = BRPtouchPrintInfo()
 -        configurePrintInfo(printInfo, halftone: halftone, thresholdingValue: thresholdingValue)
--        
++        // DK-2205 continuous roll — use image height for feed/cut length (696×N PNG from server).
++        pSettings.labelSize = BRLMQLPrintSettingsLabelSize.rollW62
++        pSettings.scaleMode = BRLMPrintSettingsScaleMode.actualSize
++        pSettings.hAlignment = BRLMPrintSettingsHorizontalAlignment.left
++        pSettings.vAlignment = BRLMPrintSettingsVerticalAlignment.top
+         
          let url = URL(fileURLWithPath: printURI);
 -        let printError = printerDriver.printImage(with: url, settings: pSettings, printInfo: printInfo)
 +        let printError = printerDriver.printImage(with: url, settings: pSettings)

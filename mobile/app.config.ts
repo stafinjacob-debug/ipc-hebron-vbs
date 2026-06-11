@@ -23,7 +23,7 @@ const config: ExpoConfig = {
   },
   ios: {
     bundleIdentifier: 'org.ipchebron.vbs',
-    buildNumber: '1',
+    buildNumber: '9',
     supportsTablet: true,
     infoPlist: {
       ITSAppUsesNonExemptEncryption: false,
