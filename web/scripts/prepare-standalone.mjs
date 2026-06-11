@@ -32,6 +32,13 @@ if (existsSync(dejavuTtf)) {
   }
 }
 
+const resvgPkg = join(root, "node_modules", "@resvg", "resvg-js");
+const standaloneResvg = join(standalone, "node_modules", "@resvg", "resvg-js");
+if (existsSync(resvgPkg)) {
+  mkdirSync(join(standalone, "node_modules", "@resvg"), { recursive: true });
+  cpSync(resvgPkg, standaloneResvg, { recursive: true });
+}
+
 /** Azure App Service may run Oryx against package.json; avoid npm start → next start (wrong for standalone). */
 const pkgPath = join(standalone, "package.json");
 if (existsSync(pkgPath)) {

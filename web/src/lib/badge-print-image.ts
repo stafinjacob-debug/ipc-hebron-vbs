@@ -2,7 +2,7 @@ import type { BadgePrintPayload } from "@/lib/badge-print";
 import { badgeLabelPageCss } from "@/lib/badge-print";
 import {
   BADGE_PRINT_FONT_FAMILY,
-  badgePrintSvgFontDefs,
+  badgePrintFontFiles,
 } from "@/lib/badge-print-fonts";
 
 function escapeXml(text: string): string {
@@ -132,16 +132,20 @@ export function buildBadgePrintSvg(payload: BadgePrintPayload): string {
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
-  <defs>
-    <style type="text/css"><![CDATA[${badgePrintSvgFontDefs()}]]></style>
-  </defs>
   <rect width="100%" height="100%" fill="#ffffff"/>
   ${inner}
 </svg>`;
 }
 
 export async function renderBadgePngBuffer(payload: BadgePrintPayload): Promise<Buffer> {
-  const sharp = (await import("sharp")).default;
+  const { Resvg } = await import("@resvg/resvg-js");
   const svg = buildBadgePrintSvg(payload);
-  return sharp(Buffer.from(svg)).png().toBuffer();
+  const resvg = new Resvg(svg, {
+    font: {
+      fontFiles: badgePrintFontFiles(),
+      loadSystemFonts: false,
+      defaultFontFamily: BADGE_PRINT_FONT_FAMILY,
+    },
+  });
+  return Buffer.from(resvg.render().asPng());
 }
