@@ -10,6 +10,9 @@ import {
 /** Match thermal printer resolution (Brother QL series). */
 const BADGE_RENDER_DPI = 300;
 
+/** Printable width for 62 mm continuous roll (DK-2205) at 300 DPI — Brother QL raster width. */
+const BROTHER_QL_62MM_PRINTABLE_WIDTH = 696;
+
 type LabelCanvas = {
   w: number;
   h: number;
@@ -52,6 +55,34 @@ function labelCanvas(
     h: Math.round(heightIn * BADGE_RENDER_DPI),
     widthIn,
     heightIn,
+    horizontal,
+  };
+}
+
+/**
+ * Brother QL maps PNG width → tape width and PNG height → feed/cut length.
+ * Mobile check-in uses 62 mm roll; render at printable dot width (696), not landscape pixels.
+ */
+function brotherQlCanvas(
+  labelSize: BadgePrintPayload["settings"]["labelSize"],
+  orientation: BadgePrintPayload["settings"]["orientation"],
+): LabelCanvas {
+  const base = labelBaseInches(labelSize);
+  const horizontal = orientation === "HORIZONTAL";
+  const tapeWidthIn = base.widthIn;
+  const feedLengthIn = base.heightIn;
+
+  const w =
+    labelSize === "LABEL_4X6"
+      ? Math.round(tapeWidthIn * BADGE_RENDER_DPI)
+      : BROTHER_QL_62MM_PRINTABLE_WIDTH;
+  const h = Math.round(feedLengthIn * BADGE_RENDER_DPI);
+
+  return {
+    w,
+    h,
+    widthIn: tapeWidthIn,
+    heightIn: feedLengthIn,
     horizontal,
   };
 }
@@ -207,9 +238,14 @@ function renderKidCheck(payload: BadgePrintPayload, canvas: LabelCanvas): string
   `;
 }
 
-export function buildBadgePrintSvg(payload: BadgePrintPayload): string {
+export function buildBadgePrintSvg(
+  payload: BadgePrintPayload,
+  options: BadgePngRenderOptions = {},
+): string {
   const dims = badgeLabelPageCss(payload.settings.labelSize, payload.settings.orientation);
-  const canvas = labelCanvas(payload.settings.labelSize, payload.settings.orientation);
+  const canvas = options.brotherQl
+    ? brotherQlCanvas(payload.settings.labelSize, payload.settings.orientation)
+    : labelCanvas(payload.settings.labelSize, payload.settings.orientation);
   const { w, h } = canvas;
 
   const layout = payload.settings.horizontalLayout;
@@ -228,35 +264,40 @@ export function buildBadgePrintSvg(payload: BadgePrintPayload): string {
 }
 
 export type BadgePngRenderOptions = {
-  /**
-   * Brother QL printers map image width to tape width and height to feed length.
-   * Horizontal badges must be rotated 90° so a 3×2" layout feeds correctly on 62 mm roll.
-   */
+  /** Render at Brother QL tape width × feed length (mobile Bluetooth/Wi‑Fi printing). */
   brotherQl?: boolean;
 };
 
-async function orientPngForBrotherQl(
-  png: Buffer,
-  orientation: BadgePrintPayload["settings"]["orientation"],
-): Promise<Buffer> {
-  if (orientation !== "HORIZONTAL") return png;
-
-  const sharp = (await import("sharp")).default;
-  return sharp(png).rotate(90).png().toBuffer();
-}
+export type BadgePngRenderResult = {
+  png: Buffer;
+  width: number;
+  height: number;
+};
 
 export async function renderBadgePngBuffer(
   payload: BadgePrintPayload,
   options: BadgePngRenderOptions = {},
 ): Promise<Buffer> {
+  const result = await renderBadgePngWithMeta(payload, options);
+  return result.png;
+}
+
+export async function renderBadgePngWithMeta(
+  payload: BadgePrintPayload,
+  options: BadgePngRenderOptions = {},
+): Promise<BadgePngRenderResult> {
   const fontStatus = badgePrintFontStatus();
   if (!fontStatus.ok) {
     console.error("[badge-print] DejaVu fonts unavailable", fontStatus);
     throw new Error("Badge fonts are not available on the server.");
   }
 
+  const canvas = options.brotherQl
+    ? brotherQlCanvas(payload.settings.labelSize, payload.settings.orientation)
+    : labelCanvas(payload.settings.labelSize, payload.settings.orientation);
+
   const { Resvg } = await import("@resvg/resvg-js");
-  const svg = buildBadgePrintSvg(payload);
+  const svg = buildBadgePrintSvg(payload, options);
   const resvg = new Resvg(svg, {
     dpi: BADGE_RENDER_DPI,
     font: {
@@ -267,11 +308,7 @@ export async function renderBadgePngBuffer(
       sansSerifFamily: BADGE_PRINT_FONT_FAMILY,
     },
   });
-  let png = Buffer.from(resvg.render().asPng());
+  const png = Buffer.from(resvg.render().asPng());
 
-  if (options.brotherQl) {
-    png = Buffer.from(await orientPngForBrotherQl(png, payload.settings.orientation));
-  }
-
-  return png;
+  return { png, width: canvas.w, height: canvas.h };
 }

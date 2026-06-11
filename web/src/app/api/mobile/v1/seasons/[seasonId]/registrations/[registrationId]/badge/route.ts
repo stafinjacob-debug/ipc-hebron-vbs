@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { buildBadgePrintHtml } from "@/lib/badge-print-document";
-import { renderBadgePngBuffer } from "@/lib/badge-print-image";
+import { renderBadgePngWithMeta } from "@/lib/badge-print-image";
 import { loadBadgePrintPayloadForRegistration } from "@/lib/badge-print-load";
 import {
   loadSeasonOr404,
@@ -38,14 +38,16 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 
   const format = req.nextUrl.searchParams.get("format");
   if (format === "png") {
-    const png = await renderBadgePngBuffer(loaded.payload, { brotherQl: true });
+    const rendered = await renderBadgePngWithMeta(loaded.payload, { brotherQl: true });
     const fontStatus = (await import("@/lib/badge-print-fonts")).badgePrintFontStatus();
-    return new NextResponse(new Uint8Array(png), {
+    return new NextResponse(new Uint8Array(rendered.png), {
       headers: {
         "Content-Type": "image/png",
         "Cache-Control": "no-store",
         "X-Badge-Fonts-Ok": fontStatus.ok ? "1" : "0",
         "X-Badge-Orientation": loaded.payload.settings.orientation,
+        "X-Badge-Png-Width": String(rendered.width),
+        "X-Badge-Png-Height": String(rendered.height),
       },
     });
   }

@@ -70,9 +70,12 @@ index 09976d9..7efa5fb 100644
          let generateResult = BRLMPrinterDriverGenerator.open(channel)
          guard generateResult.error.code == BRLMOpenChannelErrorCode.noError,
              let printerDriver = generateResult.driver else {
-@@ -122,12 +105,8 @@ class ReactNativeBrotherPrint: NSObject {
+@@ -122,12 +105,11 @@ class ReactNativeBrotherPrint: NSObject {
          pSettings.autoCut = true
          pSettings.labelSize = labelSize!
++        pSettings.scaleMode = BRLMPrintSettingsScaleMode.fitPageAspect
++        pSettings.hAlignment = BRLMPrintSettingsHorizontalAlignment.left
++        pSettings.vAlignment = BRLMPrintSettingsVerticalAlignment.top
          
 -        // Create and configure print info for halftone and thresholding
 -        let printInfo = BRPtouchPrintInfo()
