@@ -1,4 +1,4 @@
-import type { BadgeLabelSize, BadgePrintPayload } from "@/lib/badge-print";
+import type { BadgePrintPayload } from "@/lib/badge-print";
 import { badgeLabelPageCss } from "@/lib/badge-print";
 import {
   BADGE_PRINT_FONT_FAMILY,
@@ -26,7 +26,9 @@ function escapeXml(text: string): string {
     .replace(/"/g, "&quot;");
 }
 
-function labelBaseInches(labelSize: BadgeLabelSize): { widthIn: number; heightIn: number } {
+function labelBaseInches(
+  labelSize: BadgePrintPayload["settings"]["labelSize"],
+): { widthIn: number; heightIn: number } {
   switch (labelSize) {
     case "LABEL_4X6":
       return { widthIn: 4, heightIn: 6 };
@@ -38,7 +40,7 @@ function labelBaseInches(labelSize: BadgeLabelSize): { widthIn: number; heightIn
 }
 
 function labelCanvas(
-  labelSize: BadgeLabelSize,
+  labelSize: BadgePrintPayload["settings"]["labelSize"],
   orientation: BadgePrintPayload["settings"]["orientation"],
 ): LabelCanvas {
   const base = labelBaseInches(labelSize);
