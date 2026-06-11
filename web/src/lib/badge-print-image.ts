@@ -61,8 +61,11 @@ function labelCanvas(
 
 /**
  * Brother QL maps PNG width → tape width and PNG height → feed/cut length.
- * Mobile check-in uses 62 mm roll; render at printable dot width (696), not landscape pixels.
- * Horizontal badges use a shorter feed (2″) with text left / QR right.
+ * Mobile check-in uses 62 mm media; render at printable dot width (696), not landscape pixels.
+ *
+ * Horizontal badges are DRAWN landscape (long edge = label length, e.g. 100 mm on DK-1202
+ * 62×100 die-cut), then the final SVG is rotated 90° so the PNG sent to the printer is
+ * portrait (tape width × label length) and fills the whole label — Planning Center style.
  */
 function brotherQlCanvas(
   labelSize: BadgePrintPayload["settings"]["labelSize"],
@@ -70,21 +73,28 @@ function brotherQlCanvas(
 ): LabelCanvas {
   const base = labelBaseInches(labelSize);
   const horizontal = orientation === "HORIZONTAL";
-  const tapeWidthIn = base.widthIn;
-  /** Horizontal badges: ~3″ feed on 62 mm roll (Planning Center–style landscape badge). */
-  const feedLengthIn = horizontal ? 3 : base.heightIn;
 
-  const w =
+  const tapePx =
     labelSize === "LABEL_4X6"
-      ? Math.round(tapeWidthIn * BADGE_RENDER_DPI)
+      ? Math.round(base.widthIn * BADGE_RENDER_DPI)
       : BROTHER_QL_62MM_PRINTABLE_WIDTH;
-  const h = Math.round(feedLengthIn * BADGE_RENDER_DPI);
+
+  if (horizontal) {
+    // Landscape drawing canvas: rotated to portrait at SVG output time.
+    return {
+      w: Math.round(base.heightIn * BADGE_RENDER_DPI),
+      h: tapePx,
+      widthIn: base.heightIn,
+      heightIn: base.widthIn,
+      horizontal,
+    };
+  }
 
   return {
-    w,
-    h,
-    widthIn: tapeWidthIn,
-    heightIn: feedLengthIn,
+    w: tapePx,
+    h: Math.round(base.heightIn * BADGE_RENDER_DPI),
+    widthIn: base.widthIn,
+    heightIn: base.heightIn,
     horizontal,
   };
 }
@@ -261,65 +271,7 @@ function kidCheckBodyLines(payload: BadgePrintPayload): KidCheckBodyLine[] {
   return lines;
 }
 
-function measureKidCheckBrotherWideBottom(
-  payload: BadgePrintPayload,
-  canvas: LabelCanvas,
-): number {
-  const { w } = canvas;
-  const s = payload.structured;
-  const pad = inchToPx(0.08, canvas);
-  const nameSize = ptToPx(13, canvas);
-  const codeSize = ptToPx(7, canvas);
-  const classSize = ptToPx(11, canvas);
-  const lineSize = ptToPx(7.5, canvas);
-  const seasonSize = ptToPx(7, canvas);
-  const timestampSize = ptToPx(6, canvas);
-  const lineGap = inchToPx(0.018, canvas);
-  const wrapGap = inchToPx(0.01, canvas);
-  const qrSize = inchToPx(0.62, canvas);
-  const qrX = w - pad - qrSize;
-  const textMaxX = qrX - inchToPx(0.05, canvas);
-  const codePadY = inchToPx(0.012, canvas);
-  const codeText = s.securityCode ? s.securityCode : "";
-  const codeBoxH = codeText ? codeSize + codePadY * 2 : 0;
-
-  const nameY = pad + nameSize;
-  const dividerY = nameY + inchToPx(0.035, canvas);
-  const qrY = codeText ? pad + codeBoxH + inchToPx(0.03, canvas) : dividerY;
-
-  let bodyY = dividerY + inchToPx(0.04, canvas);
-  const maxChars = Math.max(22, Math.floor((textMaxX - pad) / (lineSize * 0.48)));
-  for (const line of kidCheckBodyLines(payload)) {
-    const size =
-      line.kind === "season" ? seasonSize : line.kind === "class" ? classSize : lineSize;
-    const wrapped = wrapKidCheckLine(line.text, maxChars, 3);
-    for (let j = 0; j < wrapped.length; j++) {
-      bodyY += size + (j === 0 ? 0 : wrapGap);
-    }
-    bodyY += lineGap;
-  }
-
-  const timestampY = s.printedAt ? bodyY + timestampSize + inchToPx(0.015, canvas) : bodyY;
-  const textBottom = s.printedAt ? timestampY : bodyY;
-  const qrBottom = qrY + qrSize;
-  return Math.max(textBottom, qrBottom) + pad;
-}
-
-function trimBrotherHorizontalCanvas(
-  payload: BadgePrintPayload,
-  canvas: LabelCanvas,
-  layout: BadgePrintPayload["settings"]["horizontalLayout"],
-): LabelCanvas {
-  const bottom =
-    layout === "KIDCHECK"
-      ? measureKidCheckBrotherWideBottom(payload, canvas)
-      : canvas.h - inchToPx(0.12, canvas);
-  const minH = Math.round(1.0 * BADGE_RENDER_DPI);
-  const h = Math.min(canvas.h, Math.max(minH, Math.ceil(bottom + inchToPx(0.03, canvas))));
-  return { ...canvas, h, heightIn: h / BADGE_RENDER_DPI };
-}
-
-/** Brother 62 mm roll: text block left, QR right — fills label width without a tall vertical gap. */
+/** Brother 62 mm media: text block left, QR right — drawn landscape, rotated at output. */
 function renderKidCheckBrotherWide(payload: BadgePrintPayload, canvas: LabelCanvas): string {
   const { w } = canvas;
   const s = payload.structured;
@@ -335,7 +287,7 @@ function renderKidCheckBrotherWide(payload: BadgePrintPayload, canvas: LabelCanv
   const lineGap = inchToPx(0.018, canvas);
   const wrapGap = inchToPx(0.01, canvas);
   const stroke = Math.max(2, Math.round(inchToPx(0.015, canvas)));
-  const qrSize = inchToPx(0.62, canvas);
+  const qrSize = inchToPx(0.95, canvas);
   const qrX = w - pad - qrSize;
   const textMaxX = qrX - inchToPx(0.05, canvas);
 
@@ -434,14 +386,9 @@ function resolveBadgeRenderCanvas(
   payload: BadgePrintPayload,
   options: BadgePngRenderOptions,
 ): LabelCanvas {
-  const dims = badgeLabelPageCss(payload.settings.labelSize, payload.settings.orientation);
-  let canvas = options.brotherQl
+  return options.brotherQl
     ? brotherQlCanvas(payload.settings.labelSize, payload.settings.orientation)
     : labelCanvas(payload.settings.labelSize, payload.settings.orientation);
-  if (options.brotherQl && dims.isHorizontal) {
-    canvas = trimBrotherHorizontalCanvas(payload, canvas, payload.settings.horizontalLayout);
-  }
-  return canvas;
 }
 
 export function buildBadgePrintSvg(
@@ -463,6 +410,18 @@ export function buildBadgePrintSvg(
         : dims.isHorizontal && layout === "NAME_CODE_HEADER"
           ? renderKidCheck(payload, canvas)
           : renderStandardVertical(payload, canvas);
+
+  if (options.brotherQl && dims.isHorizontal) {
+    // Rotate the landscape badge 90° into a portrait PNG (tape width × label length).
+    // The printer fills the die-cut 62×100 label; the badge reads horizontally when worn.
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="${h}" height="${w}" viewBox="0 0 ${h} ${w}">
+  <rect width="100%" height="100%" fill="#ffffff"/>
+  <g transform="translate(${h} 0) rotate(90)">
+  ${inner}
+  </g>
+</svg>`;
+  }
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
@@ -515,6 +474,12 @@ export async function renderBadgePngWithMeta(
     },
   });
   const png = Buffer.from(resvg.render().asPng());
+
+  // Horizontal Brother badges are rotated to portrait at output (see buildBadgePrintSvg).
+  const dims = badgeLabelPageCss(payload.settings.labelSize, payload.settings.orientation);
+  if (options.brotherQl && dims.isHorizontal) {
+    return { png, width: canvas.h, height: canvas.w };
+  }
 
   return { png, width: canvas.w, height: canvas.h };
 }
