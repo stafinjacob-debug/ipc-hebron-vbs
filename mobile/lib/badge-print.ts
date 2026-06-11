@@ -112,7 +112,15 @@ export function printBadgeInBackground(
 
 export function badgePrintErrorMessage(error: unknown): string {
   if (error instanceof ApiError) return error.message;
-  if (error instanceof Error) return error.message;
+  if (error instanceof Error) {
+    const code = (error as Error & { code?: string }).code;
+    if (code?.startsWith('ERROR_')) {
+      const num = code.replace('ERROR_', '');
+      if (num === 'NOT_FOUND') return error.message;
+      return `${error.message} (code ${num}). Confirm DK-2205 62 mm roll is loaded and the printer is on.`;
+    }
+    return error.message;
+  }
   return 'Badge print failed.';
 }
 

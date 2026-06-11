@@ -1,5 +1,5 @@
 diff --git a/node_modules/react-native-brother-print/ios/ReactNativeBrotherPrint.swift b/node_modules/react-native-brother-print/ios/ReactNativeBrotherPrint.swift
-index 09976d9..199d4a4 100644
+index 09976d9..44fef65 100644
 --- a/node_modules/react-native-brother-print/ios/ReactNativeBrotherPrint.swift
 +++ b/node_modules/react-native-brother-print/ios/ReactNativeBrotherPrint.swift
 @@ -12,7 +12,7 @@ class ReactNativeBrotherPrint: NSObject {
@@ -70,7 +70,7 @@ index 09976d9..199d4a4 100644
          let generateResult = BRLMPrinterDriverGenerator.open(channel)
          guard generateResult.error.code == BRLMOpenChannelErrorCode.noError,
              let printerDriver = generateResult.driver else {
-@@ -120,14 +103,14 @@ class ReactNativeBrotherPrint: NSObject {
+@@ -120,18 +103,22 @@ class ReactNativeBrotherPrint: NSObject {
          }
                    
          pSettings.autoCut = true
@@ -79,9 +79,13 @@ index 09976d9..199d4a4 100644
 -        // Create and configure print info for halftone and thresholding
 -        let printInfo = BRPtouchPrintInfo()
 -        configurePrintInfo(printInfo, halftone: halftone, thresholdingValue: thresholdingValue)
-+        // DK-2205 continuous roll — use image height for feed/cut length (696×N PNG from server).
-+        pSettings.labelSize = BRLMQLPrintSettingsLabelSize.rollW62
-+        pSettings.scaleMode = BRLMPrintSettingsScaleMode.actualSize
++        // Use media the printer reports (DK-2205 continuous); fall back to 62 mm roll.
++        if fetchedLabelSize, let detected = labelSize {
++            pSettings.labelSize = detected
++        } else {
++            pSettings.labelSize = BRLMQLPrintSettingsLabelSize.rollW62
++        }
++        pSettings.scaleMode = BRLMPrintSettingsScaleMode.fitPageAspect
 +        pSettings.hAlignment = BRLMPrintSettingsHorizontalAlignment.left
 +        pSettings.vAlignment = BRLMPrintSettingsVerticalAlignment.top
          
@@ -91,6 +95,11 @@ index 09976d9..199d4a4 100644
          
          if (printError.code != .noError) {
              print("[BrotherPrint] Error printing", printError.code)
+-            callback(Int(printError.code.rawValue), "Error printing")
++            callback(Int(printError.code.rawValue), "Brother print error \(printError.code.rawValue)")
+             return
+         }
+         
 diff --git a/node_modules/react-native-brother-print/react-native-brother-print.podspec b/node_modules/react-native-brother-print/react-native-brother-print.podspec
 index fb9a49e..9cfc8b3 100644
 --- a/node_modules/react-native-brother-print/react-native-brother-print.podspec
