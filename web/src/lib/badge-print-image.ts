@@ -62,6 +62,7 @@ function labelCanvas(
 /**
  * Brother QL maps PNG width → tape width and PNG height → feed/cut length.
  * Mobile check-in uses 62 mm roll; render at printable dot width (696), not landscape pixels.
+ * Horizontal badges use a shorter feed (2″) with text left / QR right.
  */
 function brotherQlCanvas(
   labelSize: BadgePrintPayload["settings"]["labelSize"],
@@ -70,7 +71,7 @@ function brotherQlCanvas(
   const base = labelBaseInches(labelSize);
   const horizontal = orientation === "HORIZONTAL";
   const tapeWidthIn = base.widthIn;
-  const feedLengthIn = base.heightIn;
+  const feedLengthIn = horizontal ? base.widthIn : base.heightIn;
 
   const w =
     labelSize === "LABEL_4X6"
@@ -180,21 +181,7 @@ function renderKidCheck(payload: BadgePrintPayload, canvas: LabelCanvas): string
     : "";
 
   type BodyLine = { text: string; kind: "season" | "class" | "detail" };
-  const bodyLines: BodyLine[] = [];
-  if (s.seasonLine) bodyLines.push({ text: escapeXml(s.seasonLine), kind: "season" });
-  if (s.classLine) bodyLines.push({ text: escapeXml(s.classLine), kind: "class" });
-  else if (s.serviceLine) bodyLines.push({ text: escapeXml(s.serviceLine), kind: "class" });
-  if (s.guardianLine) {
-    bodyLines.push({ text: `Guardian: ${escapeXml(s.guardianLine)}`, kind: "detail" });
-  }
-  if (s.guardianPhone) {
-    bodyLines.push({ text: `Emergency contact: ${escapeXml(s.guardianPhone)}`, kind: "detail" });
-  }
-  if (s.birthdate) bodyLines.push({ text: `Birthdate: ${escapeXml(s.birthdate)}`, kind: "detail" });
-  if (s.medicalLine) {
-    bodyLines.push({ text: `Medical / allergy info: ${escapeXml(s.medicalLine)}`, kind: "detail" });
-  }
-  if (s.notesLine) bodyLines.push({ text: `Note: ${escapeXml(s.notesLine)}`, kind: "detail" });
+  const bodyLines: BodyLine[] = kidCheckBodyLines(payload);
 
   let bodyY = dividerY + inchToPx(0.06, canvas);
   const bodyParts: string[] = [];
@@ -238,6 +225,139 @@ function renderKidCheck(payload: BadgePrintPayload, canvas: LabelCanvas): string
   `;
 }
 
+type KidCheckBodyLine = { text: string; kind: "season" | "class" | "detail" };
+
+function kidCheckBodyLines(payload: BadgePrintPayload): KidCheckBodyLine[] {
+  const s = payload.structured;
+  const lines: KidCheckBodyLine[] = [];
+  if (s.seasonLine) lines.push({ text: escapeXml(s.seasonLine), kind: "season" });
+  if (s.classLine) lines.push({ text: escapeXml(s.classLine), kind: "class" });
+  else if (s.serviceLine) lines.push({ text: escapeXml(s.serviceLine), kind: "class" });
+  if (s.guardianLine) {
+    lines.push({ text: `Guardian: ${escapeXml(s.guardianLine)}`, kind: "detail" });
+  }
+  if (s.guardianPhone) {
+    lines.push({ text: `Emergency contact: ${escapeXml(s.guardianPhone)}`, kind: "detail" });
+  }
+  if (s.birthdate) lines.push({ text: `Birthdate: ${escapeXml(s.birthdate)}`, kind: "detail" });
+  if (s.medicalLine) {
+    lines.push({ text: `Medical / allergy info: ${escapeXml(s.medicalLine)}`, kind: "detail" });
+  }
+  if (s.notesLine) lines.push({ text: `Note: ${escapeXml(s.notesLine)}`, kind: "detail" });
+  return lines;
+}
+
+/** Brother 62 mm roll: text block left, QR right — fills label width without a tall vertical gap. */
+function renderKidCheckBrotherWide(payload: BadgePrintPayload, canvas: LabelCanvas): string {
+  const { w, h } = canvas;
+  const s = payload.structured;
+  const name = escapeXml(`${s.firstName} ${s.lastName}`.trim() || payload.childName);
+
+  const pad = inchToPx(0.08, canvas);
+  const nameSize = ptToPx(13, canvas);
+  const codeSize = ptToPx(8, canvas);
+  const classSize = ptToPx(11, canvas);
+  const lineSize = ptToPx(7.5, canvas);
+  const seasonSize = ptToPx(7, canvas);
+  const timestampSize = ptToPx(6, canvas);
+  const lineGap = inchToPx(0.02, canvas);
+  const wrapGap = inchToPx(0.012, canvas);
+  const stroke = Math.max(2, Math.round(inchToPx(0.015, canvas)));
+  const qrSize = inchToPx(0.72, canvas);
+  const qrX = w - pad - qrSize;
+  const textMaxX = qrX - inchToPx(0.06, canvas);
+
+  const nameY = pad + nameSize;
+  const dividerY = nameY + inchToPx(0.04, canvas);
+
+  const codePadX = inchToPx(0.04, canvas);
+  const codePadY = inchToPx(0.015, canvas);
+  const codeText = s.securityCode ? escapeXml(s.securityCode) : "";
+  const codeBoxW = Math.max(inchToPx(0.65, canvas), codeText.length * codeSize * 0.6 + codePadX * 2);
+  const codeBoxH = codeSize + codePadY * 2;
+  const codeBoxX = Math.min(textMaxX - codeBoxW, w - pad - codeBoxW);
+  const code = codeText
+    ? `<rect x="${codeBoxX}" y="${pad}" width="${codeBoxW}" height="${codeBoxH}" fill="#0f172a" rx="2"/>
+       <text x="${codeBoxX + codeBoxW / 2}" y="${pad + codePadY + codeSize * 0.82}" text-anchor="middle" font-family="${BADGE_PRINT_FONT_FAMILY}" font-size="${codeSize}" font-weight="800" fill="#ffffff">${codeText}</text>`
+    : "";
+
+  let bodyY = dividerY + inchToPx(0.05, canvas);
+  const bodyParts: string[] = [];
+  const maxChars = Math.max(18, Math.floor((textMaxX - pad) / (lineSize * 0.52)));
+  for (const line of kidCheckBodyLines(payload)) {
+    const size =
+      line.kind === "season" ? seasonSize : line.kind === "class" ? classSize : lineSize;
+    const weight = line.kind === "class" ? 800 : 600;
+    const fill = line.kind === "season" ? "#64748b" : "#1e293b";
+    const wrapped = wrapLines(line.text, maxChars, 2);
+    for (let j = 0; j < wrapped.length; j++) {
+      bodyY += size + (j === 0 ? 0 : wrapGap);
+      bodyParts.push(
+        `<text x="${pad}" y="${bodyY}" font-family="${BADGE_PRINT_FONT_FAMILY}" font-size="${size}" font-weight="${weight}" fill="${fill}">${wrapped[j]}</text>`,
+      );
+    }
+    bodyY += lineGap;
+  }
+
+  const timestamp = s.printedAt
+    ? `<text x="${pad}" y="${Math.min(h - pad, bodyY + timestampSize + inchToPx(0.02, canvas))}" font-family="${BADGE_PRINT_FONT_FAMILY}" font-size="${timestampSize}" fill="#64748b">${escapeXml(s.printedAt)}</text>`
+    : "";
+
+  const qrY = Math.max(dividerY + inchToPx(0.03, canvas), Math.round((h - qrSize) / 2));
+  const footerQr =
+    payload.qrDataUrl && payload.settings.showQrCode
+      ? `<image href="${payload.qrDataUrl}" x="${qrX}" y="${qrY}" width="${qrSize}" height="${qrSize}" />`
+      : payload.barcodeDataUrl
+        ? `<image href="${payload.barcodeDataUrl}" x="${qrX}" y="${qrY}" width="${qrSize}" height="${inchToPx(0.22, canvas)}" preserveAspectRatio="xMidYMid meet" />`
+        : "";
+
+  return `
+    <text x="${pad}" y="${nameY}" font-family="${BADGE_PRINT_FONT_FAMILY}" font-size="${nameSize}" font-weight="800" fill="#0f172a">${name}</text>
+    ${code}
+    <line x1="${pad}" y1="${dividerY}" x2="${textMaxX}" y2="${dividerY}" stroke="#0f172a" stroke-width="${stroke}" />
+    ${bodyParts.join("\n")}
+    ${timestamp}
+    ${footerQr}
+  `;
+}
+
+function renderStandardBrotherWide(payload: BadgePrintPayload, canvas: LabelCanvas): string {
+  const { w, h } = canvas;
+  const pad = inchToPx(0.08, canvas);
+  const qrSize = inchToPx(0.72, canvas);
+  const qrX = w - pad - qrSize;
+  const textMaxX = qrX - inchToPx(0.06, canvas);
+
+  let y = pad + ptToPx(13, canvas);
+  const lines = payload.lines
+    .map((line) => {
+      const size =
+        line.kind === "name"
+          ? ptToPx(13, canvas)
+          : line.kind === "season"
+            ? ptToPx(7, canvas)
+            : line.kind === "number"
+              ? ptToPx(9, canvas)
+              : line.kind === "allergy"
+                ? ptToPx(7, canvas)
+                : ptToPx(8.5, canvas);
+      const weight = line.kind === "name" || line.kind === "number" ? 700 : 600;
+      const fill = line.kind === "allergy" ? "#b45309" : "#0f172a";
+      const lineY = y + size;
+      y += size + inchToPx(0.025, canvas);
+      return `<text x="${pad}" y="${lineY}" font-family="${BADGE_PRINT_FONT_FAMILY}" font-size="${size}" font-weight="${weight}" fill="${fill}">${escapeXml(line.text)}</text>`;
+    })
+    .join("\n");
+
+  const qrY = Math.max(pad, Math.round((h - qrSize) / 2));
+  const qr =
+    payload.qrDataUrl && payload.settings.showQrCode
+      ? `<image href="${payload.qrDataUrl}" x="${qrX}" y="${qrY}" width="${qrSize}" height="${qrSize}" />`
+      : "";
+
+  return `${lines}${qr}`;
+}
+
 export function buildBadgePrintSvg(
   payload: BadgePrintPayload,
   options: BadgePngRenderOptions = {},
@@ -250,11 +370,15 @@ export function buildBadgePrintSvg(
 
   const layout = payload.settings.horizontalLayout;
   const inner =
-    dims.isHorizontal && layout === "KIDCHECK"
-      ? renderKidCheck(payload, canvas)
-      : dims.isHorizontal && layout === "NAME_CODE_HEADER"
+    options.brotherQl && dims.isHorizontal
+      ? layout === "STANDARD"
+        ? renderStandardBrotherWide(payload, canvas)
+        : renderKidCheckBrotherWide(payload, canvas)
+      : dims.isHorizontal && layout === "KIDCHECK"
         ? renderKidCheck(payload, canvas)
-        : renderStandardVertical(payload, canvas);
+        : dims.isHorizontal && layout === "NAME_CODE_HEADER"
+          ? renderKidCheck(payload, canvas)
+          : renderStandardVertical(payload, canvas);
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">

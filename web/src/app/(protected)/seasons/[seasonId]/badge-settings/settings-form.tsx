@@ -146,7 +146,11 @@ export function BadgePrintSettingsForm({
       <div className="rounded-xl border border-foreground/10 p-4">
         <h2 className="text-sm font-semibold text-foreground/90">Label size & orientation</h2>
         <p className="mt-1 text-sm text-muted">
-          Match your physical label stock. Horizontal swaps width and height and lays out text beside the QR code.
+          Match your physical label stock. For iPad check-in with a Brother QL-820 on DK-2205 (62 mm
+          tape), choose <strong className="font-medium text-foreground/80">62 mm continuous roll</strong>
+          , <strong className="font-medium text-foreground/80">Horizontal</strong> orientation, and a
+          horizontal layout below. The app preview shows the web layout; iPads print a wide
+          text-left / QR-right badge on the roll.
         </p>
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
           <div>
