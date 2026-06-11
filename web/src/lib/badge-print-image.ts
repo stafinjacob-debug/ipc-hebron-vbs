@@ -117,10 +117,15 @@ function wrapLines(text: string, maxChars: number, maxLines: number): string[] {
   return lines.slice(0, maxLines);
 }
 
-/** Prefer one line for emergency phone so "(346) 208-0014" does not split mid-number. */
+/** Keep emergency phone intact — label on one line, full number on the next if needed. */
 function wrapKidCheckLine(text: string, maxChars: number, maxLines: number): string[] {
-  if (text.startsWith("Emergency contact:") && text.length <= maxChars + 16) {
-    return [text];
+  if (text.startsWith("Emergency contact:")) {
+    const phone = text.slice("Emergency contact:".length).trim();
+    const prefix = "Emergency contact:";
+    const combined = `${prefix} ${phone}`;
+    if (combined.length <= maxChars) return [combined];
+    if (maxLines >= 2 && phone.length <= maxChars) return [prefix, phone];
+    return wrapLines(combined, maxChars, Math.min(maxLines, 2));
   }
   return wrapLines(text, maxChars, maxLines);
 }
