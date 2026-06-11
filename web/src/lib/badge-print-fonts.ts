@@ -1,13 +1,13 @@
 import { readFileSync } from "fs";
-import { createRequire } from "module";
+import path from "path";
 
 const BADGE_FONT = "BadgePrint";
-const require = createRequire(import.meta.url);
 
 let svgFontDefs: string | null = null;
 
-function loadFontBase64(relativePath: string): string {
-  const fontPath = require.resolve(`dejavu-fonts-ttf/ttf/${relativePath}`);
+function loadFontBase64(fileName: string): string {
+  // Use process.cwd() to avoid webpack trying to bundle .ttf files via require.resolve
+  const fontPath = path.join(process.cwd(), "node_modules", "dejavu-fonts-ttf", "ttf", fileName);
   return readFileSync(fontPath).toString("base64");
 }
 
