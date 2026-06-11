@@ -273,12 +273,12 @@ function kidCheckBodyLines(payload: BadgePrintPayload): KidCheckBodyLine[] {
 
 /** Brother horizontal badges: larger pt sizes for legibility on 62×100 mm labels at 300 DPI. */
 const BROTHER_HOR_PT = {
-  name: 18,
-  code: 10,
-  class: 15,
-  line: 10.5,
-  season: 9.5,
-  timestamp: 8,
+  name: 22,
+  code: 11,
+  class: 18,
+  line: 12,
+  season: 10,
+  timestamp: 9,
 } as const;
 
 /** Brother 62 mm media: text block left, QR right — drawn landscape, rotated at output. */
@@ -294,8 +294,8 @@ function renderKidCheckBrotherWide(payload: BadgePrintPayload, canvas: LabelCanv
   const lineSize = ptToPx(BROTHER_HOR_PT.line, canvas);
   const seasonSize = ptToPx(BROTHER_HOR_PT.season, canvas);
   const timestampSize = ptToPx(BROTHER_HOR_PT.timestamp, canvas);
-  const lineGap = inchToPx(0.022, canvas);
-  const wrapGap = inchToPx(0.012, canvas);
+  const lineGap = inchToPx(0.032, canvas);
+  const wrapGap = inchToPx(0.018, canvas);
   const stroke = Math.max(2, Math.round(inchToPx(0.018, canvas)));
   const qrSize = inchToPx(0.95, canvas);
   const qrX = w - pad - qrSize;
@@ -312,10 +312,10 @@ function renderKidCheckBrotherWide(payload: BadgePrintPayload, canvas: LabelCanv
     : "";
 
   const nameY = pad + nameSize;
-  const dividerY = nameY + inchToPx(0.035, canvas);
-  const qrY = codeText ? pad + codeBoxH + inchToPx(0.03, canvas) : dividerY;
+  const dividerY = nameY + inchToPx(0.05, canvas);
+  const qrY = codeText ? pad + codeBoxH + inchToPx(0.04, canvas) : dividerY;
 
-  let bodyY = dividerY + inchToPx(0.04, canvas);
+  let bodyY = dividerY + inchToPx(0.055, canvas);
   const bodyParts: string[] = [];
   const maxChars = Math.max(22, Math.floor((textMaxX - pad) / (lineSize * 0.48)));
   for (const line of kidCheckBodyLines(payload)) {
@@ -333,7 +333,7 @@ function renderKidCheckBrotherWide(payload: BadgePrintPayload, canvas: LabelCanv
     bodyY += lineGap;
   }
 
-  const timestampY = bodyY + timestampSize + inchToPx(0.015, canvas);
+  const timestampY = bodyY + timestampSize + inchToPx(0.025, canvas);
   const timestamp = s.printedAt
     ? `<text x="${pad}" y="${timestampY}" font-family="${BADGE_PRINT_FONT_FAMILY}" font-size="${timestampSize}" fill="#64748b">${escapeXml(s.printedAt)}</text>`
     : "";
@@ -378,7 +378,7 @@ function renderStandardBrotherWide(payload: BadgePrintPayload, canvas: LabelCanv
       const weight = line.kind === "name" || line.kind === "number" ? 700 : 600;
       const fill = line.kind === "allergy" ? "#b45309" : "#0f172a";
       const lineY = y + size;
-      y += size + inchToPx(0.025, canvas);
+      y += size + inchToPx(0.032, canvas);
       return `<text x="${pad}" y="${lineY}" font-family="${BADGE_PRINT_FONT_FAMILY}" font-size="${size}" font-weight="${weight}" fill="${fill}">${escapeXml(line.text)}</text>`;
     })
     .join("\n");
