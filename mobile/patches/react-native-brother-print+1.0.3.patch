@@ -415,7 +415,7 @@ index 0000000..1129310
 +} 
 \ No newline at end of file
 diff --git a/node_modules/react-native-brother-print/ios/ReactNativeBrotherPrint.swift b/node_modules/react-native-brother-print/ios/ReactNativeBrotherPrint.swift
-index 09976d9..01fcd13 100644
+index 09976d9..7d8b54d 100644
 --- a/node_modules/react-native-brother-print/ios/ReactNativeBrotherPrint.swift
 +++ b/node_modules/react-native-brother-print/ios/ReactNativeBrotherPrint.swift
 @@ -12,7 +12,7 @@ class ReactNativeBrotherPrint: NSObject {
@@ -486,7 +486,7 @@ index 09976d9..01fcd13 100644
          let generateResult = BRLMPrinterDriverGenerator.open(channel)
          guard generateResult.error.code == BRLMOpenChannelErrorCode.noError,
              let printerDriver = generateResult.driver else {
-@@ -120,18 +103,23 @@ class ReactNativeBrotherPrint: NSObject {
+@@ -120,18 +103,30 @@ class ReactNativeBrotherPrint: NSObject {
          }
                    
          pSettings.autoCut = true
@@ -496,15 +496,22 @@ index 09976d9..01fcd13 100644
 -        let printInfo = BRPtouchPrintInfo()
 -        configurePrintInfo(printInfo, halftone: halftone, thresholdingValue: thresholdingValue)
 +        pSettings.cutAtEnd = true
-+        // VBS uses DK-2205 62 mm continuous roll. Printer-detected die-cut sizes (e.g. 62×100 mm)
-+        // inflate the print area and waste tape — always force continuous roll.
-+        pSettings.labelSize = BRLMQLPrintSettingsLabelSize.rollW62
++        // Must match the installed roll (error 12 = SetLabelSizeError if we override wrong).
++        if fetchedLabelSize, let detected = labelSize {
++            pSettings.labelSize = detected
++        } else {
++            pSettings.labelSize = BRLMQLPrintSettingsLabelSize.rollW62
++        }
 +        pSettings.scaleMode = BRLMPrintSettingsScaleMode.fitPageAspect
-+        // Landscape: badge reads horizontally as it exits the printer (like Planning Center).
-+        pSettings.imageRotation = BRLMPrintSettingsRotation.rotate90
 +        pSettings.hAlignment = BRLMPrintSettingsHorizontalAlignment.left
 +        pSettings.vAlignment = BRLMPrintSettingsVerticalAlignment.top
 +        pSettings.feedDirectionMargins = 0
++        // Landscape for continuous 62 mm roll (Planning Center style).
++        let label = pSettings.labelSize
++        if label == BRLMQLPrintSettingsLabelSize.rollW62
++            || label == BRLMQLPrintSettingsLabelSize.rollW62RB {
++            pSettings.imageRotation = BRLMPrintSettingsRotation.rotate90
++        }
          
          let url = URL(fileURLWithPath: printURI);
 -        let printError = printerDriver.printImage(with: url, settings: pSettings, printInfo: printInfo)

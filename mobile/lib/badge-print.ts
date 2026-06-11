@@ -117,7 +117,10 @@ export function badgePrintErrorMessage(error: unknown): string {
     if (code?.startsWith('ERROR_')) {
       const num = code.replace('ERROR_', '');
       if (num === 'NOT_FOUND') return error.message;
-      return `${error.message} (code ${num}). Load DK-2205, set the printer to 62 mm continuous roll (not die-cut), then retry.`;
+      if (num === '12') {
+        return 'Label size mismatch (code 12). Load DK-2205 (62 mm continuous), then on the QL-820 hold Feed + Cut until the display shows 62 mm continuous roll — not a die-cut size.';
+      }
+      return `${error.message} (code ${num}). Confirm DK-2205 is loaded and the printer media setting matches.`;
     }
     return error.message;
   }
