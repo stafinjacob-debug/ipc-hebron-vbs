@@ -114,10 +114,10 @@ function renderKidCheck(payload: BadgePrintPayload): string {
 
   const footerParts: string[] = [];
   if (s.printedAt) footerParts.push(`<div class="timestamp">${escapeHtml(s.printedAt)}</div>`);
-  if (payload.barcodeDataUrl) {
-    footerParts.push(`<img class="barcode" src="${payload.barcodeDataUrl}" alt="" />`);
-  } else if (payload.qrDataUrl && payload.settings.showQrCode) {
+  if (payload.qrDataUrl && payload.settings.showQrCode) {
     footerParts.push(`<img class="footer-qr" src="${payload.qrDataUrl}" alt="QR" />`);
+  } else if (payload.barcodeDataUrl) {
+    footerParts.push(`<img class="barcode" src="${payload.barcodeDataUrl}" alt="" />`);
   }
 
   return `<div class="badge horizontal layout-kidcheck">
@@ -131,8 +131,10 @@ function renderKidCheck(payload: BadgePrintPayload): string {
         ${codeHtml}
       </div>
       <hr class="divider" />
-      ${s.serviceLine ? `<div class="kidcheck-line">${escapeHtml(s.serviceLine)}</div>` : ""}
-      ${s.guardianLine ? `<div class="kidcheck-line"><strong>Primary guardian:</strong> ${escapeHtml(s.guardianLine)}</div>` : ""}
+      ${s.seasonLine ? `<div class="kidcheck-season">${escapeHtml(s.seasonLine)}</div>` : ""}
+      ${s.classLine ? `<div class="kidcheck-class">${escapeHtml(s.classLine)}</div>` : s.serviceLine ? `<div class="kidcheck-class">${escapeHtml(s.serviceLine)}</div>` : ""}
+      ${s.guardianLine ? `<div class="kidcheck-line"><strong>Guardian:</strong> ${escapeHtml(s.guardianLine)}</div>` : ""}
+      ${s.guardianPhone ? `<div class="kidcheck-line"><strong>Emergency contact:</strong> ${escapeHtml(s.guardianPhone)}</div>` : ""}
       ${s.birthdate ? `<div class="kidcheck-line"><strong>Birthdate:</strong> ${escapeHtml(s.birthdate)}</div>` : ""}
       ${s.medicalLine ? `<div class="kidcheck-line"><strong>Medical / allergy info:</strong> ${escapeHtml(s.medicalLine)}</div>` : ""}
       ${s.notesLine ? `<div class="kidcheck-line"><strong>Note:</strong> ${escapeHtml(s.notesLine)}</div>` : ""}
@@ -188,6 +190,8 @@ function layoutCss(horizontal: boolean): string {
     .kidcheck-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 0.06in; }
     .kidcheck-name { font-size: 13pt; font-weight: 800; line-height: 1.05; flex: 1; min-width: 0; }
     .security-code { flex-shrink: 0; border: 1.5px solid #0f172a; padding: 0.02in 0.05in; font-size: 8pt; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: 0.04em; }
+    .kidcheck-season { font-size: 7pt; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; color: #64748b; }
+    .kidcheck-class { font-size: 11pt; font-weight: 800; line-height: 1.15; color: #0f172a; text-transform: uppercase; letter-spacing: 0.02em; }
     .kidcheck-line { font-size: 7.5pt; line-height: 1.25; color: #1e293b; }
     .kidcheck-line strong { font-weight: 700; }
     .kidcheck-footer { margin-top: auto; display: flex; flex-direction: column; align-items: center; gap: 0.02in; padding-top: 0.03in; }

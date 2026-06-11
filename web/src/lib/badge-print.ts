@@ -70,6 +70,8 @@ export type BadgePrintStructured = {
   lastName: string;
   securityCode: string | null;
   serviceLine: string | null;
+  seasonLine: string | null;
+  classLine: string | null;
   locationLine: string | null;
   guardianLine: string | null;
   guardianPhone: string | null;
@@ -240,6 +242,41 @@ function formFieldLabel(fieldKey: string, fieldOptions: ExportFieldOption[]): st
   return fieldOptions.find((o) => o.key === fieldKey)?.label ?? fieldKey;
 }
 
+/** Strip export audience prefix — badges show the field label only. */
+function badgeFormFieldLabel(fieldKey: string, fieldOptions: ExportFieldOption[]): string {
+  const full = formFieldLabel(fieldKey, fieldOptions);
+  return full.replace(/^(Guardian|Child):\s*/i, "");
+}
+
+const STRUCTURED_LAYOUT_EXCLUDED_FORM_KEYS = new Set([
+  "guardian:guardianFirstName",
+  "guardian:guardianLastName",
+  "guardian:guardianPhone",
+]);
+
+function usesStructuredHorizontalLayout(settings: ResolvedBadgePrintSettings): boolean {
+  return (
+    settings.orientation === "HORIZONTAL" &&
+    (settings.horizontalLayout === "KIDCHECK" || settings.horizontalLayout === "NAME_CODE_HEADER")
+  );
+}
+
+function shouldSkipFormFieldOnBadge(fieldKey: string, settings: ResolvedBadgePrintSettings): boolean {
+  if (!usesStructuredHorizontalLayout(settings)) return false;
+  if (STRUCTURED_LAYOUT_EXCLUDED_FORM_KEYS.has(fieldKey)) return true;
+  if (fieldKey === "staffNotes" && shouldShowStaffNotesOnStructuredBadge(settings)) return true;
+  if (
+    fieldKey === "child:allergiesNotes" &&
+    (settings.showAllergyFlag || shouldShowAllergyDetailsOnStructuredBadge(settings))
+  ) {
+    return true;
+  }
+  if (fieldKey === "child:childDateOfBirth" && shouldShowBirthdateOnStructuredBadge(settings)) {
+    return true;
+  }
+  return false;
+}
+
 function sampleFormFieldValue(fieldKey: string): string {
   return SAMPLE_FORM_FIELD_VALUES[fieldKey] ?? "Sample answer";
 }
@@ -281,15 +318,6 @@ function formFieldsInclude(settings: ResolvedBadgePrintSettings, ...keys: string
   return settings.formFields.some((f) => wanted.has(f.fieldKey));
 }
 
-function shouldShowGuardianOnStructuredBadge(settings: ResolvedBadgePrintSettings): boolean {
-  return formFieldsInclude(
-    settings,
-    "guardian:guardianFirstName",
-    "guardian:guardianLastName",
-    "guardian:guardianPhone",
-  );
-}
-
 function shouldShowBirthdateOnStructuredBadge(settings: ResolvedBadgePrintSettings): boolean {
   return formFieldsInclude(settings, "child:childDateOfBirth");
 }
@@ -316,30 +344,28 @@ export function formatSampleRegistrationNumber(
 }
 
 function buildStructuredData(input: BuildBadgeInput, answerLines: BadgePrintLine[]): BadgePrintStructured {
-  const classOrBadge =
-    input.badgeDisplayName?.trim() ||
+  const classLine =
+    (input.settings.showBadgeDisplayName && input.badgeDisplayName?.trim()) ||
     (input.settings.showClassroomName ? input.classroomName?.trim() : null) ||
     null;
   const checkIn = input.settings.showCheckInLabel ? input.checkInLabel?.trim() : null;
+  const seasonLine = input.settings.showSeasonName
+    ? `${input.seasonName} (${input.seasonYear})`
+    : null;
 
   const serviceParts: string[] = [];
-  if (input.settings.showSeasonName) {
-    serviceParts.push(`${input.seasonName} (${input.seasonYear})`);
-  }
-  if (classOrBadge) serviceParts.push(classOrBadge);
+  if (seasonLine) serviceParts.push(seasonLine);
+  if (classLine) serviceParts.push(classLine);
   if (checkIn) serviceParts.push(checkIn);
 
   const locationLine = serviceParts.join(" · ") || null;
   const serviceLine =
-    input.settings.showSeasonName && classOrBadge
-      ? `${input.seasonName} — ${classOrBadge}`
-      : locationLine;
+    seasonLine && classLine ? `${input.seasonName} — ${classLine}` : locationLine;
 
-  const showGuardian = shouldShowGuardianOnStructuredBadge(input.settings);
-  const guardianFirst = showGuardian ? (input.guardianFirstName?.trim() ?? "") : "";
-  const guardianLast = showGuardian ? (input.guardianLastName?.trim() ?? "") : "";
+  const guardianFirst = input.guardianFirstName?.trim() ?? "";
+  const guardianLast = input.guardianLastName?.trim() ?? "";
   const guardianLine =
-    showGuardian && (guardianLast || guardianFirst)
+    guardianLast || guardianFirst
       ? `${guardianLast}${guardianLast && guardianFirst ? ", " : ""}${guardianFirst}`.trim()
       : null;
 
@@ -371,12 +397,11 @@ function buildStructuredData(input: BuildBadgeInput, answerLines: BadgePrintLine
     lastName: input.settings.showChildName ? input.childLastName.trim() : "",
     securityCode,
     serviceLine,
+    seasonLine,
+    classLine,
     locationLine,
     guardianLine,
-    guardianPhone:
-      showGuardian && formFieldsInclude(input.settings, "guardian:guardianPhone")
-        ? input.guardianPhone?.trim() || null
-        : null,
+    guardianPhone: input.guardianPhone?.trim() || null,
     birthdate: shouldShowBirthdateOnStructuredBadge(input.settings)
       ? formatBirthdate(input.childDateOfBirth)
       : null,
@@ -416,7 +441,8 @@ export function buildBadgePrintPayload(input: BuildBadgeInput): BadgePrintPayloa
   }
 
   for (const field of input.settings.formFields) {
-    const label = formFieldLabel(field.fieldKey, fieldOptions);
+    if (shouldSkipFormFieldOnBadge(field.fieldKey, input.settings)) continue;
+    const label = badgeFormFieldLabel(field.fieldKey, fieldOptions);
     const text = input.registrationRow
       ? resolveRegistrationExportFieldValue(input.registrationRow, input.seasonName, field.fieldKey)
       : sampleFormFieldValue(field.fieldKey);
@@ -434,7 +460,9 @@ export function buildBadgePrintPayload(input: BuildBadgeInput): BadgePrintPayloa
   const structured = buildStructuredData(input, answerLines);
   const barcodeSource = structured.securityCode ?? input.registrationId.slice(-8).toUpperCase();
   const barcodeDataUrl =
-    input.settings.orientation === "HORIZONTAL" && input.settings.horizontalLayout === "KIDCHECK"
+    input.settings.orientation === "HORIZONTAL" &&
+    input.settings.horizontalLayout === "KIDCHECK" &&
+    !input.settings.showQrCode
       ? barcodeSvgDataUrl(barcodeSource)
       : null;
 
@@ -464,7 +492,7 @@ export function sampleBadgePreviewPayload(
 ): BadgePrintPayload {
   const seasonName = options.seasonName ?? "Summer VBS";
   const seasonYear = options.seasonYear ?? 2026;
-  const showGuardian = shouldShowGuardianOnStructuredBadge(settings);
+  const structuredLayout = usesStructuredHorizontalLayout(settings);
   const showBirthdate = shouldShowBirthdateOnStructuredBadge(settings);
   const showStaffNotes = shouldShowStaffNotesOnStructuredBadge(settings);
   const showAllergyDetails = shouldShowAllergyDetailsOnStructuredBadge(settings);
@@ -488,12 +516,9 @@ export function sampleBadgePreviewPayload(
     staffNotes: showStaffNotes
       ? "Potty training — please take to bathroom every 30 minutes."
       : null,
-    guardianFirstName: showGuardian ? "Maria" : null,
-    guardianLastName: showGuardian ? "Rivera" : null,
-    guardianPhone:
-      showGuardian && formFieldsInclude(settings, "guardian:guardianPhone")
-        ? "(555) 123-4567"
-        : null,
+    guardianFirstName: structuredLayout ? "Maria" : null,
+    guardianLastName: structuredLayout ? "Rivera" : null,
+    guardianPhone: structuredLayout ? "(555) 123-4567" : null,
     checkInToken: settings.showQrCode ? "preview-token" : null,
     seasonName,
     seasonYear,

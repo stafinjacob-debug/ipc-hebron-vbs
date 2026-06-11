@@ -70,8 +70,11 @@ function renderKidCheck(payload: BadgePrintPayload, w: number, h: number): strin
     : "";
 
   const bodyLines: string[] = [];
-  if (s.serviceLine) bodyLines.push(escapeXml(s.serviceLine));
-  if (s.guardianLine) bodyLines.push(`Primary guardian: ${escapeXml(s.guardianLine)}`);
+  if (s.seasonLine) bodyLines.push(escapeXml(s.seasonLine));
+  if (s.classLine) bodyLines.push(escapeXml(s.classLine));
+  else if (s.serviceLine) bodyLines.push(escapeXml(s.serviceLine));
+  if (s.guardianLine) bodyLines.push(`Guardian: ${escapeXml(s.guardianLine)}`);
+  if (s.guardianPhone) bodyLines.push(`Emergency contact: ${escapeXml(s.guardianPhone)}`);
   if (s.birthdate) bodyLines.push(`Birthdate: ${escapeXml(s.birthdate)}`);
   if (s.medicalLine) bodyLines.push(`Medical / allergy info: ${escapeXml(s.medicalLine)}`);
   if (s.notesLine) bodyLines.push(`Note: ${escapeXml(s.notesLine)}`);

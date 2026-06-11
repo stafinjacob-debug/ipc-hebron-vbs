@@ -120,10 +120,20 @@ function KidCheckPreview({ payload }: { payload: BadgePrintPayload }) {
           ) : null}
         </div>
         <hr className="border-slate-900" />
-        {s.serviceLine ? <div>{s.serviceLine}</div> : null}
+        {s.seasonLine ? <div className="text-[8px] font-semibold uppercase tracking-wide text-slate-400">{s.seasonLine}</div> : null}
+        {s.classLine ? (
+          <div className="text-xs font-extrabold uppercase tracking-wide text-slate-900">{s.classLine}</div>
+        ) : s.serviceLine ? (
+          <div className="text-xs font-extrabold uppercase tracking-wide text-slate-900">{s.serviceLine}</div>
+        ) : null}
         {s.guardianLine ? (
           <div>
-            <strong>Primary guardian:</strong> {s.guardianLine}
+            <strong>Guardian:</strong> {s.guardianLine}
+          </div>
+        ) : null}
+        {s.guardianPhone ? (
+          <div>
+            <strong>Emergency contact:</strong> {s.guardianPhone}
           </div>
         ) : null}
         {s.birthdate ? (
@@ -152,12 +162,12 @@ function KidCheckPreview({ payload }: { payload: BadgePrintPayload }) {
         ) : null}
         <div className="mt-auto flex flex-col items-center gap-0.5 pt-1">
           {s.printedAt ? <div className="text-[8px] text-slate-400">{s.printedAt}</div> : null}
-          {payload.barcodeDataUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={payload.barcodeDataUrl} alt="" className="h-4 w-full max-w-[140px] object-fill" />
-          ) : payload.qrDataUrl && payload.settings.showQrCode ? (
+          {payload.qrDataUrl && payload.settings.showQrCode ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={payload.qrDataUrl} alt="QR preview" className="size-10" />
+          ) : payload.barcodeDataUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={payload.barcodeDataUrl} alt="" className="h-4 w-full max-w-[140px] object-fill" />
           ) : null}
         </div>
       </div>
