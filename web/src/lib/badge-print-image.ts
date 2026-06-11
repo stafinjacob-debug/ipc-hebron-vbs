@@ -2,7 +2,9 @@ import type { BadgePrintPayload } from "@/lib/badge-print";
 import { badgeLabelPageCss } from "@/lib/badge-print";
 import {
   BADGE_PRINT_FONT_FAMILY,
+  badgePrintFontDir,
   badgePrintFontFiles,
+  badgePrintFontStatus,
 } from "@/lib/badge-print-fonts";
 
 function escapeXml(text: string): string {
@@ -138,13 +140,21 @@ export function buildBadgePrintSvg(payload: BadgePrintPayload): string {
 }
 
 export async function renderBadgePngBuffer(payload: BadgePrintPayload): Promise<Buffer> {
+  const fontStatus = badgePrintFontStatus();
+  if (!fontStatus.ok) {
+    console.error("[badge-print] DejaVu fonts unavailable", fontStatus);
+    throw new Error("Badge fonts are not available on the server.");
+  }
+
   const { Resvg } = await import("@resvg/resvg-js");
   const svg = buildBadgePrintSvg(payload);
   const resvg = new Resvg(svg, {
     font: {
+      fontDirs: [badgePrintFontDir()],
       fontFiles: badgePrintFontFiles(),
       loadSystemFonts: false,
       defaultFontFamily: BADGE_PRINT_FONT_FAMILY,
+      sansSerifFamily: BADGE_PRINT_FONT_FAMILY,
     },
   });
   return Buffer.from(resvg.render().asPng());

@@ -1,4 +1,4 @@
-import { cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
+import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "fs";
 import { join } from "path";
 
 const root = process.cwd();
@@ -22,6 +22,19 @@ if (existsSync(publicDir)) {
 
 const dejavuTtf = join(root, "node_modules", "dejavu-fonts-ttf", "ttf");
 const standaloneFonts = join(standalone, "node_modules", "dejavu-fonts-ttf", "ttf");
+const publicBadgeFonts = join(root, "public", "fonts", "badge-print");
+const standalonePublicBadgeFonts = join(standalone, "public", "fonts", "badge-print");
+
+if (existsSync(publicBadgeFonts)) {
+  mkdirSync(standalonePublicBadgeFonts, { recursive: true });
+  for (const name of ["DejaVuSans.ttf", "DejaVuSans-Bold.ttf"]) {
+    const src = join(publicBadgeFonts, name);
+    if (existsSync(src)) {
+      cpSync(src, join(standalonePublicBadgeFonts, name));
+    }
+  }
+}
+
 if (existsSync(dejavuTtf)) {
   mkdirSync(standaloneFonts, { recursive: true });
   for (const name of ["DejaVuSans.ttf", "DejaVuSans-Bold.ttf"]) {
@@ -32,11 +45,14 @@ if (existsSync(dejavuTtf)) {
   }
 }
 
-const resvgPkg = join(root, "node_modules", "@resvg", "resvg-js");
-const standaloneResvg = join(standalone, "node_modules", "@resvg", "resvg-js");
-if (existsSync(resvgPkg)) {
-  mkdirSync(join(standalone, "node_modules", "@resvg"), { recursive: true });
-  cpSync(resvgPkg, standaloneResvg, { recursive: true });
+const resvgRoot = join(root, "node_modules", "@resvg");
+const standaloneResvgRoot = join(standalone, "node_modules", "@resvg");
+if (existsSync(resvgRoot)) {
+  mkdirSync(standaloneResvgRoot, { recursive: true });
+  for (const entry of readdirSync(resvgRoot)) {
+    if (!entry.startsWith("resvg-js")) continue;
+    cpSync(join(resvgRoot, entry), join(standaloneResvgRoot, entry), { recursive: true });
+  }
 }
 
 /** Azure App Service may run Oryx against package.json; avoid npm start → next start (wrong for standalone). */

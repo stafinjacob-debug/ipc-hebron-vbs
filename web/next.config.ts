@@ -7,6 +7,8 @@ const nextConfig: NextConfig = {
     "/api/mobile/v1/seasons/*/registrations/*/badge": [
       "./node_modules/dejavu-fonts-ttf/ttf/DejaVuSans.ttf",
       "./node_modules/dejavu-fonts-ttf/ttf/DejaVuSans-Bold.ttf",
+      "./public/fonts/badge-print/DejaVuSans.ttf",
+      "./public/fonts/badge-print/DejaVuSans-Bold.ttf",
     ],
   },
   experimental: {
