@@ -71,7 +71,8 @@ function brotherQlCanvas(
   const base = labelBaseInches(labelSize);
   const horizontal = orientation === "HORIZONTAL";
   const tapeWidthIn = base.widthIn;
-  const feedLengthIn = horizontal ? base.widthIn : base.heightIn;
+  /** Horizontal wide badges on 62 mm roll: ~2″ feed (compact strip), not full 100 mm roll length. */
+  const feedLengthIn = horizontal ? 2 : base.heightIn;
 
   const w =
     labelSize === "LABEL_4X6"
@@ -114,6 +115,14 @@ function wrapLines(text: string, maxChars: number, maxLines: number): string[] {
   }
   if (current && lines.length < maxLines) lines.push(current);
   return lines.slice(0, maxLines);
+}
+
+/** Prefer one line for emergency phone so "(346) 208-0014" does not split mid-number. */
+function wrapKidCheckLine(text: string, maxChars: number, maxLines: number): string[] {
+  if (text.startsWith("Emergency contact:") && text.length <= maxChars + 16) {
+    return [text];
+  }
+  return wrapLines(text, maxChars, maxLines);
 }
 
 function renderStandardVertical(payload: BadgePrintPayload, canvas: LabelCanvas): string {
@@ -247,49 +256,107 @@ function kidCheckBodyLines(payload: BadgePrintPayload): KidCheckBodyLine[] {
   return lines;
 }
 
+function measureKidCheckBrotherWideBottom(
+  payload: BadgePrintPayload,
+  canvas: LabelCanvas,
+): number {
+  const { w } = canvas;
+  const s = payload.structured;
+  const pad = inchToPx(0.08, canvas);
+  const nameSize = ptToPx(13, canvas);
+  const codeSize = ptToPx(7, canvas);
+  const classSize = ptToPx(11, canvas);
+  const lineSize = ptToPx(7.5, canvas);
+  const seasonSize = ptToPx(7, canvas);
+  const timestampSize = ptToPx(6, canvas);
+  const lineGap = inchToPx(0.018, canvas);
+  const wrapGap = inchToPx(0.01, canvas);
+  const qrSize = inchToPx(0.62, canvas);
+  const qrX = w - pad - qrSize;
+  const textMaxX = qrX - inchToPx(0.05, canvas);
+  const codePadY = inchToPx(0.012, canvas);
+  const codeText = s.securityCode ? s.securityCode : "";
+  const codeBoxH = codeText ? codeSize + codePadY * 2 : 0;
+
+  const nameY = pad + nameSize;
+  const dividerY = nameY + inchToPx(0.035, canvas);
+  const qrY = codeText ? pad + codeBoxH + inchToPx(0.03, canvas) : dividerY;
+
+  let bodyY = dividerY + inchToPx(0.04, canvas);
+  const maxChars = Math.max(22, Math.floor((textMaxX - pad) / (lineSize * 0.48)));
+  for (const line of kidCheckBodyLines(payload)) {
+    const size =
+      line.kind === "season" ? seasonSize : line.kind === "class" ? classSize : lineSize;
+    const wrapped = wrapKidCheckLine(line.text, maxChars, 3);
+    for (let j = 0; j < wrapped.length; j++) {
+      bodyY += size + (j === 0 ? 0 : wrapGap);
+    }
+    bodyY += lineGap;
+  }
+
+  const timestampY = s.printedAt ? bodyY + timestampSize + inchToPx(0.015, canvas) : bodyY;
+  const textBottom = s.printedAt ? timestampY : bodyY;
+  const qrBottom = qrY + qrSize;
+  return Math.max(textBottom, qrBottom) + pad;
+}
+
+function trimBrotherHorizontalCanvas(
+  payload: BadgePrintPayload,
+  canvas: LabelCanvas,
+  layout: BadgePrintPayload["settings"]["horizontalLayout"],
+): LabelCanvas {
+  const bottom =
+    layout === "KIDCHECK"
+      ? measureKidCheckBrotherWideBottom(payload, canvas)
+      : canvas.h - inchToPx(0.12, canvas);
+  const minH = Math.round(1.65 * BADGE_RENDER_DPI);
+  const h = Math.min(canvas.h, Math.max(minH, Math.ceil(bottom)));
+  return { ...canvas, h, heightIn: h / BADGE_RENDER_DPI };
+}
+
 /** Brother 62 mm roll: text block left, QR right — fills label width without a tall vertical gap. */
 function renderKidCheckBrotherWide(payload: BadgePrintPayload, canvas: LabelCanvas): string {
-  const { w, h } = canvas;
+  const { w } = canvas;
   const s = payload.structured;
   const name = escapeXml(`${s.firstName} ${s.lastName}`.trim() || payload.childName);
 
   const pad = inchToPx(0.08, canvas);
   const nameSize = ptToPx(13, canvas);
-  const codeSize = ptToPx(8, canvas);
+  const codeSize = ptToPx(7, canvas);
   const classSize = ptToPx(11, canvas);
   const lineSize = ptToPx(7.5, canvas);
   const seasonSize = ptToPx(7, canvas);
   const timestampSize = ptToPx(6, canvas);
-  const lineGap = inchToPx(0.02, canvas);
-  const wrapGap = inchToPx(0.012, canvas);
+  const lineGap = inchToPx(0.018, canvas);
+  const wrapGap = inchToPx(0.01, canvas);
   const stroke = Math.max(2, Math.round(inchToPx(0.015, canvas)));
-  const qrSize = inchToPx(0.72, canvas);
+  const qrSize = inchToPx(0.62, canvas);
   const qrX = w - pad - qrSize;
-  const textMaxX = qrX - inchToPx(0.06, canvas);
+  const textMaxX = qrX - inchToPx(0.05, canvas);
 
-  const nameY = pad + nameSize;
-  const dividerY = nameY + inchToPx(0.04, canvas);
-
-  const codePadX = inchToPx(0.04, canvas);
-  const codePadY = inchToPx(0.015, canvas);
+  const codePadY = inchToPx(0.012, canvas);
   const codeText = s.securityCode ? escapeXml(s.securityCode) : "";
-  const codeBoxW = Math.max(inchToPx(0.65, canvas), codeText.length * codeSize * 0.6 + codePadX * 2);
-  const codeBoxH = codeSize + codePadY * 2;
-  const codeBoxX = Math.min(textMaxX - codeBoxW, w - pad - codeBoxW);
+  const codeBoxW = qrSize;
+  const codeBoxH = codeText ? codeSize + codePadY * 2 : 0;
+  const codeBoxX = qrX;
   const code = codeText
     ? `<rect x="${codeBoxX}" y="${pad}" width="${codeBoxW}" height="${codeBoxH}" fill="#0f172a" rx="2"/>
        <text x="${codeBoxX + codeBoxW / 2}" y="${pad + codePadY + codeSize * 0.82}" text-anchor="middle" font-family="${BADGE_PRINT_FONT_FAMILY}" font-size="${codeSize}" font-weight="800" fill="#ffffff">${codeText}</text>`
     : "";
 
-  let bodyY = dividerY + inchToPx(0.05, canvas);
+  const nameY = pad + nameSize;
+  const dividerY = nameY + inchToPx(0.035, canvas);
+  const qrY = codeText ? pad + codeBoxH + inchToPx(0.03, canvas) : dividerY;
+
+  let bodyY = dividerY + inchToPx(0.04, canvas);
   const bodyParts: string[] = [];
-  const maxChars = Math.max(18, Math.floor((textMaxX - pad) / (lineSize * 0.52)));
+  const maxChars = Math.max(22, Math.floor((textMaxX - pad) / (lineSize * 0.48)));
   for (const line of kidCheckBodyLines(payload)) {
     const size =
       line.kind === "season" ? seasonSize : line.kind === "class" ? classSize : lineSize;
     const weight = line.kind === "class" ? 800 : 600;
     const fill = line.kind === "season" ? "#64748b" : "#1e293b";
-    const wrapped = wrapLines(line.text, maxChars, 2);
+    const wrapped = wrapKidCheckLine(line.text, maxChars, 3);
     for (let j = 0; j < wrapped.length; j++) {
       bodyY += size + (j === 0 ? 0 : wrapGap);
       bodyParts.push(
@@ -299,16 +366,16 @@ function renderKidCheckBrotherWide(payload: BadgePrintPayload, canvas: LabelCanv
     bodyY += lineGap;
   }
 
+  const timestampY = bodyY + timestampSize + inchToPx(0.015, canvas);
   const timestamp = s.printedAt
-    ? `<text x="${pad}" y="${Math.min(h - pad, bodyY + timestampSize + inchToPx(0.02, canvas))}" font-family="${BADGE_PRINT_FONT_FAMILY}" font-size="${timestampSize}" fill="#64748b">${escapeXml(s.printedAt)}</text>`
+    ? `<text x="${pad}" y="${timestampY}" font-family="${BADGE_PRINT_FONT_FAMILY}" font-size="${timestampSize}" fill="#64748b">${escapeXml(s.printedAt)}</text>`
     : "";
 
-  const qrY = Math.max(dividerY + inchToPx(0.03, canvas), Math.round((h - qrSize) / 2));
   const footerQr =
     payload.qrDataUrl && payload.settings.showQrCode
       ? `<image href="${payload.qrDataUrl}" x="${qrX}" y="${qrY}" width="${qrSize}" height="${qrSize}" />`
       : payload.barcodeDataUrl
-        ? `<image href="${payload.barcodeDataUrl}" x="${qrX}" y="${qrY}" width="${qrSize}" height="${inchToPx(0.22, canvas)}" preserveAspectRatio="xMidYMid meet" />`
+        ? `<image href="${payload.barcodeDataUrl}" x="${qrX}" y="${qrY}" width="${qrSize}" height="${inchToPx(0.2, canvas)}" preserveAspectRatio="xMidYMid meet" />`
         : "";
 
   return `
@@ -349,7 +416,7 @@ function renderStandardBrotherWide(payload: BadgePrintPayload, canvas: LabelCanv
     })
     .join("\n");
 
-  const qrY = Math.max(pad, Math.round((h - qrSize) / 2));
+  const qrY = pad + ptToPx(13, canvas) + inchToPx(0.04, canvas);
   const qr =
     payload.qrDataUrl && payload.settings.showQrCode
       ? `<image href="${payload.qrDataUrl}" x="${qrX}" y="${qrY}" width="${qrSize}" height="${qrSize}" />`
@@ -358,14 +425,26 @@ function renderStandardBrotherWide(payload: BadgePrintPayload, canvas: LabelCanv
   return `${lines}${qr}`;
 }
 
+function resolveBadgeRenderCanvas(
+  payload: BadgePrintPayload,
+  options: BadgePngRenderOptions,
+): LabelCanvas {
+  const dims = badgeLabelPageCss(payload.settings.labelSize, payload.settings.orientation);
+  let canvas = options.brotherQl
+    ? brotherQlCanvas(payload.settings.labelSize, payload.settings.orientation)
+    : labelCanvas(payload.settings.labelSize, payload.settings.orientation);
+  if (options.brotherQl && dims.isHorizontal) {
+    canvas = trimBrotherHorizontalCanvas(payload, canvas, payload.settings.horizontalLayout);
+  }
+  return canvas;
+}
+
 export function buildBadgePrintSvg(
   payload: BadgePrintPayload,
   options: BadgePngRenderOptions = {},
 ): string {
   const dims = badgeLabelPageCss(payload.settings.labelSize, payload.settings.orientation);
-  const canvas = options.brotherQl
-    ? brotherQlCanvas(payload.settings.labelSize, payload.settings.orientation)
-    : labelCanvas(payload.settings.labelSize, payload.settings.orientation);
+  const canvas = resolveBadgeRenderCanvas(payload, options);
   const { w, h } = canvas;
 
   const layout = payload.settings.horizontalLayout;
@@ -416,9 +495,7 @@ export async function renderBadgePngWithMeta(
     throw new Error("Badge fonts are not available on the server.");
   }
 
-  const canvas = options.brotherQl
-    ? brotherQlCanvas(payload.settings.labelSize, payload.settings.orientation)
-    : labelCanvas(payload.settings.labelSize, payload.settings.orientation);
+  const canvas = resolveBadgeRenderCanvas(payload, options);
 
   const { Resvg } = await import("@resvg/resvg-js");
   const svg = buildBadgePrintSvg(payload, options);
