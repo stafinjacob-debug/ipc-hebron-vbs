@@ -38,13 +38,14 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 
   const format = req.nextUrl.searchParams.get("format");
   if (format === "png") {
-    const png = await renderBadgePngBuffer(loaded.payload);
+    const png = await renderBadgePngBuffer(loaded.payload, { brotherQl: true });
     const fontStatus = (await import("@/lib/badge-print-fonts")).badgePrintFontStatus();
     return new NextResponse(new Uint8Array(png), {
       headers: {
         "Content-Type": "image/png",
         "Cache-Control": "no-store",
         "X-Badge-Fonts-Ok": fontStatus.ok ? "1" : "0",
+        "X-Badge-Orientation": loaded.payload.settings.orientation,
       },
     });
   }

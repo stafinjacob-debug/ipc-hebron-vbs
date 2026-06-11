@@ -225,7 +225,28 @@ export function buildBadgePrintSvg(payload: BadgePrintPayload): string {
 </svg>`;
 }
 
-export async function renderBadgePngBuffer(payload: BadgePrintPayload): Promise<Buffer> {
+export type BadgePngRenderOptions = {
+  /**
+   * Brother QL printers map image width to tape width and height to feed length.
+   * Horizontal badges must be rotated 90° so a 3×2" layout feeds correctly on 62 mm roll.
+   */
+  brotherQl?: boolean;
+};
+
+async function orientPngForBrotherQl(
+  png: Buffer,
+  orientation: BadgePrintPayload["settings"]["orientation"],
+): Promise<Buffer> {
+  if (orientation !== "HORIZONTAL") return png;
+
+  const sharp = (await import("sharp")).default;
+  return sharp(png).rotate(90).png().toBuffer();
+}
+
+export async function renderBadgePngBuffer(
+  payload: BadgePrintPayload,
+  options: BadgePngRenderOptions = {},
+): Promise<Buffer> {
   const fontStatus = badgePrintFontStatus();
   if (!fontStatus.ok) {
     console.error("[badge-print] DejaVu fonts unavailable", fontStatus);
@@ -244,5 +265,11 @@ export async function renderBadgePngBuffer(payload: BadgePrintPayload): Promise<
       sansSerifFamily: BADGE_PRINT_FONT_FAMILY,
     },
   });
-  return Buffer.from(resvg.render().asPng());
+  let png = Buffer.from(resvg.render().asPng());
+
+  if (options.brotherQl) {
+    png = Buffer.from(await orientPngForBrotherQl(png, payload.settings.orientation));
+  }
+
+  return png;
 }
