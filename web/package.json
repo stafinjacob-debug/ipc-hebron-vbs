@@ -32,6 +32,7 @@
     "@prisma/adapter-pg": "^7.7.0",
     "@prisma/client": "^7.7.0",
     "bcryptjs": "^3.0.3",
+    "dejavu-fonts-ttf": "^2.37.3",
     "dotenv": "^17.4.1",
     "html5-qrcode": "^2.3.8",
     "jose": "^6.2.2",

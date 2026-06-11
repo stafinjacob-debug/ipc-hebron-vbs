@@ -1,5 +1,5 @@
 diff --git a/node_modules/react-native-brother-print/ios/ReactNativeBrotherPrint.swift b/node_modules/react-native-brother-print/ios/ReactNativeBrotherPrint.swift
-index 09976d9..67bbf7e 100644
+index 09976d9..7efa5fb 100644
 --- a/node_modules/react-native-brother-print/ios/ReactNativeBrotherPrint.swift
 +++ b/node_modules/react-native-brother-print/ios/ReactNativeBrotherPrint.swift
 @@ -12,7 +12,7 @@ class ReactNativeBrotherPrint: NSObject {
@@ -11,7 +11,24 @@ index 09976d9..67bbf7e 100644
                  if errorCode != 0 {
                      reject("ERROR_\(errorCode)", errorMessage ?? "Unknown error", nil)
                  } else {
-@@ -44,7 +44,7 @@ class ReactNativeBrotherPrint: NSObject {
+@@ -36,15 +36,22 @@ class ReactNativeBrotherPrint: NSObject {
+             }
+                         
+             let optionalChannel = searcher.channels.first(where: {(channel: BRLMChannel) in
+-                channel.extraInfo?.value(forKey: BRLMChannelExtraInfoKeyModelName) as! String == model
++                guard let name = channel.extraInfo?.value(forKey: BRLMChannelExtraInfoKeyModelName) as? String else { return false }
++                return name == model || name.contains(model) || model.contains(name)
+             })
+             
+             if (optionalChannel == nil) {
+-                reject("ERROR_NOT_FOUND", "Printer not connected", nil)
++                let found = searcher.channels.compactMap { ch -> String? in
++                    ch.extraInfo?.value(forKey: BRLMChannelExtraInfoKeyModelName) as? String
++                }
++                let detail = found.isEmpty
++                    ? "No Brother printer paired. Open iPad Settings → Bluetooth and connect the printer first."
++                    : "Paired: \(found.joined(separator: ", ")). Expected model: \(model)."
++                reject("ERROR_NOT_FOUND", detail, nil)
                  return
              }
              
@@ -20,7 +37,7 @@ index 09976d9..67bbf7e 100644
                  if errorCode != 0 {
                      reject("ERROR_\(errorCode)", errorMessage ?? "Unknown error", nil)
                  } else {
-@@ -54,31 +54,7 @@ class ReactNativeBrotherPrint: NSObject {
+@@ -54,31 +61,7 @@ class ReactNativeBrotherPrint: NSObject {
          }
      }
      
@@ -53,7 +70,7 @@ index 09976d9..67bbf7e 100644
          let generateResult = BRLMPrinterDriverGenerator.open(channel)
          guard generateResult.error.code == BRLMOpenChannelErrorCode.noError,
              let printerDriver = generateResult.driver else {
-@@ -122,12 +98,8 @@ class ReactNativeBrotherPrint: NSObject {
+@@ -122,12 +105,8 @@ class ReactNativeBrotherPrint: NSObject {
          pSettings.autoCut = true
          pSettings.labelSize = labelSize!
          

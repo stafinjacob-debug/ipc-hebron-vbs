@@ -18,6 +18,14 @@ module.exports = function withBrotherPrint(config) {
       '_printer._tcp',
       '_ipp._tcp',
     ];
+    // Required for Brother MFi Bluetooth (QL-820NWB, etc.)
+    const protocols = config.modResults.UISupportedExternalAccessoryProtocols ?? [];
+    if (!protocols.includes('com.brother.ptcbp')) {
+      config.modResults.UISupportedExternalAccessoryProtocols = [
+        ...protocols,
+        'com.brother.ptcbp',
+      ];
+    }
     return config;
   });
 };

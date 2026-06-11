@@ -1,3 +1,4 @@
+import * as FileSystem from 'expo-file-system/legacy';
 import { Platform } from 'react-native';
 import {
   printImageViaBluetooth,
@@ -28,7 +29,6 @@ export async function brotherTestPrint(config: BrotherPrinterConfig): Promise<vo
   // 1x1 white PNG
   const pngBase64 =
     'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
-  const FileSystem = await import('expo-file-system/legacy');
   const uri = `${FileSystem.cacheDirectory}brother-test-${Date.now()}.png`;
   await FileSystem.writeAsStringAsync(uri, pngBase64, {
     encoding: FileSystem.EncodingType.Base64,

@@ -1,5 +1,9 @@
 import type { BadgePrintPayload } from "@/lib/badge-print";
 import { badgeLabelPageCss } from "@/lib/badge-print";
+import {
+  BADGE_PRINT_FONT_FAMILY,
+  badgePrintSvgFontDefs,
+} from "@/lib/badge-print-fonts";
 
 function escapeXml(text: string): string {
   return text
@@ -49,7 +53,7 @@ function renderStandardVertical(payload: BadgePrintPayload, w: number, h: number
         line.kind === "name" ? 28 : line.kind === "season" ? 11 : line.kind === "number" ? 14 : 12;
       const weight = line.kind === "name" || line.kind === "number" ? 700 : 600;
       const fill = line.kind === "allergy" ? "#b45309" : "#0f172a";
-      return `<text x="${w / 2}" y="${y}" text-anchor="middle" font-family="-apple-system,Helvetica,Arial,sans-serif" font-size="${size}" font-weight="${weight}" fill="${fill}">${escapeXml(line.text)}</text>`;
+      return `<text x="${w / 2}" y="${y}" text-anchor="middle" font-family="${BADGE_PRINT_FONT_FAMILY}" font-size="${size}" font-weight="${weight}" fill="${fill}">${escapeXml(line.text)}</text>`;
     })
     .join("\n");
 
@@ -66,7 +70,7 @@ function renderKidCheck(payload: BadgePrintPayload, w: number, h: number): strin
   const name = escapeXml(`${s.firstName} ${s.lastName}`.trim() || payload.childName);
   const code = s.securityCode
     ? `<rect x="${w - 110}" y="16" width="94" height="34" fill="#0f172a" rx="2"/>
-       <text x="${w - 63}" y="38" text-anchor="middle" font-family="-apple-system,Helvetica,Arial,sans-serif" font-size="11" font-weight="800" fill="#ffffff">${escapeXml(s.securityCode)}</text>`
+       <text x="${w - 63}" y="38" text-anchor="middle" font-family="${BADGE_PRINT_FONT_FAMILY}" font-size="11" font-weight="800" fill="#ffffff">${escapeXml(s.securityCode)}</text>`
     : "";
 
   const bodyLines: string[] = [];
@@ -85,7 +89,7 @@ function renderKidCheck(payload: BadgePrintPayload, w: number, h: number): strin
       return wrapped
         .map(
           (part, j) =>
-            `<text x="16" y="${88 + i * 22 + j * 16}" font-family="-apple-system,Helvetica,Arial,sans-serif" font-size="11" font-weight="600" fill="#1e293b">${part}</text>`,
+            `<text x="16" y="${88 + i * 22 + j * 16}" font-family="${BADGE_PRINT_FONT_FAMILY}" font-size="11" font-weight="600" fill="#1e293b">${part}</text>`,
         )
         .join("\n");
     })
@@ -99,11 +103,11 @@ function renderKidCheck(payload: BadgePrintPayload, w: number, h: number): strin
         : "";
 
   const timestamp = s.printedAt
-    ? `<text x="${w / 2}" y="${h - 82}" text-anchor="middle" font-family="-apple-system,Helvetica,Arial,sans-serif" font-size="9" fill="#64748b">${escapeXml(s.printedAt)}</text>`
+    ? `<text x="${w / 2}" y="${h - 82}" text-anchor="middle" font-family="${BADGE_PRINT_FONT_FAMILY}" font-size="9" fill="#64748b">${escapeXml(s.printedAt)}</text>`
     : "";
 
   return `
-    <text x="16" y="42" font-family="-apple-system,Helvetica,Arial,sans-serif" font-size="22" font-weight="800" fill="#0f172a">${name}</text>
+    <text x="16" y="42" font-family="${BADGE_PRINT_FONT_FAMILY}" font-size="22" font-weight="800" fill="#0f172a">${name}</text>
     ${code}
     <line x1="16" y1="58" x2="${w - 16}" y2="58" stroke="#0f172a" stroke-width="2" />
     ${body}
@@ -128,6 +132,9 @@ export function buildBadgePrintSvg(payload: BadgePrintPayload): string {
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
+  <defs>
+    <style type="text/css"><![CDATA[${badgePrintSvgFontDefs()}]]></style>
+  </defs>
   <rect width="100%" height="100%" fill="#ffffff"/>
   ${inner}
 </svg>`;

@@ -20,6 +20,18 @@ if (existsSync(publicDir)) {
   cpSync(publicDir, join(standalone, "public"), { recursive: true });
 }
 
+const dejavuTtf = join(root, "node_modules", "dejavu-fonts-ttf", "ttf");
+const standaloneFonts = join(standalone, "node_modules", "dejavu-fonts-ttf", "ttf");
+if (existsSync(dejavuTtf)) {
+  mkdirSync(standaloneFonts, { recursive: true });
+  for (const name of ["DejaVuSans.ttf", "DejaVuSans-Bold.ttf"]) {
+    const src = join(dejavuTtf, name);
+    if (existsSync(src)) {
+      cpSync(src, join(standaloneFonts, name));
+    }
+  }
+}
+
 /** Azure App Service may run Oryx against package.json; avoid npm start → next start (wrong for standalone). */
 const pkgPath = join(standalone, "package.json");
 if (existsSync(pkgPath)) {

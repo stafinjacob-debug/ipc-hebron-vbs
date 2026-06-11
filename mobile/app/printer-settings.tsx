@@ -104,7 +104,7 @@ export default function PrinterSettingsScreen() {
 
       <SectionTitle>Connection</SectionTitle>
       <View style={styles.segment}>
-        {(['wifi', 'bluetooth'] as BrotherConnection[]).map((mode) => (
+        {(['bluetooth', 'wifi'] as BrotherConnection[]).map((mode) => (
           <Pressable
             key={mode}
             onPress={() => void save({ ...config, connection: mode })}
@@ -116,11 +116,32 @@ export default function PrinterSettingsScreen() {
                 config.connection === mode && styles.segLabelOn,
               ]}
             >
-              {mode === 'wifi' ? 'Wi‑Fi (recommended)' : 'Bluetooth'}
+              {mode === 'bluetooth' ? 'Bluetooth' : 'Wi‑Fi (LAN IP)'}
             </Text>
           </Pressable>
         ))}
       </View>
+
+      {config.connection === 'bluetooth' ? (
+        <Card style={styles.card}>
+          <Text style={styles.helpTitle}>Bluetooth setup (keeps church Wi‑Fi)</Text>
+          <Text style={styles.help}>
+            1. On the Brother printer, turn Bluetooth on (see printer manual).{'\n'}
+            2. iPad Settings → Bluetooth → pair your Brother (e.g. QL-820NWB).{'\n'}
+            3. Leave the iPad on your church Wi‑Fi so check-in can reach the server.{'\n'}
+            4. Select the matching model below, then tap Print test label.
+          </Text>
+          <Text style={styles.helpMuted}>
+            Pair one iPad to one printer. Bluetooth prints badges; Wi‑Fi on the iPad
+            is only used for the VBS app and internet.
+          </Text>
+        </Card>
+      ) : (
+        <Text style={styles.help}>
+          Enter the printer’s IP on the same network as the iPad. The iPad must stay
+          on church Wi‑Fi — do not join the printer’s own Wi‑Fi network.
+        </Text>
+      )}
 
       <FieldLabel>Printer model</FieldLabel>
       <View style={styles.modelRow}>
@@ -164,12 +185,7 @@ export default function PrinterSettingsScreen() {
             the IP in your router / Brother iPrint&amp;Scan app.
           </Text>
         </>
-      ) : (
-        <Text style={styles.help}>
-          Pair the Brother printer in iPad Settings → Bluetooth first. Only one
-          iPad should be paired to each printer.
-        </Text>
-      )}
+      ) : null}
 
       <PrimaryButton
         label={busy ? 'Sending test…' : 'Print test label'}
@@ -242,6 +258,18 @@ const styles = StyleSheet.create({
     lineHeight: 19,
     color: palette.textSecondary,
     marginBottom: 12,
+  },
+  helpTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: palette.text,
+    marginBottom: 8,
+  },
+  helpMuted: {
+    fontSize: 12,
+    lineHeight: 17,
+    color: palette.textSecondary,
+    marginTop: 8,
   },
   footer: {
     marginTop: 16,
