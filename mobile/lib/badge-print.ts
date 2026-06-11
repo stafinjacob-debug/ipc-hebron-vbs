@@ -9,17 +9,30 @@ import {
   type BrotherPrinterConfig,
 } from '@/lib/brother-printer-config';
 
+export type CampDateOption = {
+  key: string;
+  label: string;
+  isPast: boolean;
+  isToday: boolean;
+};
+
 export type CheckInDeskSettings = {
   badgePrintingEnabled: boolean;
   autoPrintOnCheckIn: boolean;
+  multiDayCheckInEnabled: boolean;
+  campDates: CampDateOption[];
+  todayCampDate: string | null;
+  selectedCampDate: string | null;
 };
 
 export async function fetchCheckInDeskSettings(
   token: string,
   seasonId: string,
+  campDate?: string | null,
 ): Promise<CheckInDeskSettings> {
+  const query = campDate ? `?campDate=${encodeURIComponent(campDate)}` : '';
   return apiFetch<CheckInDeskSettings>(
-    `/api/mobile/v1/seasons/${seasonId}/check-in/settings`,
+    `/api/mobile/v1/seasons/${seasonId}/check-in/settings${query}`,
     { token },
   );
 }

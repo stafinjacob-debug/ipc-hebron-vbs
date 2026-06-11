@@ -65,13 +65,16 @@ const CHECK_IN_LOOKUP_INCLUDE = {
 
 type CheckInRegistrationRow = Prisma.RegistrationGetPayload<{ include: typeof CHECK_IN_LOOKUP_INCLUDE }>;
 
-export function mapRegistrationToCheckInLookupMatch(r: CheckInRegistrationRow): CheckInLookupMatch {
+export function mapRegistrationToCheckInLookupMatch(
+  r: CheckInRegistrationRow,
+  checkedIn?: boolean,
+): CheckInLookupMatch {
   const guardian = r.child.guardian;
   return {
     id: r.id,
     studentName: `${r.child.firstName} ${r.child.lastName}`.trim(),
     className: r.classroom?.name ?? "—",
-    checkedIn: Boolean(r.checkedInAt),
+    checkedIn: checkedIn ?? Boolean(r.checkedInAt),
     registrationNumber: r.registrationNumber,
     submissionCode: r.formSubmission?.registrationCode ?? null,
     guardianName: `${guardian.firstName} ${guardian.lastName}`.trim() || null,

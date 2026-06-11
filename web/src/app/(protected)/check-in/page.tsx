@@ -1,13 +1,17 @@
 import { auth } from "@/auth";
-import { prisma } from "@/lib/prisma";
+import { loadSeasonAttendanceContext, resolveCheckedInMap } from "@/lib/attendance";
 import { resolveBadgePrintSettings } from "@/lib/badge-print";
+import { prisma } from "@/lib/prisma";
 import { canUseCheckInActions } from "@/lib/permissions";
 import { ClipboardCheck } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { CheckInDeskClient } from "./check-in-desk-client";
 
-export default async function CheckInPage() {
+type Props = { searchParams: Promise<{ campDate?: string }> };
+
+export default async function CheckInPage({ searchParams }: Props) {
+  const { campDate: campDateParam } = await searchParams;
   const session = await auth();
   if (!session?.user?.role) redirect("/login");
   if (!canUseCheckInActions(session.user.role)) redirect("/dashboard");
@@ -18,7 +22,11 @@ export default async function CheckInPage() {
     include: { badgePrintSettings: true },
   });
 
-  const rows = activeSeason
+  const attendanceContext = activeSeason
+    ? await loadSeasonAttendanceContext(activeSeason.id, campDateParam)
+    : null;
+
+  const registrations = activeSeason
     ? await prisma.registration.findMany({
         where: { seasonId: activeSeason.id, status: { not: "CANCELLED" } },
         orderBy: [{ checkedInAt: "asc" }, { child: { lastName: "asc" } }],
@@ -29,6 +37,14 @@ export default async function CheckInPage() {
         },
       })
     : [];
+
+  const checkedInMap = activeSeason
+    ? await resolveCheckedInMap(
+        registrations.map((r) => r.id),
+        attendanceContext?.defaultCampDate ?? "",
+        activeSeason.multiDayCheckInEnabled,
+      )
+    : new Map<string, boolean>();
 
   const badgeSettings = resolveBadgePrintSettings(activeSeason?.badgePrintSettings);
 
@@ -81,19 +97,28 @@ export default async function CheckInPage() {
           ) : (
             <span className="text-amber-700 dark:text-amber-300">Badge printing is off for this season.</span>
           )}
+          <Link
+            href={`/seasons/${activeSeason.id}/check-in-settings`}
+            className="font-medium text-brand underline-offset-4 hover:underline"
+          >
+            Check-in settings
+          </Link>
         </div>
       )}
 
-      {activeSeason && (
+      {activeSeason && attendanceContext && (
         <CheckInDeskClient
           seasonId={activeSeason.id}
           badgePrintingEnabled={badgeSettings.enabled}
           autoPrintOnCheckIn={badgeSettings.autoPrintOnCheckIn}
-          rows={rows.map((r) => ({
+          multiDayCheckInEnabled={attendanceContext.multiDayCheckInEnabled}
+          campDates={attendanceContext.campDates}
+          selectedCampDate={attendanceContext.defaultCampDate}
+          rows={registrations.map((r) => ({
             id: r.id,
             studentName: `${r.child.firstName} ${r.child.lastName}`,
             className: r.classroom?.name ?? "—",
-            checkedIn: Boolean(r.checkedInAt),
+            checkedIn: checkedInMap.get(r.id) ?? false,
             registrationNumber: r.registrationNumber,
             submissionCode: r.formSubmission?.registrationCode ?? null,
           }))}

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import type { Prisma } from "@/generated/prisma";
+import { loadSeasonAttendanceContext, resolveCheckedInMap } from "@/lib/attendance";
 import { prisma } from "@/lib/prisma";
 import {
   loadSeasonOr404,
@@ -27,6 +28,10 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
   if (!season) return jsonError(404, "Season not found");
 
   const q = (req.nextUrl.searchParams.get("q") ?? "").trim();
+  const campDateParam = req.nextUrl.searchParams.get("campDate");
+  const attendanceContext = await loadSeasonAttendanceContext(seasonId, campDateParam);
+  const campDate = attendanceContext?.defaultCampDate ?? "";
+
   if (q.length < 2) {
     return NextResponse.json({ results: [] });
   }
@@ -120,6 +125,12 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     },
   });
 
+  const checkedInMap = await resolveCheckedInMap(
+    rows.map((r) => r.id),
+    campDate,
+    season.multiDayCheckInEnabled,
+  );
+
   const now = new Date();
   const results = rows.map((r) => {
     const dob = r.child.dateOfBirth;
@@ -137,7 +148,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
         r.registrationNumber ??
         r.formSubmission?.registrationCode ??
         null,
-      checkedIn: !!r.checkedInAt,
+      checkedIn: checkedInMap.get(r.id) ?? false,
       checkedInAt: r.checkedInAt?.toISOString() ?? null,
       guardianName: `${r.child.guardian.firstName} ${r.child.guardian.lastName}`,
       guardianPhone: r.child.guardian.phone,

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { loadSeasonAttendanceContext, resolveCheckedInMap } from "@/lib/attendance";
 import { prisma } from "@/lib/prisma";
 import {
   loadSeasonOr404,
@@ -42,11 +43,22 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
   const season = await loadSeasonOr404(seasonId);
   if (!season) return jsonError(404, "Season not found");
 
+  const campDateParam = req.nextUrl.searchParams.get("campDate");
+  const attendanceContext = await loadSeasonAttendanceContext(seasonId, campDateParam);
+  const campDate = attendanceContext?.defaultCampDate ?? "";
+
   const r = await prisma.registration.findFirst({
     where: { id: registrationId, seasonId },
     include: registrationInclude(),
   });
   if (!r) return jsonError(404, "Registration not found");
+
+  const checkedInMap = await resolveCheckedInMap(
+    [r.id],
+    campDate,
+    season.multiDayCheckInEnabled,
+  );
+  const checkedIn = checkedInMap.get(r.id) ?? false;
 
   const now = new Date();
   const dob = r.child.dateOfBirth;
@@ -72,7 +84,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     registration: {
       id: r.id,
       status: r.status,
-      checkedIn: !!r.checkedInAt,
+      checkedIn,
       checkedInAt: r.checkedInAt?.toISOString() ?? null,
       registrationCode:
         r.registrationNumber ??

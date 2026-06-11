@@ -1,7 +1,9 @@
 import { auth } from "@/auth";
+import { loadSeasonAttendanceContext } from "@/lib/attendance";
 import { prisma } from "@/lib/prisma";
 import { resolveBadgePrintSettings } from "@/lib/badge-print";
 import { canManageDirectory, canViewOperations } from "@/lib/roles";
+import { AttendanceExportPanel } from "@/components/reports/attendance-export-panel";
 import { BarChart3, Printer } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -11,13 +13,41 @@ export default async function ReportsPage() {
   if (!session?.user?.role) redirect("/login");
   if (!canViewOperations(session.user.role)) redirect("/dashboard");
 
-  const activeSeason = await prisma.vbsSeason.findFirst({
-    where: { isActive: true },
-    orderBy: [{ year: "desc" }, { startDate: "desc" }],
-    include: { badgePrintSettings: true },
-  });
+  const [activeSeason, seasons] = await Promise.all([
+    prisma.vbsSeason.findFirst({
+      where: { isActive: true },
+      orderBy: [{ year: "desc" }, { startDate: "desc" }],
+      include: { badgePrintSettings: true },
+    }),
+    prisma.vbsSeason.findMany({
+      orderBy: [{ year: "desc" }, { startDate: "desc" }],
+      select: {
+        id: true,
+        name: true,
+        year: true,
+        multiDayCheckInEnabled: true,
+        startDate: true,
+        endDate: true,
+      },
+    }),
+  ]);
+
   const badgeSettings = resolveBadgePrintSettings(activeSeason?.badgePrintSettings);
   const canConfigure = canManageDirectory(session.user.role);
+
+  const seasonExportOptions = await Promise.all(
+    seasons.map(async (season) => {
+      const context = await loadSeasonAttendanceContext(season.id);
+      return {
+        id: season.id,
+        name: season.name,
+        year: season.year,
+        multiDayCheckInEnabled: season.multiDayCheckInEnabled,
+        campDates: context?.campDates ?? [],
+        defaultCampDate: context?.defaultCampDate ?? "",
+      };
+    }),
+  );
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
@@ -81,12 +111,15 @@ export default async function ReportsPage() {
           </div>
         </div>
         <div className="flex gap-3 border-t border-foreground/10 pt-4">
-          <BarChart3 className="mt-0.5 size-5 shrink-0 text-muted" aria-hidden />
-          <div>
-            <p className="font-medium text-foreground">Attendance summaries</p>
+          <BarChart3 className="mt-0.5 size-5 shrink-0 text-brand" aria-hidden />
+          <div className="min-w-0 flex-1">
+            <p className="font-medium text-foreground">Attendance export</p>
             <p className="mt-1 text-sm text-muted">
-              Detailed reporting is coming soon. Check-in data is available on the dashboard and check-in desk today.
+              Download a CSV of who checked in, checked out, or has not arrived for a specific camp day.
             </p>
+            <div className="mt-4">
+              <AttendanceExportPanel seasons={seasonExportOptions} />
+            </div>
           </div>
         </div>
         <Link

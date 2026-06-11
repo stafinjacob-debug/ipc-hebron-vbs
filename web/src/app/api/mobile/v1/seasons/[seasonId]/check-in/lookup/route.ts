@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { loadSeasonAttendanceContext, resolveCheckedInMap } from "@/lib/attendance";
 import {
   findCheckInRegistrationsForInput,
   mapRegistrationToCheckInLookupMatch,
@@ -24,9 +26,9 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
   const season = await loadSeasonOr404(seasonId);
   if (!season) return jsonError(404, "Season not found");
 
-  let body: { input?: string };
+  let body: { input?: string; campDate?: string };
   try {
-    body = (await req.json()) as { input?: string };
+    body = (await req.json()) as { input?: string; campDate?: string };
   } catch {
     return jsonError(400, "Invalid JSON");
   }
@@ -46,5 +48,21 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     );
   }
 
-  return NextResponse.json({ matches: rows.map(mapRegistrationToCheckInLookupMatch) });
+  const seasonRow = await prisma.vbsSeason.findUnique({
+    where: { id: seasonId },
+    select: { multiDayCheckInEnabled: true },
+  });
+  const context = await loadSeasonAttendanceContext(seasonId, body.campDate);
+  const campDate = context?.defaultCampDate ?? "";
+  const checkedInMap = await resolveCheckedInMap(
+    rows.map((r) => r.id),
+    campDate,
+    seasonRow?.multiDayCheckInEnabled ?? false,
+  );
+
+  return NextResponse.json({
+    matches: rows.map((r) =>
+      mapRegistrationToCheckInLookupMatch(r, checkedInMap.get(r.id) ?? false),
+    ),
+  });
 }

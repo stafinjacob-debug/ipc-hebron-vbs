@@ -7,6 +7,7 @@ import { printBadgeByRegistrationId } from "@/components/badge-print/print-badge
 import { CheckInLookupResultModal } from "@/components/check-in/check-in-lookup-result-modal";
 import { CheckInQrScanner } from "@/components/check-in/check-in-qr-scanner";
 import { PrintBadgeButton } from "@/components/badge-print/print-badge-button";
+import type { CampDateOption } from "@/lib/camp-date";
 import type { CheckInLookupMatch } from "@/lib/check-in-lookup";
 import { lookupRegistrationForCheckIn, toggleCheckIn } from "./actions";
 
@@ -24,10 +25,24 @@ type Props = {
   rows: CheckInRow[];
   badgePrintingEnabled: boolean;
   autoPrintOnCheckIn: boolean;
+  multiDayCheckInEnabled: boolean;
+  campDates: CampDateOption[];
+  selectedCampDate: string;
 };
 
-export function CheckInDeskClient({ seasonId, rows, badgePrintingEnabled, autoPrintOnCheckIn }: Props) {
+export function CheckInDeskClient({
+  seasonId,
+  rows,
+  badgePrintingEnabled,
+  autoPrintOnCheckIn,
+  multiDayCheckInEnabled,
+  campDates,
+  selectedCampDate,
+}: Props) {
   const router = useRouter();
+  const campDate = selectedCampDate;
+  const selectedDay = campDates.find((d) => d.key === campDate);
+  const campDateLocked = Boolean(selectedDay?.isPast);
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [lookupQuery, setLookupQuery] = useState("");
@@ -76,7 +91,7 @@ export function CheckInDeskClient({ seasonId, rows, badgePrintingEnabled, autoPr
     setError(null);
 
     startLookupTransition(async () => {
-      const result = await lookupRegistrationForCheckIn(seasonId, value);
+      const result = await lookupRegistrationForCheckIn(seasonId, value, campDate);
       if (!result.ok) {
         closeLookupModal();
         setLookupMessage(result.message);
@@ -91,7 +106,7 @@ export function CheckInDeskClient({ seasonId, rows, badgePrintingEnabled, autoPr
     setError(null);
     startTransition(async () => {
       try {
-        const result = await toggleCheckIn(match.id, !match.checkedIn);
+        const result = await toggleCheckIn(match.id, !match.checkedIn, campDate);
         if (!result.ok) {
           setError(result.message);
           return;
@@ -129,7 +144,7 @@ export function CheckInDeskClient({ seasonId, rows, badgePrintingEnabled, autoPr
     setError(null);
     startTransition(async () => {
       try {
-        const result = await toggleCheckIn(row.id, !row.checkedIn);
+        const result = await toggleCheckIn(row.id, !row.checkedIn, campDate);
         if (!result.ok) {
           setError(result.message);
           return;
@@ -152,6 +167,34 @@ export function CheckInDeskClient({ seasonId, rows, badgePrintingEnabled, autoPr
 
   return (
     <div className="space-y-4">
+      {multiDayCheckInEnabled && campDates.length > 0 ? (
+        <div className="rounded-xl border border-foreground/10 bg-surface-elevated p-4 shadow-sm">
+          <label className="block text-sm">
+            <span className="font-semibold text-foreground">Camp day</span>
+            <select
+              value={campDate}
+              onChange={(e) => {
+                router.push(`/check-in?campDate=${encodeURIComponent(e.target.value)}`);
+              }}
+              className="mt-2 w-full rounded-lg border border-foreground/15 bg-background px-3 py-2 text-sm sm:max-w-sm"
+            >
+              {campDates.map((day) => (
+                <option key={day.key} value={day.key} disabled={day.isPast}>
+                  {day.label}
+                  {day.isToday ? " (today)" : ""}
+                  {day.isPast ? " (past)" : ""}
+                </option>
+              ))}
+            </select>
+          </label>
+          {campDateLocked ? (
+            <p className="mt-2 text-sm text-amber-700 dark:text-amber-300">
+              Past camp days are read-only. Switch to today to check students in or out.
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+
       <div className="rounded-xl border border-foreground/10 bg-surface-elevated p-4 shadow-sm">
         <h2 className="text-sm font-semibold">Find registration</h2>
         <p className="mt-1 text-xs text-muted">
@@ -211,6 +254,7 @@ export function CheckInDeskClient({ seasonId, rows, badgePrintingEnabled, autoPr
         matches={lookupMatches}
         pendingId={pendingId}
         badgePrintingEnabled={badgePrintingEnabled}
+        checkInDisabled={campDateLocked}
         onClose={closeLookupModal}
         onCheckIn={handleCheckInFromModal}
         onSelectMatch={(match) => setSelectedMatchId(match.id)}
@@ -280,7 +324,7 @@ export function CheckInDeskClient({ seasonId, rows, badgePrintingEnabled, autoPr
                           ) : null}
                           <button
                             type="button"
-                            disabled={isPending}
+                            disabled={isPending || campDateLocked}
                             onClick={() => handleToggle(row)}
                             className={
                               row.checkedIn

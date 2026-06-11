@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { loadSeasonAttendanceContext } from "@/lib/attendance";
 import { resolveBadgePrintSettings } from "@/lib/badge-print";
 import {
   loadSeasonOr404,
@@ -21,6 +22,9 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
   const season = await loadSeasonOr404(seasonId);
   if (!season) return jsonError(404, "Season not found");
 
+  const requestedCampDate = req.nextUrl.searchParams.get("campDate");
+  const context = await loadSeasonAttendanceContext(seasonId, requestedCampDate);
+
   const row = await prisma.badgePrintSettings.findUnique({
     where: { seasonId },
   });
@@ -29,5 +33,9 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
   return NextResponse.json({
     badgePrintingEnabled: settings.enabled,
     autoPrintOnCheckIn: settings.enabled && settings.autoPrintOnCheckIn,
+    multiDayCheckInEnabled: context?.multiDayCheckInEnabled ?? false,
+    campDates: context?.campDates ?? [],
+    todayCampDate: context?.todayCampDate ?? null,
+    selectedCampDate: context?.defaultCampDate ?? null,
   });
 }

@@ -26,6 +26,7 @@ import {
   getActivePrintMode,
   printBadgeByRegistrationId,
   printBadgeInBackground,
+  type CampDateOption,
   type CheckInDeskSettings,
 } from '@/lib/badge-print';
 import { useAuth } from '@/lib/auth-context';
@@ -62,7 +63,12 @@ export default function CheckInScreen() {
   const [deskSettings, setDeskSettings] = useState<CheckInDeskSettings>({
     badgePrintingEnabled: false,
     autoPrintOnCheckIn: false,
+    multiDayCheckInEnabled: false,
+    campDates: [],
+    todayCampDate: null,
+    selectedCampDate: null,
   });
+  const [campDate, setCampDate] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [printMode, setPrintMode] = useState<'brother' | 'airprint' | 'none'>('none');
 
@@ -84,15 +90,27 @@ export default function CheckInScreen() {
 
   useEffect(() => {
     if (!token || !seasonId) return;
-    void fetchCheckInDeskSettings(token, seasonId)
-      .then(setDeskSettings)
+    void fetchCheckInDeskSettings(token, seasonId, campDate)
+      .then((settings) => {
+        setDeskSettings(settings);
+        if (!campDate && settings.selectedCampDate) {
+          setCampDate(settings.selectedCampDate);
+        }
+      })
       .catch(() => {
         setDeskSettings({
           badgePrintingEnabled: false,
           autoPrintOnCheckIn: false,
+          multiDayCheckInEnabled: false,
+          campDates: [],
+          todayCampDate: null,
+          selectedCampDate: null,
         });
       });
-  }, [token, seasonId]);
+  }, [token, seasonId, campDate]);
+
+  const selectedCampDay = deskSettings.campDates.find((d) => d.key === campDate);
+  const campDateLocked = Boolean(selectedCampDay?.isPast);
 
   useEffect(() => {
     if (!successMessage) return;
@@ -107,8 +125,11 @@ export default function CheckInScreen() {
     }
     setSearchLoading(true);
     try {
+      const campDateQuery = campDate
+        ? `&campDate=${encodeURIComponent(campDate)}`
+        : '';
       const res = await apiFetch<{ results: SearchRow[] }>(
-        `/api/mobile/v1/seasons/${seasonId}/search?q=${encodeURIComponent(debounced)}`,
+        `/api/mobile/v1/seasons/${seasonId}/search?q=${encodeURIComponent(debounced)}${campDateQuery}`,
         { token },
       );
       setResults(res.results);
@@ -117,7 +138,7 @@ export default function CheckInScreen() {
     } finally {
       setSearchLoading(false);
     }
-  }, [token, seasonId, debounced]);
+  }, [token, seasonId, debounced, campDate]);
 
   useEffect(() => {
     void runSearch();
@@ -153,7 +174,7 @@ export default function CheckInScreen() {
         {
           method: 'POST',
           token,
-          body: JSON.stringify({ input: value }),
+          body: JSON.stringify({ input: value, campDate }),
         },
       );
       openLookupResults(res.matches);
@@ -191,7 +212,7 @@ export default function CheckInScreen() {
         {
           method: 'PATCH',
           token,
-          body: JSON.stringify({ checkedIn: !match.checkedIn }),
+          body: JSON.stringify({ checkedIn: !match.checkedIn, campDate }),
         },
       );
       const nextCheckedIn = !match.checkedIn;
@@ -231,8 +252,37 @@ export default function CheckInScreen() {
       params: {
         id: row.registrationId,
         mode: mode === 'dismissal' ? 'dismissal' : 'arrivals',
+        campDate: campDate ?? '',
       },
     });
+  }
+
+  function renderCampDayChip(day: CampDateOption) {
+    const selected = campDate === day.key;
+    const disabled = day.isPast;
+    return (
+      <Pressable
+        key={day.key}
+        disabled={disabled}
+        onPress={() => setCampDate(day.key)}
+        style={[
+          styles.dayChip,
+          selected && styles.dayChipOn,
+          disabled && styles.dayChipDisabled,
+        ]}
+      >
+        <Text
+          style={[
+            styles.dayChipText,
+            selected && styles.dayChipTextOn,
+            disabled && styles.dayChipTextDisabled,
+          ]}
+        >
+          {day.label}
+          {day.isToday ? ' · Today' : ''}
+        </Text>
+      </Pressable>
+    );
   }
 
   const lookupPanel = (
@@ -393,6 +443,19 @@ export default function CheckInScreen() {
         </View>
       ) : null}
       <Text style={styles.screenTitle}>Check-in desk</Text>
+      {deskSettings.multiDayCheckInEnabled && deskSettings.campDates.length > 0 ? (
+        <View style={styles.dayPicker}>
+          <Text style={styles.dayPickerLabel}>Camp day</Text>
+          <View style={styles.dayChipRow}>
+            {deskSettings.campDates.map((day) => renderCampDayChip(day))}
+          </View>
+          {campDateLocked ? (
+            <Text style={styles.dayPickerHint}>
+              Past camp days cannot be changed. Select today to check students in or out.
+            </Text>
+          ) : null}
+        </View>
+      ) : null}
       {isWide ? (
         <View style={styles.rowLayout}>
           {lookupPanel}
@@ -428,6 +491,7 @@ export default function CheckInScreen() {
         badgePrintingEnabled={deskSettings.badgePrintingEnabled}
         onClose={closeLookupModal}
         onSelect={(match) => setSelectedMatchId(match.id)}
+        checkInDisabled={campDateLocked}
         onCheckIn={(match) => void handleCheckIn(match)}
         onPrintBadge={(match) => void runPrintBadge(match.id)}
       />
@@ -605,5 +669,51 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: palette.success,
     textAlign: 'center',
+  },
+  dayPicker: {
+    marginBottom: 12,
+  },
+  dayPickerLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: palette.textSecondary,
+    marginBottom: 8,
+  },
+  dayChipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  dayChip: {
+    borderRadius: 999,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: palette.border,
+    backgroundColor: palette.surface,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  dayChipOn: {
+    backgroundColor: palette.accentMuted,
+    borderColor: palette.accent,
+  },
+  dayChipDisabled: {
+    opacity: 0.45,
+  },
+  dayChipText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: palette.textSecondary,
+  },
+  dayChipTextOn: {
+    color: palette.accent,
+  },
+  dayChipTextDisabled: {
+    color: palette.textSecondary,
+  },
+  dayPickerHint: {
+    marginTop: 8,
+    fontSize: 12,
+    lineHeight: 17,
+    color: palette.warning,
   },
 });

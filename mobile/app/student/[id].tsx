@@ -51,7 +51,11 @@ type Detail = {
 };
 
 export default function StudentDetailScreen() {
-  const { id, mode } = useLocalSearchParams<{ id: string; mode?: string }>();
+  const { id, mode, campDate } = useLocalSearchParams<{
+    id: string;
+    mode?: string;
+    campDate?: string;
+  }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { token, seasonId } = useAuth();
@@ -69,8 +73,12 @@ export default function StudentDetailScreen() {
     if (!token || !seasonId || !id) return;
     setLoading(true);
     try {
+      const campDateQuery =
+        typeof campDate === 'string' && campDate
+          ? `?campDate=${encodeURIComponent(campDate)}`
+          : '';
       const res = await apiFetch<Detail>(
-        `/api/mobile/v1/seasons/${seasonId}/registrations/${id}`,
+        `/api/mobile/v1/seasons/${seasonId}/registrations/${id}${campDateQuery}`,
         { token },
       );
       setData(res);
@@ -79,7 +87,7 @@ export default function StudentDetailScreen() {
     } finally {
       setLoading(false);
     }
-  }, [token, seasonId, id]);
+  }, [token, seasonId, id, campDate]);
 
   useEffect(() => {
     void load();
@@ -87,15 +95,20 @@ export default function StudentDetailScreen() {
 
   useEffect(() => {
     if (!token || !seasonId) return;
-    void fetchCheckInDeskSettings(token, seasonId)
+    const campDateValue = typeof campDate === 'string' ? campDate : null;
+    void fetchCheckInDeskSettings(token, seasonId, campDateValue)
       .then(setDeskSettings)
       .catch(() => {
         setDeskSettings({
           badgePrintingEnabled: false,
           autoPrintOnCheckIn: false,
+          multiDayCheckInEnabled: false,
+          campDates: [],
+          todayCampDate: null,
+          selectedCampDate: null,
         });
       });
-  }, [token, seasonId]);
+  }, [token, seasonId, campDate]);
 
   async function runPrintBadge() {
     if (!token || !seasonId || !id) return;
@@ -118,7 +131,10 @@ export default function StudentDetailScreen() {
         {
           method: 'PATCH',
           token,
-          body: JSON.stringify({ checkedIn }),
+          body: JSON.stringify({
+            checkedIn,
+            campDate: typeof campDate === 'string' ? campDate : undefined,
+          }),
         },
       );
       await load();
@@ -189,6 +205,10 @@ export default function StudentDetailScreen() {
     );
   }
 
+  const campDateValue = typeof campDate === 'string' ? campDate : null;
+  const selectedCampDay = deskSettings.campDates.find((d) => d.key === campDateValue);
+  const campDateLocked = Boolean(selectedCampDay?.isPast);
+
   const fullName = `${data.student.firstName} ${data.student.lastName}`;
   const primaryLabel = dismissal
     ? data.registration.checkedIn
@@ -258,7 +278,11 @@ export default function StudentDetailScreen() {
                 onPress={() =>
                   router.replace({
                     pathname: '/student/[id]',
-                    params: { id: s.registrationId, mode },
+                    params: {
+                      id: s.registrationId,
+                      mode,
+                      campDate: campDateValue ?? '',
+                    },
                   })
                 }
               >
@@ -296,6 +320,7 @@ export default function StudentDetailScreen() {
           label={primaryLabel}
           loading={acting}
           disabled={
+            campDateLocked ||
             (!dismissal && data.registration.checkedIn) ||
             primaryLabel === 'Already checked in' ||
             (dismissal && !data.registration.checkedIn)

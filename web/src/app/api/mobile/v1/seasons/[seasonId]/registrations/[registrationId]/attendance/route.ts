@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { resolveBadgePrintSettings } from "@/lib/badge-print";
+import { setRegistrationAttendance } from "@/lib/attendance";
 import {
   loadSeasonOr404,
   requireMobileAuth,
@@ -19,9 +20,9 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
   const denied = requireCheckInRole(auth);
   if (denied) return denied;
 
-  let body: { checkedIn?: boolean };
+  let body: { checkedIn?: boolean; campDate?: string };
   try {
-    body = (await req.json()) as { checkedIn?: boolean };
+    body = (await req.json()) as { checkedIn?: boolean; campDate?: string };
   } catch {
     return jsonError(400, "Invalid JSON");
   }
@@ -33,65 +34,64 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
   const season = await loadSeasonOr404(seasonId);
   if (!season) return jsonError(404, "Season not found");
 
-  const existing = await prisma.registration.findFirst({
-    where: { id: registrationId, seasonId, status: { not: "CANCELLED" } },
-    select: { id: true, checkedInAt: true },
-  });
-  if (!existing) return jsonError(404, "Registration not found");
-
   const badgeSettings = await prisma.badgePrintSettings.findUnique({
     where: { seasonId },
   });
   const resolvedBadge = resolveBadgePrintSettings(badgeSettings);
 
+  const result = await setRegistrationAttendance({
+    registrationId,
+    seasonId,
+    checkedIn: body.checkedIn,
+    campDateKey: body.campDate,
+    actorUserId: auth.userId,
+  });
+
+  if (!result.ok) {
+    return jsonError(400, result.message);
+  }
+
   if (body.checkedIn) {
-    if (existing.checkedInAt) {
+    if (result.alreadyCheckedIn) {
       return NextResponse.json({
         ok: true,
         alreadyCheckedIn: true,
-        checkedInAt: existing.checkedInAt.toISOString(),
+        checkedInAt: result.checkedInAt,
         shouldPrintBadge: false,
       });
     }
-    const updated = await prisma.registration.update({
-      where: { id: registrationId },
-      data: { checkedInAt: new Date() },
-      select: { checkedInAt: true },
-    });
+
     await prisma.staffAccessAuditLog
       .create({
         data: {
           action: "MOBILE_CHECK_IN",
           actorUserId: auth.userId,
-          metadata: { registrationId, seasonId },
+          metadata: { registrationId, seasonId, campDate: body.campDate ?? null },
         },
       })
       .catch(() => {});
+
     return NextResponse.json({
       ok: true,
-      checkedInAt: updated.checkedInAt?.toISOString() ?? null,
-      shouldPrintBadge:
-        resolvedBadge.enabled && resolvedBadge.autoPrintOnCheckIn,
+      checkedInAt: result.checkedInAt,
+      shouldPrintBadge: resolvedBadge.enabled && resolvedBadge.autoPrintOnCheckIn,
     });
   }
 
-  if (!existing.checkedInAt) {
+  if (result.alreadyCheckedOut) {
     return NextResponse.json({
       ok: true,
       alreadyCheckedOut: true,
       shouldPrintBadge: false,
     });
   }
-  await prisma.registration.update({
-    where: { id: registrationId },
-    data: { checkedInAt: null },
-  });
+
   await prisma.staffAccessAuditLog
     .create({
       data: {
         action: "MOBILE_CHECK_OUT",
         actorUserId: auth.userId,
-        metadata: { registrationId, seasonId },
+        metadata: { registrationId, seasonId, campDate: body.campDate ?? null },
       },
     })
     .catch(() => {});

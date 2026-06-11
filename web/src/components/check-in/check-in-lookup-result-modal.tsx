@@ -9,6 +9,7 @@ type Props = {
   matches: CheckInLookupMatch[];
   pendingId: string | null;
   badgePrintingEnabled: boolean;
+  checkInDisabled?: boolean;
   onClose: () => void;
   onCheckIn: (match: CheckInLookupMatch) => void;
   onSelectMatch?: (match: CheckInLookupMatch) => void;
@@ -79,6 +80,7 @@ export function CheckInLookupResultModal({
   matches,
   pendingId,
   badgePrintingEnabled,
+  checkInDisabled = false,
   onClose,
   onCheckIn,
   onSelectMatch,
@@ -165,7 +167,7 @@ export function CheckInLookupResultModal({
             </button>
             <button
               type="button"
-              disabled={isPending}
+              disabled={isPending || checkInDisabled}
               onClick={() => onCheckIn(activeMatch)}
               className={
                 activeMatch.checkedIn

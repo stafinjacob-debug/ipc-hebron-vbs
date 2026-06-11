@@ -31,6 +31,7 @@ type Props = {
   pendingId: string | null;
   printingId: string | null;
   badgePrintingEnabled: boolean;
+  checkInDisabled?: boolean;
   onClose: () => void;
   onSelect: (match: CheckInLookupMatch) => void;
   onCheckIn: (match: CheckInLookupMatch) => void;
@@ -53,6 +54,7 @@ export function CheckInLookupModal({
   pendingId,
   printingId,
   badgePrintingEnabled,
+  checkInDisabled = false,
   onClose,
   onSelect,
   onCheckIn,
@@ -161,6 +163,7 @@ export function CheckInLookupModal({
                       ? 'Undo check-in'
                       : 'Check in'
                 }
+                disabled={checkInDisabled}
                 loading={pendingId === active.id}
                 onPress={() => onCheckIn(active)}
               />

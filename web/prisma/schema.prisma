@@ -249,6 +249,8 @@ model VbsSeason {
   isActive  Boolean   @default(true)
   /// When false, the public /register form hides this season.
   publicRegistrationOpen Boolean @default(true)
+  /// When true, check-in tracks attendance per camp day instead of a single checkedInAt flag.
+  multiDayCheckInEnabled Boolean @default(false)
   createdAt DateTime  @default(now())
   updatedAt DateTime @updatedAt
 
@@ -609,11 +611,32 @@ model Registration {
 
   classAssignmentAudits ClassAssignmentAuditLog[]
   waiverAgreement WaiverAgreement?
+  attendanceDays RegistrationAttendanceDay[]
 
   @@unique([childId, seasonId])
   @@index([seasonId])
   @@index([formSubmissionId])
   @@index([classroomId])
+}
+
+/// Per-day check-in record when multi-day check-in is enabled for a season.
+model RegistrationAttendanceDay {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  registrationId String
+  registration   Registration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+
+  /// Calendar camp date (UTC midnight, YYYY-MM-DD).
+  campDate DateTime
+
+  checkedInAt  DateTime?
+  checkedOutAt DateTime?
+
+  @@unique([registrationId, campDate])
+  @@index([campDate])
+  @@index([registrationId])
 }
 
 model ClassAssignmentAuditLog {

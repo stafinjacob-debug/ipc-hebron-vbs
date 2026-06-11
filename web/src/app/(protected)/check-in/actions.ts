@@ -5,6 +5,11 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { resolveBadgePrintSettings } from "@/lib/badge-print";
 import {
+  loadSeasonAttendanceContext,
+  resolveCheckedInMap,
+  setRegistrationAttendance,
+} from "@/lib/attendance";
+import {
   findCheckInRegistrationsForInput,
   mapRegistrationToCheckInLookupMatch,
   parseCheckInLookupInput,
@@ -19,13 +24,17 @@ export type LookupRegistrationForCheckInResult =
 export async function lookupRegistrationForCheckIn(
   seasonId: string,
   rawInput: string,
+  campDateKey?: string | null,
 ): Promise<LookupRegistrationForCheckInResult> {
   const session = await auth();
   if (!session?.user?.role || !canUseCheckInActions(session.user.role)) {
     return { ok: false, message: "You do not have permission to look up registrations." };
   }
 
-  const season = await prisma.vbsSeason.findUnique({ where: { id: seasonId }, select: { id: true, name: true } });
+  const season = await prisma.vbsSeason.findUnique({
+    where: { id: seasonId },
+    select: { id: true, name: true, multiDayCheckInEnabled: true, startDate: true, endDate: true },
+  });
   if (!season) return { ok: false, message: "Season not found." };
 
   const parsed = parseCheckInLookupInput(rawInput);
@@ -42,7 +51,20 @@ export async function lookupRegistrationForCheckIn(
     };
   }
 
-  return { ok: true, matches: rows.map(mapRegistrationToCheckInLookupMatch) };
+  const context = await loadSeasonAttendanceContext(seasonId, campDateKey);
+  const campDate = context?.defaultCampDate ?? campDateKey ?? "";
+  const checkedInMap = await resolveCheckedInMap(
+    rows.map((r) => r.id),
+    campDate,
+    season.multiDayCheckInEnabled,
+  );
+
+  return {
+    ok: true,
+    matches: rows.map((r) =>
+      mapRegistrationToCheckInLookupMatch(r, checkedInMap.get(r.id) ?? false),
+    ),
+  };
 }
 
 export type ToggleCheckInResult = {
@@ -54,6 +76,7 @@ export type ToggleCheckInResult = {
 export async function toggleCheckIn(
   registrationId: string,
   nextChecked: boolean,
+  campDateKey?: string | null,
 ): Promise<ToggleCheckInResult> {
   const session = await auth();
   if (!session?.user?.role || !canUseCheckInActions(session.user.role)) {
@@ -77,10 +100,17 @@ export async function toggleCheckIn(
   });
   const resolved = resolveBadgePrintSettings(badgeSettings);
 
-  await prisma.registration.update({
-    where: { id: registrationId },
-    data: { checkedInAt: nextChecked ? new Date() : null },
+  const result = await setRegistrationAttendance({
+    registrationId,
+    seasonId: reg.seasonId,
+    checkedIn: nextChecked,
+    campDateKey,
+    actorUserId: session.user.id,
   });
+
+  if (!result.ok) {
+    return { ok: false, message: result.message };
+  }
 
   revalidatePath("/check-in");
   revalidatePath("/dashboard");
