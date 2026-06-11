@@ -1,4 +1,4 @@
-import type { BadgePrintPayload } from "@/lib/badge-print";
+import type { BadgeLabelSize, BadgePrintPayload } from "@/lib/badge-print";
 import { badgeLabelPageCss } from "@/lib/badge-print";
 import {
   BADGE_PRINT_FONT_FAMILY,
@@ -6,6 +6,17 @@ import {
   badgePrintFontFiles,
   badgePrintFontStatus,
 } from "@/lib/badge-print-fonts";
+
+/** Match thermal printer resolution (Brother QL series). */
+const BADGE_RENDER_DPI = 300;
+
+type LabelCanvas = {
+  w: number;
+  h: number;
+  widthIn: number;
+  heightIn: number;
+  horizontal: boolean;
+};
 
 function escapeXml(text: string): string {
   return text
@@ -15,18 +26,42 @@ function escapeXml(text: string): string {
     .replace(/"/g, "&quot;");
 }
 
-function labelPixels(labelSize: BadgePrintPayload["settings"]["labelSize"]): {
-  width: number;
-  height: number;
-} {
+function labelBaseInches(labelSize: BadgeLabelSize): { widthIn: number; heightIn: number } {
   switch (labelSize) {
     case "LABEL_4X6":
-      return { width: 812, height: 1218 };
+      return { widthIn: 4, heightIn: 6 };
     case "LABEL_62MM":
-      return { width: 496, height: 799 };
+      return { widthIn: 62 / 25.4, heightIn: 100 / 25.4 };
     default:
-      return { width: 406, height: 609 };
+      return { widthIn: 2, heightIn: 3 };
   }
+}
+
+function labelCanvas(
+  labelSize: BadgeLabelSize,
+  orientation: BadgePrintPayload["settings"]["orientation"],
+): LabelCanvas {
+  const base = labelBaseInches(labelSize);
+  const horizontal = orientation === "HORIZONTAL";
+  const widthIn = horizontal ? base.heightIn : base.widthIn;
+  const heightIn = horizontal ? base.widthIn : base.heightIn;
+  return {
+    w: Math.round(widthIn * BADGE_RENDER_DPI),
+    h: Math.round(heightIn * BADGE_RENDER_DPI),
+    widthIn,
+    heightIn,
+    horizontal,
+  };
+}
+
+/** Convert CSS pt sizes used in badge-print-document.ts to PNG pixels. */
+function ptToPx(pt: number, canvas: LabelCanvas): number {
+  return Math.round((pt * canvas.h) / (72 * canvas.heightIn));
+}
+
+/** Convert CSS inch sizes used in badge-print-document.ts to PNG pixels. */
+function inchToPx(inches: number, canvas: LabelCanvas): number {
+  return Math.round((inches * canvas.h) / canvas.heightIn);
 }
 
 function wrapLines(text: string, maxChars: number, maxLines: number): string[] {
@@ -47,72 +82,124 @@ function wrapLines(text: string, maxChars: number, maxLines: number): string[] {
   return lines.slice(0, maxLines);
 }
 
-function renderStandardVertical(payload: BadgePrintPayload, w: number, h: number): string {
+function renderStandardVertical(payload: BadgePrintPayload, canvas: LabelCanvas): string {
+  const { w, h, horizontal } = canvas;
+  const pad = inchToPx(0.1, canvas);
+  const qrSize = inchToPx(horizontal ? 0.78 : 0.95, canvas);
+  let y = pad + ptToPx(horizontal ? 13 : 18, canvas);
+
   const lines = payload.lines
-    .map((line, i) => {
-      const y = 48 + i * 28;
+    .map((line) => {
       const size =
-        line.kind === "name" ? 28 : line.kind === "season" ? 11 : line.kind === "number" ? 14 : 12;
+        line.kind === "name"
+          ? ptToPx(horizontal ? 13 : 18, canvas)
+          : line.kind === "season"
+            ? ptToPx(horizontal ? 7 : 9, canvas)
+            : line.kind === "number"
+              ? ptToPx(horizontal ? 9 : 11, canvas)
+              : line.kind === "allergy"
+                ? ptToPx(horizontal ? 7 : 9, canvas)
+                : ptToPx(horizontal ? 8.5 : 10, canvas);
       const weight = line.kind === "name" || line.kind === "number" ? 700 : 600;
       const fill = line.kind === "allergy" ? "#b45309" : "#0f172a";
-      return `<text x="${w / 2}" y="${y}" text-anchor="middle" font-family="${BADGE_PRINT_FONT_FAMILY}" font-size="${size}" font-weight="${weight}" fill="${fill}">${escapeXml(line.text)}</text>`;
+      const lineY = y + size;
+      y += size + inchToPx(0.03, canvas);
+      return `<text x="${w / 2}" y="${lineY}" text-anchor="middle" font-family="${BADGE_PRINT_FONT_FAMILY}" font-size="${size}" font-weight="${weight}" fill="${fill}">${escapeXml(line.text)}</text>`;
     })
     .join("\n");
 
   const qr =
     payload.qrDataUrl && payload.settings.showQrCode
-      ? `<image href="${payload.qrDataUrl}" x="${w / 2 - 48}" y="${h - 120}" width="96" height="96" />`
+      ? `<image href="${payload.qrDataUrl}" x="${w / 2 - qrSize / 2}" y="${h - pad - qrSize}" width="${qrSize}" height="${qrSize}" />`
       : "";
 
   return `${lines}${qr}`;
 }
 
-function renderKidCheck(payload: BadgePrintPayload, w: number, h: number): string {
+function renderKidCheck(payload: BadgePrintPayload, canvas: LabelCanvas): string {
+  const { w, h } = canvas;
   const s = payload.structured;
   const name = escapeXml(`${s.firstName} ${s.lastName}`.trim() || payload.childName);
-  const code = s.securityCode
-    ? `<rect x="${w - 110}" y="16" width="94" height="34" fill="#0f172a" rx="2"/>
-       <text x="${w - 63}" y="38" text-anchor="middle" font-family="${BADGE_PRINT_FONT_FAMILY}" font-size="11" font-weight="800" fill="#ffffff">${escapeXml(s.securityCode)}</text>`
+
+  const pad = inchToPx(0.1, canvas);
+  const nameSize = ptToPx(13, canvas);
+  const codeSize = ptToPx(8, canvas);
+  const classSize = ptToPx(11, canvas);
+  const lineSize = ptToPx(7.5, canvas);
+  const seasonSize = ptToPx(7, canvas);
+  const timestampSize = ptToPx(6, canvas);
+  const lineGap = inchToPx(0.025, canvas);
+  const wrapGap = inchToPx(0.016, canvas);
+  const stroke = Math.max(2, Math.round(inchToPx(0.015, canvas)));
+
+  const nameY = pad + nameSize;
+  const dividerY = nameY + inchToPx(0.05, canvas);
+
+  const codePadX = inchToPx(0.05, canvas);
+  const codePadY = inchToPx(0.02, canvas);
+  const codeText = s.securityCode ? escapeXml(s.securityCode) : "";
+  const codeBoxW = Math.max(inchToPx(0.75, canvas), codeText.length * codeSize * 0.62 + codePadX * 2);
+  const codeBoxH = codeSize + codePadY * 2;
+  const codeBoxX = w - pad - codeBoxW;
+  const code = codeText
+    ? `<rect x="${codeBoxX}" y="${pad}" width="${codeBoxW}" height="${codeBoxH}" fill="#0f172a" rx="2"/>
+       <text x="${codeBoxX + codeBoxW / 2}" y="${pad + codePadY + codeSize * 0.82}" text-anchor="middle" font-family="${BADGE_PRINT_FONT_FAMILY}" font-size="${codeSize}" font-weight="800" fill="#ffffff">${codeText}</text>`
     : "";
 
-  const bodyLines: string[] = [];
-  if (s.seasonLine) bodyLines.push(escapeXml(s.seasonLine));
-  if (s.classLine) bodyLines.push(escapeXml(s.classLine));
-  else if (s.serviceLine) bodyLines.push(escapeXml(s.serviceLine));
-  if (s.guardianLine) bodyLines.push(`Guardian: ${escapeXml(s.guardianLine)}`);
-  if (s.guardianPhone) bodyLines.push(`Emergency contact: ${escapeXml(s.guardianPhone)}`);
-  if (s.birthdate) bodyLines.push(`Birthdate: ${escapeXml(s.birthdate)}`);
-  if (s.medicalLine) bodyLines.push(`Medical / allergy info: ${escapeXml(s.medicalLine)}`);
-  if (s.notesLine) bodyLines.push(`Note: ${escapeXml(s.notesLine)}`);
+  type BodyLine = { text: string; kind: "season" | "class" | "detail" };
+  const bodyLines: BodyLine[] = [];
+  if (s.seasonLine) bodyLines.push({ text: escapeXml(s.seasonLine), kind: "season" });
+  if (s.classLine) bodyLines.push({ text: escapeXml(s.classLine), kind: "class" });
+  else if (s.serviceLine) bodyLines.push({ text: escapeXml(s.serviceLine), kind: "class" });
+  if (s.guardianLine) {
+    bodyLines.push({ text: `Guardian: ${escapeXml(s.guardianLine)}`, kind: "detail" });
+  }
+  if (s.guardianPhone) {
+    bodyLines.push({ text: `Emergency contact: ${escapeXml(s.guardianPhone)}`, kind: "detail" });
+  }
+  if (s.birthdate) bodyLines.push({ text: `Birthdate: ${escapeXml(s.birthdate)}`, kind: "detail" });
+  if (s.medicalLine) {
+    bodyLines.push({ text: `Medical / allergy info: ${escapeXml(s.medicalLine)}`, kind: "detail" });
+  }
+  if (s.notesLine) bodyLines.push({ text: `Note: ${escapeXml(s.notesLine)}`, kind: "detail" });
 
-  const body = bodyLines
-    .map((line, i) => {
-      const wrapped = wrapLines(line, 52, 2);
-      return wrapped
-        .map(
-          (part, j) =>
-            `<text x="16" y="${88 + i * 22 + j * 16}" font-family="${BADGE_PRINT_FONT_FAMILY}" font-size="11" font-weight="600" fill="#1e293b">${part}</text>`,
-        )
-        .join("\n");
-    })
-    .join("\n");
+  let bodyY = dividerY + inchToPx(0.06, canvas);
+  const bodyParts: string[] = [];
+  for (const line of bodyLines) {
+    const size =
+      line.kind === "season" ? seasonSize : line.kind === "class" ? classSize : lineSize;
+    const weight = line.kind === "class" ? 800 : 600;
+    const fill = line.kind === "season" ? "#64748b" : "#1e293b";
+    const wrapped = wrapLines(line.text, Math.max(24, Math.floor((w - pad * 2) / (size * 0.55))), 2);
+    for (let j = 0; j < wrapped.length; j++) {
+      bodyY += size + (j === 0 ? 0 : wrapGap);
+      bodyParts.push(
+        `<text x="${pad}" y="${bodyY}" font-family="${BADGE_PRINT_FONT_FAMILY}" font-size="${size}" font-weight="${weight}" fill="${fill}">${wrapped[j]}</text>`,
+      );
+    }
+    bodyY += lineGap;
+  }
+
+  const qrSize = inchToPx(0.55, canvas);
+  const footerBlock = qrSize + (s.printedAt ? timestampSize + inchToPx(0.02, canvas) : 0);
+  const footerTop = h - pad - footerBlock;
+
+  const timestamp = s.printedAt
+    ? `<text x="${w / 2}" y="${footerTop + timestampSize * 0.85}" text-anchor="middle" font-family="${BADGE_PRINT_FONT_FAMILY}" font-size="${timestampSize}" fill="#64748b">${escapeXml(s.printedAt)}</text>`
+    : "";
 
   const footerQr =
     payload.qrDataUrl && payload.settings.showQrCode
-      ? `<image href="${payload.qrDataUrl}" x="${w / 2 - 28}" y="${h - 72}" width="56" height="56" />`
+      ? `<image href="${payload.qrDataUrl}" x="${w / 2 - qrSize / 2}" y="${footerTop + (s.printedAt ? timestampSize + inchToPx(0.02, canvas) : 0)}" width="${qrSize}" height="${qrSize}" />`
       : payload.barcodeDataUrl
-        ? `<image href="${payload.barcodeDataUrl}" x="16" y="${h - 56}" width="${w - 32}" height="28" preserveAspectRatio="xMidYMid meet" />`
+        ? `<image href="${payload.barcodeDataUrl}" x="${pad}" y="${footerTop}" width="${w - pad * 2}" height="${inchToPx(0.22, canvas)}" preserveAspectRatio="xMidYMid meet" />`
         : "";
 
-  const timestamp = s.printedAt
-    ? `<text x="${w / 2}" y="${h - 82}" text-anchor="middle" font-family="${BADGE_PRINT_FONT_FAMILY}" font-size="9" fill="#64748b">${escapeXml(s.printedAt)}</text>`
-    : "";
-
   return `
-    <text x="16" y="42" font-family="${BADGE_PRINT_FONT_FAMILY}" font-size="22" font-weight="800" fill="#0f172a">${name}</text>
+    <text x="${pad}" y="${nameY}" font-family="${BADGE_PRINT_FONT_FAMILY}" font-size="${nameSize}" font-weight="800" fill="#0f172a">${name}</text>
     ${code}
-    <line x1="16" y1="58" x2="${w - 16}" y2="58" stroke="#0f172a" stroke-width="2" />
-    ${body}
+    <line x1="${pad}" y1="${dividerY}" x2="${w - pad}" y2="${dividerY}" stroke="#0f172a" stroke-width="${stroke}" />
+    ${bodyParts.join("\n")}
     ${timestamp}
     ${footerQr}
   `;
@@ -120,17 +207,16 @@ function renderKidCheck(payload: BadgePrintPayload, w: number, h: number): strin
 
 export function buildBadgePrintSvg(payload: BadgePrintPayload): string {
   const dims = badgeLabelPageCss(payload.settings.labelSize, payload.settings.orientation);
-  const px = labelPixels(payload.settings.labelSize);
-  const w = dims.isHorizontal ? px.height : px.width;
-  const h = dims.isHorizontal ? px.width : px.height;
+  const canvas = labelCanvas(payload.settings.labelSize, payload.settings.orientation);
+  const { w, h } = canvas;
 
   const layout = payload.settings.horizontalLayout;
   const inner =
     dims.isHorizontal && layout === "KIDCHECK"
-      ? renderKidCheck(payload, w, h)
+      ? renderKidCheck(payload, canvas)
       : dims.isHorizontal && layout === "NAME_CODE_HEADER"
-        ? renderKidCheck(payload, w, h)
-        : renderStandardVertical(payload, w, h);
+        ? renderKidCheck(payload, canvas)
+        : renderStandardVertical(payload, canvas);
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
@@ -149,6 +235,7 @@ export async function renderBadgePngBuffer(payload: BadgePrintPayload): Promise<
   const { Resvg } = await import("@resvg/resvg-js");
   const svg = buildBadgePrintSvg(payload);
   const resvg = new Resvg(svg, {
+    dpi: BADGE_RENDER_DPI,
     font: {
       fontDirs: [badgePrintFontDir()],
       fontFiles: badgePrintFontFiles(),
