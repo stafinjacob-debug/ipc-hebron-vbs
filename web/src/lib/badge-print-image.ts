@@ -312,20 +312,20 @@ function kidCheckBodyLines(payload: BadgePrintPayload): KidCheckBodyLine[] {
           },
         ]
       : [],
-    formFields: s.answerLines
-      .map((line) => {
-        const label = line.label?.trim();
-        const text = label ? `${label}: ${line.text}` : line.text;
-        if (!text.trim()) return null;
-        return {
+    formFields: s.answerLines.flatMap((line) => {
+      const label = line.label?.trim();
+      const text = label ? `${label}: ${line.text}` : line.text;
+      if (!text.trim()) return [];
+      return [
+        {
           text: escapeXml(text),
           kind: "detail" as const,
           fontPt:
             line.fontPt ??
             (line.fieldKey ? detailPt(line.fieldKey) : settings.typography.detailPt),
-        };
-      })
-      .filter((line): line is KidCheckBodyLine => line !== null),
+        },
+      ];
+    }),
   };
 
   const order = settings.typography.detailFieldOrder;
