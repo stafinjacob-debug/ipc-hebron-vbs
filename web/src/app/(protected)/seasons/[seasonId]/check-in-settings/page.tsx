@@ -34,6 +34,7 @@ export default async function CheckInSettingsPage({ params }: Props) {
         seasonId={season.id}
         seasonName={season.name}
         multiDayCheckInEnabled={season.multiDayCheckInEnabled}
+        dismissalTrackingEnabled={season.dismissalTrackingEnabled}
       />
     </div>
   );

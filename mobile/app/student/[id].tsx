@@ -66,8 +66,14 @@ export default function StudentDetailScreen() {
   const [deskSettings, setDeskSettings] = useState<CheckInDeskSettings>({
     badgePrintingEnabled: false,
     autoPrintOnCheckIn: false,
+    multiDayCheckInEnabled: false,
+    dismissalTrackingEnabled: false,
+    campDates: [],
+    todayCampDate: null,
+    selectedCampDate: null,
   });
-  const dismissal = mode === 'dismissal';
+  const dismissal =
+    deskSettings.dismissalTrackingEnabled && mode === 'dismissal';
 
   const load = useCallback(async () => {
     if (!token || !seasonId || !id) return;
@@ -191,7 +197,22 @@ export default function StudentDetailScreen() {
       return;
     }
     if (data.registration.checkedIn) {
-      Alert.alert('Already checked in', 'Use Dismissal tab to check out.');
+      if (deskSettings.dismissalTrackingEnabled) {
+        Alert.alert('Already checked in', 'Use Dismissal tab to check out.');
+        return;
+      }
+      Alert.alert(
+        'Undo check-in',
+        `Remove ${data.student.firstName}'s check-in for today?`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Undo check-in',
+            style: 'destructive',
+            onPress: () => void patchAttendance(false),
+          },
+        ],
+      );
       return;
     }
     void patchAttendance(true);
@@ -215,7 +236,7 @@ export default function StudentDetailScreen() {
       ? 'Check out'
       : 'Not checked in yet'
     : data.registration.checkedIn
-      ? 'Already checked in'
+      ? 'Undo check-in'
       : 'Check in';
 
   return (
@@ -321,8 +342,10 @@ export default function StudentDetailScreen() {
           loading={acting}
           disabled={
             campDateLocked ||
-            (!dismissal && data.registration.checkedIn) ||
-            primaryLabel === 'Already checked in' ||
+            (deskSettings.dismissalTrackingEnabled &&
+              !dismissal &&
+              data.registration.checkedIn) ||
+            primaryLabel === 'Not checked in yet' ||
             (dismissal && !data.registration.checkedIn)
           }
           onPress={onPrimaryPress}

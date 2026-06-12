@@ -258,6 +258,8 @@ model VbsSeason {
   publicRegistrationOpen Boolean @default(true)
   /// When true, check-in tracks attendance per camp day instead of a single checkedInAt flag.
   multiDayCheckInEnabled Boolean @default(false)
+  /// When true, the check-in app shows separate Arrivals and Dismissal modes for checkout at pickup.
+  dismissalTrackingEnabled Boolean @default(false)
   /// When set, public signup is at /register/{slug} instead of the legacy /register hub.
   publicRegistrationSlug String? @unique
   /// Drives admin defaults and form templates; does not affect routing.

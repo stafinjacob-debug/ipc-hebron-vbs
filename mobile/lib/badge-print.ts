@@ -20,6 +20,7 @@ export type CheckInDeskSettings = {
   badgePrintingEnabled: boolean;
   autoPrintOnCheckIn: boolean;
   multiDayCheckInEnabled: boolean;
+  dismissalTrackingEnabled: boolean;
   campDates: CampDateOption[];
   todayCampDate: string | null;
   selectedCampDate: string | null;

@@ -8,11 +8,17 @@ type Props = {
   seasonId: string;
   seasonName: string;
   multiDayCheckInEnabled: boolean;
+  dismissalTrackingEnabled: boolean;
 };
 
 const initial: SaveCheckInSettingsState | null = null;
 
-export function CheckInSettingsForm({ seasonId, seasonName, multiDayCheckInEnabled }: Props) {
+export function CheckInSettingsForm({
+  seasonId,
+  seasonName,
+  multiDayCheckInEnabled,
+  dismissalTrackingEnabled,
+}: Props) {
   const [state, action, pending] = useActionState(saveCheckInSettings.bind(null, seasonId), initial);
 
   return (
@@ -35,6 +41,23 @@ export function CheckInSettingsForm({ seasonId, seasonName, multiDayCheckInEnabl
             <span className="mt-0.5 block text-xs text-muted">
               Track attendance separately for each camp day. Staff choose the active day at the check-in desk.
               Past days cannot be changed from the mobile app.
+            </span>
+          </span>
+        </label>
+
+        <label className="mt-3 flex cursor-pointer gap-3 rounded-lg border border-foreground/10 px-3 py-3 hover:bg-foreground/[0.02]">
+          <input
+            type="checkbox"
+            name="dismissalTrackingEnabled"
+            defaultChecked={dismissalTrackingEnabled}
+            className="mt-0.5"
+          />
+          <span>
+            <span className="block text-sm font-medium text-foreground">Arrivals &amp; dismissal modes</span>
+            <span className="mt-0.5 block text-xs text-muted">
+              Show separate <strong className="font-medium text-foreground/80">Arrivals</strong> and{" "}
+              <strong className="font-medium text-foreground/80">Dismissal</strong> tabs on the iPad check-in app.
+              When off, volunteers only check students in (undo is still available from the lookup flow).
             </span>
           </span>
         </label>

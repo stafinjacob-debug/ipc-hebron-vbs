@@ -29,6 +29,7 @@ export async function saveCheckInSettings(
     where: { id: seasonId },
     data: {
       multiDayCheckInEnabled: formData.get("multiDayCheckInEnabled") === "on",
+      dismissalTrackingEnabled: formData.get("dismissalTrackingEnabled") === "on",
     },
   });
 

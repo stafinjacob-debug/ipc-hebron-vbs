@@ -64,6 +64,7 @@ export default function CheckInScreen() {
     badgePrintingEnabled: false,
     autoPrintOnCheckIn: false,
     multiDayCheckInEnabled: false,
+    dismissalTrackingEnabled: false,
     campDates: [],
     todayCampDate: null,
     selectedCampDate: null,
@@ -102,12 +103,19 @@ export default function CheckInScreen() {
           badgePrintingEnabled: false,
           autoPrintOnCheckIn: false,
           multiDayCheckInEnabled: false,
+          dismissalTrackingEnabled: false,
           campDates: [],
           todayCampDate: null,
           selectedCampDate: null,
         });
       });
   }, [token, seasonId, campDate]);
+
+  useEffect(() => {
+    if (!deskSettings.dismissalTrackingEnabled && mode === 'dismissal') {
+      setMode('arrivals');
+    }
+  }, [deskSettings.dismissalTrackingEnabled, mode]);
 
   const selectedCampDay = deskSettings.campDates.find((d) => d.key === campDate);
   const campDateLocked = Boolean(selectedCampDay?.isPast);
@@ -247,11 +255,13 @@ export default function CheckInScreen() {
 
   async function openStudent(row: SearchRow) {
     await pushRecentRegistrationId(row.registrationId);
+    const useDismissal =
+      deskSettings.dismissalTrackingEnabled && mode === 'dismissal';
     router.push({
       pathname: '/student/[id]',
       params: {
         id: row.registrationId,
-        mode: mode === 'dismissal' ? 'dismissal' : 'arrivals',
+        mode: useDismissal ? 'dismissal' : 'arrivals',
         campDate: campDate ?? '',
       },
     });
@@ -337,42 +347,44 @@ export default function CheckInScreen() {
 
   const searchPanel = (
     <View style={[styles.panel, styles.searchPanel, isWide && styles.flex1]}>
-      <View style={styles.segment}>
-        <Pressable
-          onPress={() => setMode('arrivals')}
-          style={[styles.segBtn, mode === 'arrivals' && styles.segBtnOn]}
-        >
-          <Text
-            style={[
-              styles.segLabel,
-              mode === 'arrivals' && styles.segLabelOn,
-            ]}
+      {deskSettings.dismissalTrackingEnabled ? (
+        <View style={styles.segment}>
+          <Pressable
+            onPress={() => setMode('arrivals')}
+            style={[styles.segBtn, mode === 'arrivals' && styles.segBtnOn]}
           >
-            Arrivals
-          </Text>
-        </Pressable>
-        <Pressable
-          onPress={() => setMode('dismissal')}
-          style={[styles.segBtn, mode === 'dismissal' && styles.segBtnOn]}
-        >
-          <Text
-            style={[
-              styles.segLabel,
-              mode === 'dismissal' && styles.segLabelOn,
-            ]}
+            <Text
+              style={[
+                styles.segLabel,
+                mode === 'arrivals' && styles.segLabelOn,
+              ]}
+            >
+              Arrivals
+            </Text>
+          </Pressable>
+          <Pressable
+            onPress={() => setMode('dismissal')}
+            style={[styles.segBtn, mode === 'dismissal' && styles.segBtnOn]}
           >
-            Dismissal
-          </Text>
-        </Pressable>
-      </View>
+            <Text
+              style={[
+                styles.segLabel,
+                mode === 'dismissal' && styles.segLabelOn,
+              ]}
+            >
+              Dismissal
+            </Text>
+          </Pressable>
+        </View>
+      ) : null}
 
       <TextInput
         value={q}
         onChangeText={setQ}
         placeholder={
-          mode === 'arrivals'
-            ? 'Search name, parent, code, or phone'
-            : 'Find student to check out'
+          deskSettings.dismissalTrackingEnabled && mode === 'dismissal'
+            ? 'Find student to check out'
+            : 'Search name, parent, code, or phone'
         }
         placeholderTextColor={palette.textSecondary}
         style={styles.search}
