@@ -29,7 +29,11 @@ function lineClass(kind: BadgePrintPayload["lines"][number]["kind"]): string {
 function renderLine(line: BadgePrintPayload["lines"][number]): string {
   const text = escapeHtml(line.text);
   if (line.kind === "formField" && line.label) {
-    return `<div class="${lineClass(line.kind)}"><span class="custom-label">${escapeHtml(line.label)}</span><span class="custom-text">${text}</span></div>`;
+    const textStyle = line.fontPt ? ` style="font-size:${line.fontPt}pt"` : "";
+    return `<div class="${lineClass(line.kind)}"><span class="custom-label">${escapeHtml(line.label)}</span><span class="custom-text"${textStyle}>${text}</span></div>`;
+  }
+  if (line.kind === "formField" && line.fontPt) {
+    return `<div class="${lineClass(line.kind)}" style="font-size:${line.fontPt}pt">${text}</div>`;
   }
   return `<div class="${lineClass(line.kind)}">${text}</div>`;
 }
@@ -138,7 +142,7 @@ function renderKidCheck(payload: BadgePrintPayload): string {
       ${s.birthdate ? `<div class="kidcheck-line"><strong>Birthdate:</strong> ${escapeHtml(s.birthdate)}</div>` : ""}
       ${s.medicalLine ? `<div class="kidcheck-line"><strong>Medical / allergy info:</strong> ${escapeHtml(s.medicalLine)}</div>` : ""}
       ${s.notesLine ? `<div class="kidcheck-line"><strong>Note:</strong> ${escapeHtml(s.notesLine)}</div>` : ""}
-      ${s.answerLines.length ? `<div class="kidcheck-line">${s.answerLines.map((l) => `<div><strong>${escapeHtml(l.label ?? "Answer")}:</strong> ${escapeHtml(l.text)}</div>`).join("")}</div>` : ""}
+      ${s.answerLines.length ? `<div class="kidcheck-line">${s.answerLines.map((l) => `<div${l.fontPt ? ` style="font-size:${l.fontPt}pt"` : ""}><strong>${escapeHtml(l.label ?? "Answer")}:</strong> ${escapeHtml(l.text)}</div>`).join("")}</div>` : ""}
       <div class="kidcheck-footer">${footerParts.join("")}</div>
     </div>
     ${logoHtml}

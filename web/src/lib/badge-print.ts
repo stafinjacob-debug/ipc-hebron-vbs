@@ -21,6 +21,8 @@ function registrationTicketUrl(checkInToken: string, baseUrl?: string): string {
 export type BadgeFormFieldSelection = {
   id: string;
   fieldKey: string;
+  /** Font size (pt) for this field on horizontal Brother badges. */
+  fontPt: number;
 };
 
 export type ResolvedBadgePrintSettings = {
@@ -89,10 +91,14 @@ export const DEFAULT_BADGE_PRINT_SETTINGS: ResolvedBadgePrintSettings = {
   typography: { ...DEFAULT_BADGE_TYPOGRAPHY },
 };
 
+export const DEFAULT_BADGE_FORM_FIELD_FONT_PT = 12;
+
 export type BadgePrintLine = {
   kind: "season" | "name" | "number" | "class" | "badgeName" | "checkInLabel" | "allergy" | "formField";
   text: string;
   label?: string;
+  fieldKey?: string;
+  fontPt?: number;
 };
 
 export type BadgePrintStructured = {
@@ -239,9 +245,27 @@ export function parseBadgeFormFieldsJson(raw: unknown): BadgeFormFieldSelection[
       typeof row.id === "string" && row.id.trim()
         ? row.id.trim()
         : `field-${out.length + 1}`;
-    out.push({ id, fieldKey });
+    out.push({
+      id,
+      fieldKey,
+      fontPt: clampTypographyNumber(
+        row.fontPt,
+        6,
+        24,
+        DEFAULT_BADGE_FORM_FIELD_FONT_PT,
+      ),
+    });
   }
   return out.slice(0, 12);
+}
+
+/** Resolve print size for a registration form field on the badge. */
+export function badgeFormFieldFontPt(
+  settings: ResolvedBadgePrintSettings,
+  fieldKey: string,
+): number {
+  const row = settings.formFields.find((f) => f.fieldKey === fieldKey);
+  return row?.fontPt ?? settings.typography.detailPt;
 }
 
 export function parseBadgeFormFieldsForm(raw: string): BadgeFormFieldSelection[] {
@@ -350,8 +374,10 @@ function shouldSkipFormFieldOnBadge(fieldKey: string, settings: ResolvedBadgePri
   return false;
 }
 
-function sampleFormFieldValue(fieldKey: string): string {
-  return SAMPLE_FORM_FIELD_VALUES[fieldKey] ?? "Sample answer";
+function sampleFormFieldValue(fieldKey: string, fieldOptions: ExportFieldOption[]): string {
+  if (SAMPLE_FORM_FIELD_VALUES[fieldKey]) return SAMPLE_FORM_FIELD_VALUES[fieldKey]!;
+  const label = badgeFormFieldLabel(fieldKey, fieldOptions);
+  return label ? `Sample ${label.toLowerCase()}` : "Sample answer";
 }
 
 type BuildBadgeInput = {
@@ -389,6 +415,18 @@ function formatBirthdate(value: Date | string | null | undefined): string | null
 function formFieldsInclude(settings: ResolvedBadgePrintSettings, ...keys: string[]): boolean {
   const wanted = new Set(keys);
   return settings.formFields.some((f) => wanted.has(f.fieldKey));
+}
+
+function shouldShowGuardianNameOnStructuredBadge(settings: ResolvedBadgePrintSettings): boolean {
+  return formFieldsInclude(
+    settings,
+    "guardian:guardianFirstName",
+    "guardian:guardianLastName",
+  );
+}
+
+function shouldShowGuardianPhoneOnStructuredBadge(settings: ResolvedBadgePrintSettings): boolean {
+  return formFieldsInclude(settings, "guardian:guardianPhone");
 }
 
 function shouldShowBirthdateOnStructuredBadge(settings: ResolvedBadgePrintSettings): boolean {
@@ -438,7 +476,7 @@ function buildStructuredData(input: BuildBadgeInput, answerLines: BadgePrintLine
   const guardianFirst = input.guardianFirstName?.trim() ?? "";
   const guardianLast = input.guardianLastName?.trim() ?? "";
   const guardianLine =
-    guardianLast || guardianFirst
+    shouldShowGuardianNameOnStructuredBadge(input.settings) && (guardianLast || guardianFirst)
       ? `${guardianLast}${guardianLast && guardianFirst ? ", " : ""}${guardianFirst}`.trim()
       : null;
 
@@ -474,7 +512,9 @@ function buildStructuredData(input: BuildBadgeInput, answerLines: BadgePrintLine
     classLine,
     locationLine,
     guardianLine,
-    guardianPhone: input.guardianPhone?.trim() || null,
+    guardianPhone: shouldShowGuardianPhoneOnStructuredBadge(input.settings)
+      ? input.guardianPhone?.trim() || null
+      : null,
     birthdate: shouldShowBirthdateOnStructuredBadge(input.settings)
       ? formatBirthdate(input.childDateOfBirth)
       : null,
@@ -518,9 +558,15 @@ export function buildBadgePrintPayload(input: BuildBadgeInput): BadgePrintPayloa
     const label = badgeFormFieldLabel(field.fieldKey, fieldOptions);
     const text = input.registrationRow
       ? resolveRegistrationExportFieldValue(input.registrationRow, input.seasonName, field.fieldKey)
-      : sampleFormFieldValue(field.fieldKey);
+      : sampleFormFieldValue(field.fieldKey, fieldOptions);
     if (!text.trim()) continue;
-    lines.push({ kind: "formField", label, text: text.trim() });
+    lines.push({
+      kind: "formField",
+      label,
+      text: text.trim(),
+      fieldKey: field.fieldKey,
+      fontPt: field.fontPt,
+    });
   }
 
   const base = getPublicAppBaseUrl();
@@ -565,10 +611,11 @@ export function sampleBadgePreviewPayload(
 ): BadgePrintPayload {
   const seasonName = options.seasonName ?? "Summer VBS";
   const seasonYear = options.seasonYear ?? 2026;
-  const structuredLayout = usesStructuredHorizontalLayout(settings);
   const showBirthdate = shouldShowBirthdateOnStructuredBadge(settings);
   const showStaffNotes = shouldShowStaffNotesOnStructuredBadge(settings);
   const showAllergyDetails = shouldShowAllergyDetailsOnStructuredBadge(settings);
+  const showGuardianName = shouldShowGuardianNameOnStructuredBadge(settings);
+  const showGuardianPhone = shouldShowGuardianPhoneOnStructuredBadge(settings);
 
   return buildBadgePrintPayload({
     settings,
@@ -589,9 +636,9 @@ export function sampleBadgePreviewPayload(
     staffNotes: showStaffNotes
       ? "Potty training — please take to bathroom every 30 minutes."
       : null,
-    guardianFirstName: structuredLayout ? "Maria" : null,
-    guardianLastName: structuredLayout ? "Rivera" : null,
-    guardianPhone: structuredLayout ? "(555) 123-4567" : null,
+    guardianFirstName: showGuardianName ? "Maria" : null,
+    guardianLastName: showGuardianName ? "Rivera" : null,
+    guardianPhone: showGuardianPhone ? "(555) 123-4567" : null,
     checkInToken: settings.showQrCode ? "preview-token" : null,
     seasonName,
     seasonYear,

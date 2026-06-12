@@ -1,53 +1,119 @@
-import type { BadgePrintPayload } from "@/lib/badge-print";
+import type { BadgePrintPayload, BadgeTypographySettings } from "@/lib/badge-print";
 import { badgeLabelPageCss } from "@/lib/badge-print";
 
 type Props = {
   payload: BadgePrintPayload;
 };
 
+/** Approximate pt → px for the scaled-down admin preview card. */
+function previewPt(pt: number): string {
+  return `${(pt * 0.72).toFixed(1)}px`;
+}
+
+function typographyStyles(t: BadgeTypographySettings, horizontal: boolean) {
+  if (!horizontal) return null;
+  return {
+    name: { fontSize: previewPt(t.namePt) },
+    class: { fontSize: previewPt(t.classPt) },
+    detail: { fontSize: previewPt(t.detailPt) },
+    season: { fontSize: previewPt(t.seasonPt) },
+    code: { fontSize: previewPt(t.codePt) },
+    timestamp: { fontSize: previewPt(t.timestampPt) },
+    gap: { marginBottom: `${(t.lineGapIn * 72).toFixed(1)}px` },
+  } as const;
+}
+
 function lineTone(kind: BadgePrintPayload["lines"][number]["kind"], horizontal: boolean): string {
   switch (kind) {
     case "season":
-      return "text-[10px] font-semibold uppercase tracking-wide text-slate-500";
+      return "font-semibold uppercase tracking-wide text-slate-500";
     case "name":
       return horizontal
-        ? "text-base font-extrabold leading-tight text-slate-900"
+        ? "font-extrabold leading-tight text-slate-900"
         : "text-lg font-extrabold leading-tight text-slate-900";
     case "number":
-      return "text-xs font-bold tabular-nums tracking-wide text-slate-800";
+      return "font-bold tabular-nums tracking-wide text-slate-800";
     case "allergy":
-      return "text-[10px] font-bold uppercase tracking-wide text-amber-700";
+      return "font-bold uppercase tracking-wide text-amber-700";
     case "formField":
-      return "text-xs font-semibold text-slate-700";
+      return "font-semibold text-slate-700";
     default:
-      return "text-sm font-semibold text-slate-700";
+      return "font-semibold text-slate-700";
   }
 }
 
-function StandardBadgeLines({ payload, horizontal }: { payload: BadgePrintPayload; horizontal: boolean }) {
+function StandardBadgeLines({
+  payload,
+  horizontal,
+  typeStyles,
+}: {
+  payload: BadgePrintPayload;
+  horizontal: boolean;
+  typeStyles: ReturnType<typeof typographyStyles>;
+}) {
   return (
-    <div className={`flex flex-col gap-0.5 ${horizontal ? "items-start text-left" : "items-center text-center"}`}>
-      {payload.lines.map((line) => (
-        <div key={`${line.kind}-${line.label ?? ""}-${line.text}`}>
-          {line.kind === "formField" ? (
-            line.label ? (
-              <div className="flex flex-col">
-                <span className="text-[9px] font-semibold uppercase tracking-wide text-slate-400">{line.label}</span>
-                <span className={lineTone(line.kind, horizontal)}>{line.text}</span>
-              </div>
+    <div className={`flex flex-col ${horizontal ? "items-start text-left" : "items-center text-center"}`}>
+      {payload.lines.map((line, index) => {
+        const style =
+          horizontal && typeStyles
+            ? line.kind === "name"
+              ? typeStyles.name
+              : line.kind === "season"
+                ? typeStyles.season
+                : line.kind === "number"
+                  ? typeStyles.code
+                  : line.kind === "formField"
+                    ? { fontSize: previewPt(line.fontPt ?? payload.settings.typography.detailPt) }
+                    : line.kind === "class" || line.kind === "badgeName" || line.kind === "checkInLabel"
+                      ? typeStyles.detail
+                      : line.kind === "allergy"
+                        ? typeStyles.season
+                        : typeStyles.detail
+            : line.kind === "formField" && line.fontPt
+              ? { fontSize: previewPt(line.fontPt) }
+              : undefined;
+        const gapStyle =
+          horizontal && typeStyles && index < payload.lines.length - 1 ? typeStyles.gap : undefined;
+
+        return (
+          <div key={`${line.kind}-${line.label ?? ""}-${line.text}`} style={gapStyle}>
+            {line.kind === "formField" ? (
+              line.label ? (
+                <div className="flex flex-col">
+                  <span
+                    className="font-semibold uppercase tracking-wide text-slate-400"
+                    style={horizontal && typeStyles ? typeStyles.season : { fontSize: "9px" }}
+                  >
+                    {line.label}
+                  </span>
+                  <span className={lineTone(line.kind, horizontal)} style={style}>
+                    {line.text}
+                  </span>
+                </div>
+              ) : (
+                <div className={lineTone(line.kind, horizontal)} style={style}>
+                  {line.text}
+                </div>
+              )
             ) : (
-              <div className={lineTone(line.kind, horizontal)}>{line.text}</div>
-            )
-          ) : (
-            <div className={lineTone(line.kind, horizontal)}>{line.text}</div>
-          )}
-        </div>
-      ))}
+              <div className={lineTone(line.kind, horizontal)} style={style}>
+                {line.text}
+              </div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
 
-function NameCodeHeaderPreview({ payload }: { payload: BadgePrintPayload }) {
+function NameCodeHeaderPreview({
+  payload,
+  typeStyles,
+}: {
+  payload: BadgePrintPayload;
+  typeStyles: ReturnType<typeof typographyStyles>;
+}) {
   const s = payload.structured;
   return (
     <div className="flex min-w-0 flex-1 flex-col gap-1 text-left">
@@ -55,34 +121,55 @@ function NameCodeHeaderPreview({ payload }: { payload: BadgePrintPayload }) {
         <div className="min-w-0">
           {payload.settings.showChildName ? (
             <>
-              <div className="text-lg font-extrabold leading-none">
+              <div className="font-extrabold leading-none" style={typeStyles?.name}>
                 {s.firstName || payload.childName}
               </div>
-              {s.lastName ? <div className="text-sm font-bold text-slate-800">{s.lastName}</div> : null}
+              {s.lastName ? (
+                <div className="font-bold text-slate-800" style={typeStyles?.detail}>
+                  {s.lastName}
+                </div>
+              ) : null}
             </>
           ) : null}
         </div>
         {s.securityCode ? (
           <div className="shrink-0 rounded bg-slate-900 px-2 py-1 text-center text-white">
-            <div className="text-[8px] font-bold uppercase tracking-wider opacity-80">Code</div>
-            <div className="text-[10px] font-extrabold tabular-nums">{s.securityCode}</div>
+            <div className="font-bold uppercase tracking-wider opacity-80" style={typeStyles?.season}>
+              Code
+            </div>
+            <div className="font-extrabold tabular-nums" style={typeStyles?.code}>
+              {s.securityCode}
+            </div>
           </div>
         ) : null}
       </div>
       {s.guardianLine || s.guardianPhone ? (
-        <div className="text-right text-[9px] text-slate-500">
+        <div className="text-right text-slate-500" style={typeStyles?.detail}>
           {s.guardianLine ? <div>Guardian {s.guardianLine}</div> : null}
           {s.guardianPhone ? <div>{s.guardianPhone}</div> : null}
         </div>
       ) : null}
       <hr className="border-slate-900" />
-      {s.locationLine ? <div className="text-sm font-extrabold leading-tight">{s.locationLine}</div> : null}
+      {s.locationLine ? (
+        <div className="font-extrabold leading-tight" style={typeStyles?.class}>
+          {s.locationLine}
+        </div>
+      ) : null}
       {s.answerLines.length ? (
-        <div>
-          <div className="text-[9px] font-bold uppercase tracking-wide text-slate-400">Answers</div>
-          <div className="text-[10px] font-semibold text-slate-700">
+        <div style={typeStyles?.gap}>
+          <div className="font-bold uppercase tracking-wide text-slate-400" style={typeStyles?.season}>
+            Registration fields
+          </div>
+          <div className="font-semibold text-slate-700" style={typeStyles?.detail}>
             {s.answerLines.map((l) => (
-              <div key={`${l.label}-${l.text}`}>
+              <div
+                key={`${l.label}-${l.text}`}
+                style={
+                  l.fontPt
+                    ? { fontSize: previewPt(l.fontPt) }
+                    : undefined
+                }
+              >
                 {l.label ? `${l.label}: ` : ""}
                 {l.text}
               </div>
@@ -92,79 +179,101 @@ function NameCodeHeaderPreview({ payload }: { payload: BadgePrintPayload }) {
       ) : null}
       {s.medicalLine ? (
         <div>
-          <div className="text-[9px] font-bold uppercase tracking-wide text-slate-400">Medical notes</div>
-          <div className="text-[10px] font-semibold text-slate-700">{s.medicalLine}</div>
+          <div className="font-bold uppercase tracking-wide text-slate-400" style={typeStyles?.season}>
+            Medical notes
+          </div>
+          <div className="font-semibold text-slate-700" style={typeStyles?.detail}>
+            {s.medicalLine}
+          </div>
         </div>
       ) : null}
     </div>
   );
 }
 
-function KidCheckPreview({ payload }: { payload: BadgePrintPayload }) {
+function KidCheckPreview({
+  payload,
+  typeStyles,
+}: {
+  payload: BadgePrintPayload;
+  typeStyles: ReturnType<typeof typographyStyles>;
+}) {
   const s = payload.structured;
+  const detailBlock = (label: string, value: string) => (
+    <div style={typeStyles?.gap}>
+      <strong>{label}</strong> {value}
+    </div>
+  );
+
   return (
     <div className="flex min-w-0 flex-1 gap-1">
-      <div className="flex min-w-0 flex-1 flex-col gap-0.5 text-left text-[10px] leading-snug text-slate-800">
+      <div className="flex min-w-0 flex-1 flex-col text-left leading-snug text-slate-800">
         <div className="flex items-start justify-between gap-2">
           {payload.settings.showChildName ? (
-            <div className="text-sm font-extrabold">
+            <div className="font-extrabold" style={typeStyles?.name}>
               {`${s.firstName} ${s.lastName}`.trim() || payload.childName}
             </div>
           ) : (
             <div className="flex-1" />
           )}
           {s.securityCode ? (
-            <div className="shrink-0 border border-slate-900 px-1.5 py-0.5 text-[9px] font-extrabold tabular-nums">
+            <div
+              className="shrink-0 border border-slate-900 px-1.5 py-0.5 font-extrabold tabular-nums"
+              style={typeStyles?.code}
+            >
               {s.securityCode}
             </div>
           ) : null}
         </div>
-        <hr className="border-slate-900" />
-        {s.seasonLine ? <div className="text-[8px] font-semibold uppercase tracking-wide text-slate-400">{s.seasonLine}</div> : null}
+        <hr className="my-0.5 border-slate-900" />
+        {s.seasonLine ? (
+          <div className="font-semibold uppercase tracking-wide text-slate-400" style={typeStyles?.season}>
+            {s.seasonLine}
+          </div>
+        ) : null}
         {s.classLine ? (
-          <div className="text-xs font-extrabold uppercase tracking-wide text-slate-900">{s.classLine}</div>
+          <div className="font-extrabold uppercase tracking-wide text-slate-900" style={typeStyles?.class}>
+            {s.classLine}
+          </div>
         ) : s.serviceLine ? (
-          <div className="text-xs font-extrabold uppercase tracking-wide text-slate-900">{s.serviceLine}</div>
-        ) : null}
-        {s.guardianLine ? (
-          <div>
-            <strong>Guardian:</strong> {s.guardianLine}
+          <div className="font-extrabold uppercase tracking-wide text-slate-900" style={typeStyles?.class}>
+            {s.serviceLine}
           </div>
         ) : null}
-        {s.guardianPhone ? (
-          <div>
-            <strong>Emergency contact:</strong> {s.guardianPhone}
-          </div>
-        ) : null}
-        {s.birthdate ? (
-          <div>
-            <strong>Birthdate:</strong> {s.birthdate}
-          </div>
-        ) : null}
-        {s.medicalLine ? (
-          <div>
-            <strong>Medical / allergy info:</strong> {s.medicalLine}
-          </div>
-        ) : null}
-        {s.notesLine ? (
-          <div>
-            <strong>Note:</strong> {s.notesLine}
-          </div>
-        ) : null}
+        {s.guardianLine ? detailBlock("Guardian:", s.guardianLine) : null}
+        {s.guardianPhone ? detailBlock("Emergency contact:", s.guardianPhone) : null}
+        {s.birthdate ? detailBlock("Birthdate:", s.birthdate) : null}
+        {s.medicalLine ? detailBlock("Medical / allergy info:", s.medicalLine) : null}
+        {s.notesLine ? detailBlock("Note:", s.notesLine) : null}
         {s.answerLines.length ? (
-          <div>
+          <div style={typeStyles?.gap}>
             {s.answerLines.map((l) => (
-              <div key={`${l.label}-${l.text}`}>
-                <strong>{l.label ?? "Answer"}:</strong> {l.text}
+              <div
+                key={`${l.label}-${l.text}`}
+                style={{ fontSize: previewPt(l.fontPt ?? payload.settings.typography.detailPt) }}
+              >
+                <strong>{l.label ?? "Field"}:</strong> {l.text}
               </div>
             ))}
           </div>
         ) : null}
         <div className="mt-auto flex flex-col items-center gap-0.5 pt-1">
-          {s.printedAt ? <div className="text-[8px] text-slate-400">{s.printedAt}</div> : null}
+          {s.printedAt ? (
+            <div className="text-slate-400" style={typeStyles?.timestamp}>
+              {s.printedAt}
+            </div>
+          ) : null}
           {payload.qrDataUrl && payload.settings.showQrCode ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={payload.qrDataUrl} alt="QR preview" className="size-10" />
+            <img
+              src={payload.qrDataUrl}
+              alt="QR preview"
+              style={{
+                width: typeStyles ? `${payload.settings.typography.qrSizeIn * 72 * 0.55}px` : undefined,
+                height: typeStyles ? `${payload.settings.typography.qrSizeIn * 72 * 0.55}px` : undefined,
+              }}
+              className={typeStyles ? undefined : "size-10"}
+            />
           ) : payload.barcodeDataUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={payload.barcodeDataUrl} alt="" className="h-4 w-full max-w-[140px] object-fill" />
@@ -189,6 +298,7 @@ export function BadgePreviewCard({ payload }: Props) {
   const dims = badgeLabelPageCss(payload.settings.labelSize, payload.settings.orientation);
   const horizontal = dims.isHorizontal;
   const layout = horizontal ? payload.settings.horizontalLayout : "STANDARD";
+  const typeStyles = typographyStyles(payload.settings.typography, horizontal);
 
   const aspect = horizontal
     ? payload.settings.labelSize === "LABEL_62MM"
@@ -217,8 +327,8 @@ export function BadgePreviewCard({ payload }: Props) {
         ? "Horizontal · Name + code"
         : "Horizontal · KidCheck";
 
-  const showStandardQr =
-    layout === "STANDARD" && payload.qrDataUrl && payload.settings.showQrCode;
+  const showStandardQr = layout === "STANDARD" && payload.qrDataUrl && payload.settings.showQrCode;
+  const qrPreviewSize = horizontal ? payload.settings.typography.qrSizeIn * 72 * 0.72 : undefined;
 
   return (
     <div className="flex flex-col items-center gap-2">
@@ -232,9 +342,9 @@ export function BadgePreviewCard({ payload }: Props) {
         aria-label="Badge preview"
       >
         {layout === "NAME_CODE_HEADER" ? (
-          <NameCodeHeaderPreview payload={payload} />
+          <NameCodeHeaderPreview payload={payload} typeStyles={typeStyles} />
         ) : layout === "KIDCHECK" ? (
-          <KidCheckPreview payload={payload} />
+          <KidCheckPreview payload={payload} typeStyles={typeStyles} />
         ) : (
           <>
             <div className={`flex min-w-0 flex-col ${horizontal ? "flex-1 items-start" : "items-center"}`}>
@@ -246,11 +356,20 @@ export function BadgePreviewCard({ payload }: Props) {
                   className={`object-contain ${horizontal ? "mb-1 max-h-8 max-w-[72px]" : "mb-2 max-h-10 max-w-[90px]"}`}
                 />
               ) : null}
-              <StandardBadgeLines payload={payload} horizontal={horizontal} />
+              <StandardBadgeLines payload={payload} horizontal={horizontal} typeStyles={typeStyles} />
             </div>
             {showStandardQr ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={payload.qrDataUrl!} alt="QR preview" className="size-14 shrink-0" />
+              <img
+                src={payload.qrDataUrl!}
+                alt="QR preview"
+                className={qrPreviewSize ? "shrink-0" : "size-14 shrink-0"}
+                style={
+                  qrPreviewSize
+                    ? { width: `${qrPreviewSize}px`, height: `${qrPreviewSize}px` }
+                    : undefined
+                }
+              />
             ) : null}
           </>
         )}

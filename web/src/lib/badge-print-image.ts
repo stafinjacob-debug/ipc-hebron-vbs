@@ -1,5 +1,5 @@
 import type { BadgePrintPayload } from "@/lib/badge-print";
-import { badgeLabelPageCss } from "@/lib/badge-print";
+import { badgeFormFieldFontPt, badgeLabelPageCss } from "@/lib/badge-print";
 import {
   BADGE_PRINT_FONT_FAMILY,
   badgePrintFontDir,
@@ -155,6 +155,8 @@ function renderStandardVertical(payload: BadgePrintPayload, canvas: LabelCanvas)
             ? ptToPx(horizontal ? 7 : 9, canvas)
             : line.kind === "number"
               ? ptToPx(horizontal ? 9 : 11, canvas)
+              : line.kind === "formField" && line.fontPt
+                ? ptToPx(line.fontPt, canvas)
               : line.kind === "allergy"
                 ? ptToPx(horizontal ? 7 : 9, canvas)
                 : ptToPx(horizontal ? 8.5 : 10, canvas);
@@ -249,25 +251,64 @@ function renderKidCheck(payload: BadgePrintPayload, canvas: LabelCanvas): string
   `;
 }
 
-type KidCheckBodyLine = { text: string; kind: "season" | "class" | "detail" };
+type KidCheckBodyLine = { text: string; kind: "season" | "class" | "detail"; fontPt?: number };
 
 function kidCheckBodyLines(payload: BadgePrintPayload): KidCheckBodyLine[] {
   const s = payload.structured;
+  const settings = payload.settings;
   const lines: KidCheckBodyLine[] = [];
+  const detailPt = (fieldKey: string) => badgeFormFieldFontPt(settings, fieldKey);
+
   if (s.seasonLine) lines.push({ text: escapeXml(s.seasonLine), kind: "season" });
   if (s.classLine) lines.push({ text: escapeXml(s.classLine), kind: "class" });
   else if (s.serviceLine) lines.push({ text: escapeXml(s.serviceLine), kind: "class" });
   if (s.guardianLine) {
-    lines.push({ text: `Guardian: ${escapeXml(s.guardianLine)}`, kind: "detail" });
+    lines.push({
+      text: `Guardian: ${escapeXml(s.guardianLine)}`,
+      kind: "detail",
+      fontPt: detailPt("guardian:guardianFirstName"),
+    });
   }
   if (s.guardianPhone) {
-    lines.push({ text: `Emergency contact: ${escapeXml(s.guardianPhone)}`, kind: "detail" });
+    lines.push({
+      text: `Emergency contact: ${escapeXml(s.guardianPhone)}`,
+      kind: "detail",
+      fontPt: detailPt("guardian:guardianPhone"),
+    });
   }
-  if (s.birthdate) lines.push({ text: `Birthdate: ${escapeXml(s.birthdate)}`, kind: "detail" });
+  if (s.birthdate) {
+    lines.push({
+      text: `Birthdate: ${escapeXml(s.birthdate)}`,
+      kind: "detail",
+      fontPt: detailPt("child:childDateOfBirth"),
+    });
+  }
   if (s.medicalLine) {
-    lines.push({ text: `Medical / allergy info: ${escapeXml(s.medicalLine)}`, kind: "detail" });
+    lines.push({
+      text: `Medical / allergy info: ${escapeXml(s.medicalLine)}`,
+      kind: "detail",
+      fontPt: settings.formFields.some((f) => f.fieldKey === "child:allergiesNotes")
+        ? detailPt("child:allergiesNotes")
+        : settings.typography.detailPt,
+    });
   }
-  if (s.notesLine) lines.push({ text: `Note: ${escapeXml(s.notesLine)}`, kind: "detail" });
+  if (s.notesLine) {
+    lines.push({
+      text: `Note: ${escapeXml(s.notesLine)}`,
+      kind: "detail",
+      fontPt: detailPt("staffNotes"),
+    });
+  }
+  for (const line of s.answerLines) {
+    const label = line.label?.trim();
+    const text = label ? `${label}: ${line.text}` : line.text;
+    if (!text.trim()) continue;
+    lines.push({
+      text: escapeXml(text),
+      kind: "detail",
+      fontPt: line.fontPt ?? (line.fieldKey ? detailPt(line.fieldKey) : settings.typography.detailPt),
+    });
+  }
   return lines;
 }
 
@@ -320,7 +361,11 @@ function renderKidCheckBrotherWide(payload: BadgePrintPayload, canvas: LabelCanv
   const bodyBottom = h - pad - (s.printedAt ? timestampSize + inchToPx(0.04, canvas) : 0);
   for (const line of kidCheckBodyLines(payload)) {
     const size =
-      line.kind === "season" ? seasonSize : line.kind === "class" ? classSize : lineSize;
+      line.kind === "season"
+        ? seasonSize
+        : line.kind === "class"
+          ? classSize
+          : ptToPx(line.fontPt ?? t.detailPt, canvas);
     const weight = line.kind === "class" ? 800 : 600;
     const fill = line.kind === "season" ? "#64748b" : "#1e293b";
     const wrapped = wrapKidCheckLine(line.text, maxChars, 4);
@@ -390,10 +435,14 @@ function renderStandardBrotherWide(payload: BadgePrintPayload, canvas: LabelCanv
           : line.kind === "season"
             ? ptToPx(t.seasonPt, canvas)
             : line.kind === "number"
-              ? ptToPx(12, canvas)
-              : line.kind === "allergy"
-                ? ptToPx(t.seasonPt, canvas)
-                : ptToPx(t.detailPt, canvas);
+              ? ptToPx(t.codePt, canvas)
+              : line.kind === "class" || line.kind === "badgeName"
+                ? ptToPx(t.classPt, canvas)
+                : line.kind === "allergy"
+                  ? ptToPx(t.seasonPt, canvas)
+                  : line.kind === "formField"
+                    ? ptToPx(line.fontPt ?? t.detailPt, canvas)
+                    : ptToPx(t.detailPt, canvas);
       const weight = line.kind === "name" || line.kind === "number" ? 700 : 600;
       const fill = line.kind === "allergy" ? "#b45309" : "#0f172a";
       const lineY = y + size;
