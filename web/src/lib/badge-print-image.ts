@@ -283,7 +283,7 @@ const BROTHER_HOR_PT = {
 
 /** Brother 62 mm media: text block left, QR right — drawn landscape, rotated at output. */
 function renderKidCheckBrotherWide(payload: BadgePrintPayload, canvas: LabelCanvas): string {
-  const { w } = canvas;
+  const { w, h } = canvas;
   const s = payload.structured;
   const name = escapeXml(`${s.firstName} ${s.lastName}`.trim() || payload.childName);
 
@@ -298,7 +298,10 @@ function renderKidCheckBrotherWide(payload: BadgePrintPayload, canvas: LabelCanv
   const wrapGap = inchToPx(0.018, canvas);
   const stroke = Math.max(2, Math.round(inchToPx(0.018, canvas)));
   const qrSize = inchToPx(0.95, canvas);
-  const qrX = w - pad - qrSize;
+
+  const stripW = payload.settings.logoUrl ? inchToPx(0.28, canvas) : 0;
+  const stripX = w - pad - stripW;
+  const qrX = stripX - (stripW ? inchToPx(0.04, canvas) : 0) - qrSize;
   const textMaxX = qrX - inchToPx(0.05, canvas);
 
   const codePadY = inchToPx(0.016, canvas);
@@ -345,6 +348,15 @@ function renderKidCheckBrotherWide(payload: BadgePrintPayload, canvas: LabelCanv
         ? `<image href="${payload.barcodeDataUrl}" x="${qrX}" y="${qrY}" width="${qrSize}" height="${inchToPx(0.2, canvas)}" preserveAspectRatio="xMidYMid meet" />`
         : "";
 
+  const logoImgW = inchToPx(0.55, canvas);
+  const logoImgH = stripW ? stripW * 0.82 : 0;
+  const logoStrip = payload.settings.logoUrl
+    ? `<line x1="${stripX}" y1="${pad}" x2="${stripX}" y2="${h - pad}" stroke="#cbd5e1" stroke-width="${Math.max(1, Math.round(inchToPx(0.004, canvas)))}" />
+       <g transform="translate(${stripX + stripW / 2} ${h / 2}) rotate(-90)">
+         <image href="${payload.settings.logoUrl}" x="${-logoImgW / 2}" y="${-logoImgH / 2}" width="${logoImgW}" height="${logoImgH}" preserveAspectRatio="xMidYMid meet" />
+       </g>`
+    : "";
+
   return `
     <text x="${pad}" y="${nameY}" font-family="${BADGE_PRINT_FONT_FAMILY}" font-size="${nameSize}" font-weight="800" fill="#0f172a">${name}</text>
     ${code}
@@ -352,6 +364,7 @@ function renderKidCheckBrotherWide(payload: BadgePrintPayload, canvas: LabelCanv
     ${bodyParts.join("\n")}
     ${timestamp}
     ${footerQr}
+    ${logoStrip}
   `;
 }
 
@@ -459,6 +472,36 @@ export async function renderBadgePngBuffer(
   return result.png;
 }
 
+async function resolveLogoDataUrl(logoUrl: string | null): Promise<string | null> {
+  if (!logoUrl?.trim()) return null;
+  const url = logoUrl.trim();
+  if (url.startsWith("data:")) return url;
+
+  try {
+    let buffer: Buffer;
+    let mime = "image/png";
+    if (/^https?:\/\//i.test(url)) {
+      const res = await fetch(url);
+      if (!res.ok) return null;
+      buffer = Buffer.from(await res.arrayBuffer());
+      mime = res.headers.get("content-type")?.split(";")[0]?.trim() || mime;
+    } else if (url.startsWith("/")) {
+      const { readFile } = await import("fs/promises");
+      const path = await import("path");
+      buffer = await readFile(path.join(process.cwd(), "public", url.replace(/^\//, "")));
+      const ext = path.extname(url).toLowerCase();
+      if (ext === ".webp") mime = "image/webp";
+      else if (ext === ".jpg" || ext === ".jpeg") mime = "image/jpeg";
+      else if (ext === ".gif") mime = "image/gif";
+    } else {
+      return null;
+    }
+    return `data:${mime};base64,${buffer.toString("base64")}`;
+  } catch {
+    return null;
+  }
+}
+
 export async function renderBadgePngWithMeta(
   payload: BadgePrintPayload,
   options: BadgePngRenderOptions = {},
@@ -469,10 +512,15 @@ export async function renderBadgePngWithMeta(
     throw new Error("Badge fonts are not available on the server.");
   }
 
-  const canvas = resolveBadgeRenderCanvas(payload, options);
+  const logoDataUrl = await resolveLogoDataUrl(payload.settings.logoUrl);
+  const renderPayload: BadgePrintPayload = logoDataUrl
+    ? { ...payload, settings: { ...payload.settings, logoUrl: logoDataUrl } }
+    : payload;
+
+  const canvas = resolveBadgeRenderCanvas(renderPayload, options);
 
   const { Resvg } = await import("@resvg/resvg-js");
-  const svg = buildBadgePrintSvg(payload, options);
+  const svg = buildBadgePrintSvg(renderPayload, options);
   const resvg = new Resvg(svg, {
     dpi: BADGE_RENDER_DPI,
     font: {

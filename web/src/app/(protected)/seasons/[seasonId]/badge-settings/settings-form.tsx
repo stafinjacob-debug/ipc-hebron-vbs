@@ -315,7 +315,10 @@ export function BadgePrintSettingsForm({
 
       <div className="rounded-xl border border-foreground/10 p-4">
         <h2 className="text-sm font-semibold text-foreground/90">Badge logo</h2>
-        <p className="mt-1 text-sm text-muted">Upload a small image for the top of each badge (JPEG, PNG, WebP, or GIF).</p>
+        <p className="mt-1 text-sm text-muted">
+          Upload a small image for each badge (JPEG, PNG, WebP, or GIF). On iPad Brother printing, KidCheck
+          layout shows the logo in a vertical strip at the end of the label.
+        </p>
         {logoPreview ? (
           <div className="mt-4 flex items-start gap-4">
             {/* eslint-disable-next-line @next/next/no-img-element */}
