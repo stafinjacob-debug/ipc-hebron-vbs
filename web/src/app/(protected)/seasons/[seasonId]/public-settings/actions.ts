@@ -167,6 +167,10 @@ export async function savePublicRegistrationSettings(
 
   revalidatePath("/register");
   revalidatePath("/register/lookup");
+  if (season.publicRegistrationSlug) {
+    revalidatePath(`/register/${season.publicRegistrationSlug}`);
+    revalidatePath(`/register/${season.publicRegistrationSlug}/lookup`);
+  }
   revalidatePath("/seasons");
   revalidatePath("/login");
   revalidatePath(`/seasons/${seasonId}/public-settings`);

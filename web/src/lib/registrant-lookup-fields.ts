@@ -5,6 +5,7 @@ import {
   normalizeRegistrantLookupEmail,
   normalizeRegistrantLookupPhone,
   registrantLookupRegistrationWhere,
+  registrantLookupRegistrationWhereForSeason,
 } from "@/lib/registrant-lookup";
 import {
   createDefaultFormDefinition,
@@ -248,12 +249,13 @@ function buildPhoneLookupOr(phoneDigits: string, phoneKeys: string[]): Prisma.Re
 export async function findRegistrationsForLookupEmail(
   emailNormalized: string,
   registrationCode?: string,
+  seasonId?: string | null,
 ): Promise<RegistrantLookupRegistrationRow[]> {
   const { emailKeys } = await loadDistinctLookupFieldKeys();
   const orConditions = buildEmailLookupOr(emailNormalized, emailKeys);
   const rows = await prisma.registration.findMany({
     where: {
-      ...registrantLookupRegistrationWhere,
+      ...registrantLookupRegistrationWhereForSeason(seasonId),
       ...registrationCodeWhere(registrationCode),
       OR: orConditions.length > 0 ? orConditions : undefined,
     },
@@ -266,6 +268,7 @@ export async function findRegistrationsForLookupEmail(
 
 export async function findRegistrationsForLookupPhone(
   phoneRaw: string,
+  seasonId?: string | null,
 ): Promise<RegistrantLookupRegistrationRow[]> {
   const phoneDigits = normalizeRegistrantLookupPhone(phoneRaw);
   if (phoneDigits.length < 10) return [];
@@ -274,7 +277,7 @@ export async function findRegistrationsForLookupPhone(
   const orConditions = buildPhoneLookupOr(phoneDigits, phoneKeys);
   const rows = await prisma.registration.findMany({
     where: {
-      ...registrantLookupRegistrationWhere,
+      ...registrantLookupRegistrationWhereForSeason(seasonId),
       OR: orConditions.length > 0 ? orConditions : undefined,
     },
     include: registrantLookupRegistrationInclude,

@@ -231,7 +231,7 @@ export async function bulkDeleteRegistrations(registrationIds: string[]): Promis
     const emailResult = await sendRegistrationsRemovedEmail({
       guardianEmail: group.guardianEmail,
       guardianName: group.guardianName,
-      seasonName: group.seasonName,
+      seasonId: group.seasonId,
       children: group.children,
     });
     emailByGuardianSeason.set(key, emailResult);

@@ -2,6 +2,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { formatSeasonDateRange } from "@/lib/season-calendar-date";
 import { canManageDirectory, canViewOperations } from "@/lib/roles";
+import { getPortalPublicPath } from "@/lib/portal-public-path";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
@@ -19,9 +20,19 @@ export default async function SeasonsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">VBS seasons</h1>
-        <p className="mt-1 text-foreground/70">Camp years, dates, and themes.</p>
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Programs</h1>
+          <p className="mt-1 text-foreground/70">Events, registration portals, dates, and themes.</p>
+        </div>
+        {canEditPublic ? (
+          <Link
+            href="/seasons/new"
+            className="rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background hover:opacity-90"
+          >
+            Create program
+          </Link>
+        ) : null}
       </div>
 
       <div className="overflow-hidden rounded-xl border border-foreground/10">
@@ -29,6 +40,7 @@ export default async function SeasonsPage() {
           <thead className="bg-foreground/[0.04] text-foreground/70">
             <tr>
               <th className="px-4 py-3 font-medium">Season</th>
+              <th className="px-4 py-3 font-medium">Public URL</th>
               <th className="px-4 py-3 font-medium">Year</th>
               <th className="px-4 py-3 font-medium">Dates</th>
               <th className="px-4 py-3 font-medium">Theme</th>
@@ -50,6 +62,9 @@ export default async function SeasonsPage() {
             {seasons.map((s) => (
               <tr key={s.id} className="border-t border-foreground/10">
                 <td className="px-4 py-3 font-medium">{s.name}</td>
+                <td className="px-4 py-3 font-mono text-xs text-foreground/70">
+                  {getPortalPublicPath(s)}
+                </td>
                 <td className="px-4 py-3 tabular-nums">{s.year}</td>
                 <td className="px-4 py-3 text-foreground/80">
                   {formatSeasonDateRange(s.startDate, s.endDate)}

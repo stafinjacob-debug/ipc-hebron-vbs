@@ -7,6 +7,119 @@ export type GuardianExtract = {
   guardianPhone?: string;
 };
 
+function guardianSectionFields(def: FormDefinitionV1): FormFieldDef[] {
+  return def.fields.filter((f) => {
+    const sec = def.sections.find((s) => s.id === f.sectionId);
+    return sec?.audience === "guardian" || sec?.audience === "consent";
+  });
+}
+
+function isFillableField(field: FormFieldDef): boolean {
+  return field.type !== "sectionHeader" && field.type !== "staticText";
+}
+
+export function fieldMatchesEmail(field: FormFieldDef): boolean {
+  if (field.type === "email") return true;
+  const key = field.key.toLowerCase();
+  const label = (field.label ?? "").toLowerCase();
+  return key.includes("email") || label.includes("email");
+}
+
+export function fieldMatchesPhone(field: FormFieldDef): boolean {
+  if (field.type === "tel") return true;
+  const key = field.key.toLowerCase();
+  const label = (field.label ?? "").toLowerCase();
+  return (
+    key.includes("phone") ||
+    key.includes("contact") ||
+    key.includes("mobile") ||
+    label.includes("phone") ||
+    label.includes("contact number") ||
+    label.includes("mobile")
+  );
+}
+
+function fieldMatchesFullName(field: FormFieldDef): boolean {
+  const key = field.key.toLowerCase();
+  const label = (field.label ?? "").toLowerCase();
+  if (key === "pname") return true;
+  if (label.includes("full name")) return true;
+  if (label.includes("name") && !label.includes("first") && !label.includes("last") && !label.includes("email")) {
+    return true;
+  }
+  return false;
+}
+
+function firstMatchingFieldKey(
+  def: FormDefinitionV1,
+  matches: (field: FormFieldDef) => boolean,
+  fallback: string,
+): string {
+  const hit = guardianSectionFields(def).find((f) => isFillableField(f) && matches(f));
+  return hit?.key ?? fallback;
+}
+
+/** Map builder-defined guardian fields onto canonical guardian contact columns. */
+export function resolveGuardianContactFromForm(
+  def: FormDefinitionV1,
+  guardianCtx: Record<string, string>,
+): GuardianExtract {
+  const fields = guardianSectionFields(def);
+
+  let guardianEmail = guardianCtx.guardianEmail?.trim() || undefined;
+  if (!guardianEmail) {
+    for (const f of fields) {
+      if (!isFillableField(f) || !isVisible(f, guardianCtx) || !fieldMatchesEmail(f)) continue;
+      const v = guardianCtx[f.key]?.trim();
+      if (v) {
+        guardianEmail = v;
+        break;
+      }
+    }
+  }
+
+  let guardianPhone = guardianCtx.guardianPhone?.trim() || undefined;
+  if (!guardianPhone) {
+    for (const f of fields) {
+      if (!isFillableField(f) || !isVisible(f, guardianCtx) || !fieldMatchesPhone(f)) continue;
+      const v = guardianCtx[f.key]?.trim();
+      if (v) {
+        guardianPhone = v;
+        break;
+      }
+    }
+  }
+
+  let guardianFirstName = guardianCtx.guardianFirstName?.trim() ?? "";
+  let guardianLastName = guardianCtx.guardianLastName?.trim() ?? "";
+  if (!guardianFirstName || !guardianLastName) {
+    for (const f of fields) {
+      if (!isFillableField(f) || !isVisible(f, guardianCtx) || !fieldMatchesFullName(f)) continue;
+      const full = guardianCtx[f.key]?.trim() ?? "";
+      if (!full) continue;
+      const parts = full.split(/\s+/).filter(Boolean);
+      if (parts.length >= 2) {
+        guardianFirstName = parts[0]!;
+        guardianLastName = parts.slice(1).join(" ");
+      } else {
+        guardianFirstName = full;
+        guardianLastName = full;
+      }
+      break;
+    }
+  }
+
+  return { guardianFirstName, guardianLastName, guardianEmail, guardianPhone };
+}
+
+export function formIncludesGuardianEmailField(def: FormDefinitionV1): boolean {
+  return guardianSectionFields(def).some((f) => isFillableField(f) && fieldMatchesEmail(f));
+}
+
+export function formIncludesGuardianPhoneField(def: FormDefinitionV1): boolean {
+  return guardianSectionFields(def).some((f) => isFillableField(f) && fieldMatchesPhone(f));
+}
+
 export type ChildExtract = {
   childFirstName: string;
   childLastName: string;
@@ -57,12 +170,7 @@ export function extractStripeSkipEvaluationData(
     return sec?.audience === "eachChild";
   });
 
-  const guardian: GuardianExtract = {
-    guardianFirstName: guardianCtx.guardianFirstName?.trim() ?? "",
-    guardianLastName: guardianCtx.guardianLastName?.trim() ?? "",
-    guardianEmail: guardianCtx.guardianEmail?.trim() || undefined,
-    guardianPhone: guardianCtx.guardianPhone?.trim() || undefined,
-  };
+  const guardian: GuardianExtract = resolveGuardianContactFromForm(def, guardianCtx);
 
   const guardianCustom: Record<string, string | boolean | number | null> = {};
   for (const f of guardianFields) {
@@ -142,6 +250,10 @@ export function validateFieldValue(field: FormFieldDef, raw: string): string | n
       break;
   }
 
+  if (fieldMatchesEmail(field) && field.type !== "email" && v && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) {
+    return "Enter a valid email.";
+  }
+
   if (field.validation?.minLength != null && v.length < field.validation.minLength) {
     return `At least ${field.validation.minLength} characters.`;
   }
@@ -196,22 +308,25 @@ export function parseDynamicRegistrationForm(
     if (err) return { ok: false, message: err, fieldKey: f.key };
   }
 
-  if (rules.requireGuardianEmail && !guardianCtx.guardianEmail?.trim()) {
-    return { ok: false, message: "Email is required for this program.", fieldKey: "guardianEmail" };
-  }
-  if (rules.requireGuardianPhone && !guardianCtx.guardianPhone?.trim()) {
-    return { ok: false, message: "Phone is required for this program.", fieldKey: "guardianPhone" };
-  }
+  const guardian = resolveGuardianContactFromForm(def, guardianCtx);
 
-  const guardian: GuardianExtract = {
-    guardianFirstName: guardianCtx.guardianFirstName?.trim() ?? "",
-    guardianLastName: guardianCtx.guardianLastName?.trim() ?? "",
-    guardianEmail: guardianCtx.guardianEmail?.trim() || undefined,
-    guardianPhone: guardianCtx.guardianPhone?.trim() || undefined,
-  };
+  if (rules.requireGuardianEmail && !guardian.guardianEmail && formIncludesGuardianEmailField(def)) {
+    return {
+      ok: false,
+      message: "Email is required for this program.",
+      fieldKey: firstMatchingFieldKey(def, fieldMatchesEmail, "guardianEmail"),
+    };
+  }
+  if (rules.requireGuardianPhone && !guardian.guardianPhone && formIncludesGuardianPhoneField(def)) {
+    return {
+      ok: false,
+      message: "Phone is required for this program.",
+      fieldKey: firstMatchingFieldKey(def, fieldMatchesPhone, "guardianPhone"),
+    };
+  }
 
   if (!guardian.guardianFirstName || !guardian.guardianLastName) {
-    return { ok: false, message: "Guardian name is required." };
+    return { ok: false, message: "Contact name is required." };
   }
 
   const guardianCustom: Record<string, string | boolean | number | null> = {};

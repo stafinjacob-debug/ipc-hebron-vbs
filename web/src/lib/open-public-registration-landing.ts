@@ -33,6 +33,9 @@ export type OpenPublicRegistrationSummary = {
   registrationCount: number;
   maxTotalRegistrations: number | null;
   waitlistEnabled: boolean;
+  /** Public signup path (e.g. /register or /register/soccer). */
+  registerPath: string;
+  publicRegistrationSlug: string | null;
 };
 
 export function formatAgeRangeForCard(_summary: OpenPublicRegistrationSummary): string | null {

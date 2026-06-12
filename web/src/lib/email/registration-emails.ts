@@ -11,15 +11,20 @@ import {
   submissionCancelUrl,
   submissionPayUrl,
 } from "@/lib/registration-public-token";
-import { formatVbsFirstDayLabel, VBS_PAYMENT_DEADLINE_NOTICE } from "@/lib/pay-later";
+import { formatVbsFirstDayLabel } from "@/lib/pay-later";
 import { formatSeasonDateRange } from "@/lib/season-calendar-date";
 import { isCheckoutPendingRegistration } from "@/lib/registration-list-payment";
 import { resolveCheckoutResumeUrlForSubmission } from "@/lib/stripe-registration-payment";
 import { isMicrosoftGraphEmailConfigured, sendMailViaMicrosoftGraph } from "@/lib/email/microsoft-graph";
+import {
+  loadRegistrationEmailContext,
+  paymentDeadlineNoticeText,
+  type RegistrationEmailContext,
+} from "@/lib/email/registration-email-context";
 import { promises as fs } from "fs";
 import path from "path";
 
-function brandName(): string {
+function defaultBrandName(): string {
   return (
     process.env.REGISTRATION_EMAIL_BRAND?.trim() ||
     process.env.EMAIL_FROM_DISPLAY_NAME?.trim() ||
@@ -40,8 +45,17 @@ function escapeHtml(s: string): string {
 }
 
 /** Shared layout: header band, card body, footer. */
-export function emailShell(inner: string): string {
-  const brand = escapeHtml(brandName());
+export function emailShell(
+  inner: string,
+  ctx?: Pick<RegistrationEmailContext, "brandName" | "eventName" | "teamPhrase" | "isLegacyVbs">,
+): string {
+  const brand = escapeHtml(ctx?.brandName ?? defaultBrandName());
+  const headerSubtitle = ctx?.isLegacyVbs
+    ? "Vacation Bible School"
+    : escapeHtml(ctx?.eventName ?? "Registration");
+  const footerTeam = ctx?.teamPhrase
+    ? escapeHtml(ctx.teamPhrase)
+    : "your church registration team";
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -64,7 +78,7 @@ export function emailShell(inner: string): string {
               style="background-color:#0f766e;background-image:linear-gradient(120deg,#047857 0%,#0d9488 45%,#0e7490 100%);padding:22px 24px;text-align:center;"
             >
               <p style="margin:0;font-size:11px;letter-spacing:0.18em;text-transform:uppercase;color:#ecfdf5;">
-                Vacation Bible School
+                ${headerSubtitle}
               </p>
               <h1 style="margin:8px 0 0;font-size:22px;line-height:1.25;font-weight:800;color:#ffffff;">
                 ${brand}
@@ -78,7 +92,7 @@ export function emailShell(inner: string): string {
           </tr>
           <tr>
             <td style="padding:0 24px 24px;text-align:center;font-size:12px;color:#94a3b8;">
-              This message was sent by your church VBS team. Please do not reply if you were not expecting it.
+              This message was sent by ${footerTeam}. Please do not reply if you were not expecting it.
             </td>
           </tr>
         </table>
@@ -217,14 +231,17 @@ export async function sendSubmissionPendingReviewEmail(submissionId: string): Pr
   });
   if (!submission?.guardian.email?.trim()) return "skipped_no_email";
 
+  const ctx = await loadRegistrationEmailContext(submission.seasonId);
+  if (!ctx) return "skipped_ineligible";
+
   const to = submission.guardian.email.trim();
   const gname = `${submission.guardian.firstName} ${submission.guardian.lastName}`.trim();
-  const season = escapeHtml(submission.season.name);
-  const contact = helpEmailAddress();
+  const season = escapeHtml(ctx.eventName);
+  const contact = ctx.helpEmail;
 
   const waitlisted = submission.registrations.some((r) => r.status === "WAITLIST");
   const waitlistNote = waitlisted
-    ? `<p style="margin:0 0 16px;padding:12px 14px;border-radius:12px;background:#fffbeb;border:1px solid #fde68a;color:#92400e;font-size:14px;">Based on current capacity, one or more children are on the <strong>waitlist</strong> for now. The team will let you know if a spot opens.</p>`
+    ? `<p style="margin:0 0 16px;padding:12px 14px;border-radius:12px;background:#fffbeb;border:1px solid #fde68a;color:#92400e;font-size:14px;">Based on current capacity, one or more ${escapeHtml(ctx.participantPluralLabel)} are on the <strong>waitlist</strong> for now. The team will let you know if a spot opens.</p>`
     : "";
 
   const childLines = submission.registrations
@@ -232,19 +249,19 @@ export async function sendSubmissionPendingReviewEmail(submissionId: string): Pr
       const n = `${r.child.firstName} ${r.child.lastName}`.trim();
       return n
         ? `<li style="margin:0 0 6px;"><strong>${escapeHtml(n)}</strong></li>`
-        : `<li style="margin:0 0 6px;">Child registration</li>`;
+        : `<li style="margin:0 0 6px;">${escapeHtml(ctx.participantSingularLabel)} registration</li>`;
     })
     .join("");
 
   const inner = `
     <p style="margin:0 0 12px;">Hi ${escapeHtml(gname)},</p>
     <p style="margin:0 0 16px;padding:12px 14px;border-radius:12px;background:#ecfdf5;border:1px solid #a7f3d0;color:#065f46;font-size:14px;">
-      Thank you — we have received your registration for <strong>${season}</strong>. Someone from our VBS team will review your details and confirm your enrollment. You do not have a check-in card yet; we will follow up by email when everything is confirmed.
+      ${escapeHtml(ctx.teamReviewNote)} You do not have a check-in card yet; we will follow up by email when everything is confirmed.
     </p>
     ${waitlistNote}
-    <p style="margin:0 0 8px;font-size:14px;font-weight:600;color:#0f172a;">Children on this submission</p>
+    <p style="margin:0 0 8px;font-size:14px;font-weight:600;color:#0f172a;">${escapeHtml(ctx.participantPluralLabel.charAt(0).toUpperCase() + ctx.participantPluralLabel.slice(1))} on this submission</p>
     <ul style="margin:0 0 16px;padding-left:20px;color:#334155;font-size:15px;line-height:1.5;">
-      ${childLines || `<li style="margin:0;">Your registered children</li>`}
+      ${childLines || `<li style="margin:0;">Your registered ${escapeHtml(ctx.participantPluralLabel)}</li>`}
     </ul>
     <p style="margin:0 0 12px;font-size:14px;color:#475569;">If anything else is needed, we will reach out using the contact information you provided.</p>
     ${
@@ -257,8 +274,8 @@ export async function sendSubmissionPendingReviewEmail(submissionId: string): Pr
   const { result, error } = await sendHtml(
     to,
     gname,
-    `${brandName()} — Registration received (under review)`,
-    emailShell(inner),
+    `${ctx.brandName} — Registration received (${season})`,
+    emailShell(inner, ctx),
   );
 
   if (result === "sent") {
@@ -302,25 +319,26 @@ async function ensureRegistrationIdentitiesForSubmission(submissionId: string): 
   }
 }
 
-function paymentDeadlineNoticeHtml(): string {
-  return `<p style="margin:0;padding:12px 14px;border-radius:12px;background:#fffbeb;border:1px solid #fde68a;color:#92400e;font-size:14px;line-height:1.55;">${escapeHtml(VBS_PAYMENT_DEADLINE_NOTICE)}</p>`;
+function paymentDeadlineNoticeHtml(ctx: RegistrationEmailContext): string {
+  return `<p style="margin:0;padding:12px 14px;border-radius:12px;background:#fffbeb;border:1px solid #fde68a;color:#92400e;font-size:14px;line-height:1.55;">${escapeHtml(paymentDeadlineNoticeText(ctx))}</p>`;
 }
 
 function buildPayLaterPaymentInstructionsHtml(args: {
   dayOneLabel: string;
-  seasonName: string;
+  ctx: RegistrationEmailContext;
   cardPayUrl: string | null;
 }): string {
   const dayOne = escapeHtml(args.dayOneLabel);
-  const season = escapeHtml(args.seasonName);
+  const season = escapeHtml(args.ctx.eventName);
   const cardLink = args.cardPayUrl
     ? `<a href="${escapeHtml(args.cardPayUrl)}" style="display:inline-block;margin-top:8px;background:#0f766e;color:#ffffff;padding:10px 16px;border-radius:999px;text-decoration:none;font-size:14px;font-weight:700;">Pay by card online</a>`
     : "";
+  const beforeEvent = args.ctx.isLegacyVbs ? "before VBS" : `before ${season} begins`;
 
   return `
     <div style="margin:0 0 16px;padding:12px 14px;border-radius:12px;background:#fffbeb;border:1px solid #fde68a;color:#92400e;font-size:14px;line-height:1.55;">
       <p style="margin:0 0 10px;font-weight:700;color:#78350f;">Payment still due</p>
-      <p style="margin:0 0 10px;">You chose to pay later for <strong>${season}</strong>. Pay by card online anytime before VBS, or pay on site on Day 1 (<strong>${dayOne}</strong>).</p>
+      <p style="margin:0 0 10px;">You chose to pay later for <strong>${season}</strong>. Pay by card online anytime ${beforeEvent}, or pay on site on Day 1 (<strong>${dayOne}</strong>).</p>
       <p style="margin:0 0 8px;font-weight:600;">Pay earlier (card online)</p>
       <ul style="margin:0 0 12px;padding-left:20px;">
         <li style="margin:0 0 6px;"><strong>Card</strong> — secure online checkout${cardLink ? ` (use the button below)` : ""}</li>
@@ -331,7 +349,7 @@ function buildPayLaterPaymentInstructionsHtml(args: {
         <li style="margin:0 0 6px;"><strong>Zelle</strong> or <strong>card</strong></li>
         <li style="margin:0;">Cash and checks are <strong>not</strong> accepted on site.</li>
       </ul>
-      <div style="margin-top:12px;">${paymentDeadlineNoticeHtml()}</div>
+      <div style="margin-top:12px;">${paymentDeadlineNoticeHtml(args.ctx)}</div>
     </div>`;
 }
 
@@ -351,9 +369,12 @@ export async function sendSubmissionReceivedEmail(submissionId: string): Promise
   });
   if (!submission?.guardian.email?.trim()) return "skipped_no_email";
 
+  const ctx = await loadRegistrationEmailContext(submission.seasonId);
+  if (!ctx) return "skipped_ineligible";
+
   const to = submission.guardian.email.trim();
   const gname = `${submission.guardian.firstName} ${submission.guardian.lastName}`.trim();
-  const season = escapeHtml(submission.season.name);
+  const season = escapeHtml(ctx.eventName);
   const base = getPublicAppBaseUrl();
   const attachments: NonNullable<Parameters<typeof sendMailViaMicrosoftGraph>[0]["attachments"]> = [];
   let blocks = "";
@@ -393,14 +414,14 @@ export async function sendSubmissionReceivedEmail(submissionId: string): Promise
     const cardPayUrl = payToken ? submissionPayUrl(payToken, base) : null;
     payLaterBlock = buildPayLaterPaymentInstructionsHtml({
       dayOneLabel: formatVbsFirstDayLabel(submission.season.startDate),
-      seasonName: submission.season.name,
+      ctx,
       cardPayUrl,
     });
   }
 
   const cardsIntro = isPayLater
-    ? `<p style="margin:0 0 14px;">Thanks for registering for <strong>${season}</strong>. Each child has a registration number and digital check-in card below — save this email for check-in day. Payment is still due (card online before VBS, or on site on Day 1); see options after your cards.</p>`
-    : `<p style="margin:0 0 14px;">Thanks for registering for <strong>${season}</strong>. Each child now has a registration number and digital check-in card:</p>`;
+    ? `<p style="margin:0 0 14px;">Thanks for registering for <strong>${season}</strong>. Each ${escapeHtml(ctx.participantSingularLabel.toLowerCase())} has a registration number and digital check-in card below — save this email for check-in day. Payment is still due; see options after your cards.</p>`
+    : `<p style="margin:0 0 14px;">Thanks for registering for <strong>${season}</strong>. Each ${escapeHtml(ctx.participantSingularLabel.toLowerCase())} now has a registration number and digital check-in card:</p>`;
 
   const inner = isPayLater
     ? `
@@ -408,8 +429,8 @@ export async function sendSubmissionReceivedEmail(submissionId: string): Promise
     ${cardsIntro}
     <table role="presentation" width="100%" cellspacing="0" cellpadding="0">${blocks}</table>
     ${payLaterBlock}
-    <p style="margin:10px 0 0;font-size:13px;color:#64748b;">Show each child&apos;s digital card (QR code) at check-in. Staff may still follow up if details need review.</p>
-    <p style="margin:8px 0 0;font-size:13px;color:#475569;">Questions? Email <a href="mailto:${escapeHtml(helpEmailAddress())}" style="color:#2563eb;">${escapeHtml(helpEmailAddress())}</a>.</p>
+    <p style="margin:10px 0 0;font-size:13px;color:#64748b;">Show each ${escapeHtml(ctx.participantSingularLabel.toLowerCase())}&apos;s digital card (QR code) at check-in. Staff may still follow up if details need review.</p>
+    <p style="margin:8px 0 0;font-size:13px;color:#475569;">Questions? Email <a href="mailto:${escapeHtml(ctx.helpEmail)}" style="color:#2563eb;">${escapeHtml(ctx.helpEmail)}</a>.</p>
   `
     : `
     <p style="margin:0 0 12px;">Hi ${escapeHtml(gname)},</p>
@@ -417,18 +438,18 @@ export async function sendSubmissionReceivedEmail(submissionId: string): Promise
     ${cardsIntro}
     <table role="presentation" width="100%" cellspacing="0" cellpadding="0">${blocks}</table>
     <p style="margin:10px 0 0;font-size:13px;color:#64748b;">Save this email for check-in day. Staff may still follow up if details need review.</p>
-    <p style="margin:8px 0 0;font-size:13px;color:#475569;">Questions? Email <a href="mailto:${escapeHtml(helpEmailAddress())}" style="color:#2563eb;">${escapeHtml(helpEmailAddress())}</a>.</p>
+    <p style="margin:8px 0 0;font-size:13px;color:#475569;">Questions? Email <a href="mailto:${escapeHtml(ctx.helpEmail)}" style="color:#2563eb;">${escapeHtml(ctx.helpEmail)}</a>.</p>
   `;
 
   const subject = isPayLater
-    ? `${brandName()} — Your registration & check-in cards (payment due)`
-    : `${brandName()} — Your family registration details`;
+    ? `${ctx.brandName} — Your ${ctx.eventName} registration & check-in cards (payment due)`
+    : `${ctx.brandName} — Your ${ctx.eventName} registration details`;
 
   const { result, error } = await sendHtml(
     to,
     gname,
     subject,
-    emailShell(inner),
+    emailShell(inner, ctx),
     attachments,
   );
 
@@ -466,31 +487,45 @@ export async function sendRegistrationApprovedEmail(
   const guardian = reg.child.guardian;
   if (!guardian?.email?.trim()) return "skipped_no_email";
 
+  const ctx = await loadRegistrationEmailContext(reg.seasonId);
+  if (!ctx) return "skipped_ineligible";
+
   const base = getPublicAppBaseUrl();
   const ticketUrl = registrationTicketUrl(reg.checkInToken, base);
   const qrB64 = await qrPngBase64ForTicketUrl(ticketUrl);
   const cid = "vbsregqr";
-  const logo = await loadThemeLogoInlineAttachment();
+  const logo = ctx.isLegacyVbs ? await loadThemeLogoInlineAttachment() : null;
 
   const childName = `${reg.child.firstName} ${reg.child.lastName}`;
   const gname = `${guardian.firstName} ${guardian.lastName}`.trim();
-  const season = escapeHtml(reg.season.name);
+  const season = escapeHtml(ctx.eventName);
   const cls = reg.classroom ? escapeHtml(reg.classroom.name) : "To be assigned";
   const num = escapeHtml(reg.registrationNumber ?? "Pending approval");
   const dates = formatSeasonDateRange(reg.season.startDate, reg.season.endDate);
 
+  const confirmationLabel = ctx.isLegacyVbs ? "VBS Confirmation" : "Registration confirmed";
+  const welcomeHeading = ctx.isLegacyVbs
+    ? `You&apos;re In! Welcome to ${escapeHtml(ctx.eventName)}!`
+    : `You&apos;re all set for ${escapeHtml(ctx.eventName)}!`;
+  const themeTagline = ctx.isLegacyVbs
+    ? `<p style="margin:0 0 16px;font-size:14px;line-height:1.5;color:#0f766e;"><strong>Shining a light on who Jesus really is - John 8:12</strong></p>`
+    : "";
+  const closingReminder = ctx.isLegacyVbs
+    ? `<p style="margin:18px 0 0;font-size:14px;color:#334155;">Kid-friendly reminder: bring your biggest smile, comfy shoes, and a heart ready for fun.</p>`
+    : `<p style="margin:18px 0 0;font-size:14px;color:#334155;">Please bring this confirmation with you on check-in day.</p>`;
+
   const inner = `
     ${
       logo
-        ? `<p style="margin:-18px 0 8px;text-align:center;line-height:0;font-size:0;"><img src="cid:${logo.cid}" width="300" alt="Illumination Station" style="max-width:100%;height:auto;border:0;display:block;margin:0 auto;" /></p>`
+        ? `<p style="margin:-18px 0 8px;text-align:center;line-height:0;font-size:0;"><img src="cid:${logo.cid}" width="300" alt="${escapeHtml(ctx.eventName)}" style="max-width:100%;height:auto;border:0;display:block;margin:0 auto;" /></p>`
         : ""
     }
-    <p style="margin:0 0 6px;font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:#0ea5e9;">VBS Confirmation</p>
-    <h2 style="margin:0 0 8px;font-size:28px;line-height:1.2;font-weight:800;color:#0f172a;">You&apos;re In! Welcome to Illumination Station!</h2>
+    <p style="margin:0 0 6px;font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:#0ea5e9;">${confirmationLabel}</p>
+    <h2 style="margin:0 0 8px;font-size:28px;line-height:1.2;font-weight:800;color:#0f172a;">${welcomeHeading}</h2>
     <p style="margin:0 0 8px;font-size:17px;line-height:1.4;color:#1e293b;"><strong>${escapeHtml(childName)}</strong> is all set for <strong>${season}</strong>!</p>
-    <p style="margin:0 0 16px;font-size:14px;line-height:1.5;color:#0f766e;"><strong>Shining a light on who Jesus really is - John 8:12</strong></p>
+    ${themeTagline}
     <p style="margin:0 0 12px;">Hi ${escapeHtml(gname)},</p>
-    <p style="margin:0 0 14px;">Great news! Your child&apos;s spot is confirmed. Keep this card handy for a smooth and joyful check-in.</p>
+    <p style="margin:0 0 14px;">Great news! Your ${escapeHtml(ctx.participantSingularLabel.toLowerCase())}&apos;s spot is confirmed. Keep this card handy for a smooth check-in.</p>
     <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:0 0 18px;">
       <tr>
         <td style="border:1px dashed #7dd3fc;border-radius:12px;background-color:#f0f9ff;background-image:linear-gradient(180deg,#f0f9ff 0%,#eefcff 100%);padding:0;">
@@ -519,15 +554,15 @@ export async function sendRegistrationApprovedEmail(
         </td>
       </tr>
     </table>
-    <p style="margin:18px 0 0;font-size:14px;color:#334155;">Kid-friendly reminder: bring your biggest smile, comfy shoes, and a heart ready for fun.</p>
-    <p style="margin:8px 0 0;font-size:13px;color:#475569;">Questions? Email <a href="mailto:${escapeHtml(helpEmailAddress())}" style="color:#2563eb;">${escapeHtml(helpEmailAddress())}</a>.</p>
+    ${closingReminder}
+    <p style="margin:8px 0 0;font-size:13px;color:#475569;">Questions? Email <a href="mailto:${escapeHtml(ctx.helpEmail)}" style="color:#2563eb;">${escapeHtml(ctx.helpEmail)}</a>.</p>
   `;
 
   const { result, error } = await sendHtml(
     guardian.email.trim(),
     gname,
-    `${brandName()} — Confirmed: VBS registration for ${childName.split(" ")[0]}`,
-    emailShell(inner),
+    `${ctx.brandName} — Confirmed: ${ctx.eventName} registration for ${childName.split(" ")[0]}`,
+    emailShell(inner, ctx),
     [
       ...(logo ? [logo.attachment] : []),
       {
@@ -570,9 +605,12 @@ export async function sendAllApprovedRegistrationsEmailForSubmission(submissionI
   );
   if (confirmedWithIdentity.length === 0) return "skipped_ineligible";
 
+  const ctx = await loadRegistrationEmailContext(submission.seasonId);
+  if (!ctx) return "skipped_ineligible";
+
   const base = getPublicAppBaseUrl();
   const attachments: NonNullable<Parameters<typeof sendMailViaMicrosoftGraph>[0]["attachments"]> = [];
-  const logo = await loadThemeLogoInlineAttachment();
+  const logo = ctx.isLegacyVbs ? await loadThemeLogoInlineAttachment() : null;
   if (logo) attachments.push(logo.attachment);
   let blocks = "";
   let i = 0;
@@ -602,28 +640,32 @@ export async function sendAllApprovedRegistrationsEmailForSubmission(submissionI
   }
 
   const gname = `${submission.guardian.firstName} ${submission.guardian.lastName}`.trim();
-  const seasonTitle = confirmedWithIdentity[0]?.season?.name?.trim() || "VBS";
+  const seasonTitle = escapeHtml(ctx.eventName);
+  const confirmationLabel = ctx.isLegacyVbs ? "VBS Confirmation" : "Registration confirmed";
+  const themeTagline = ctx.isLegacyVbs
+    ? `<p style="margin:0 0 8px;font-size:15px;line-height:1.45;color:#0f766e;"><strong>Shining a light on who Jesus really is - John 8:12</strong></p>`
+    : "";
   const inner = `
     ${
       logo
-        ? `<p style="margin:-18px 0 8px;text-align:center;line-height:0;font-size:0;"><img src="cid:${logo.cid}" width="300" alt="Illumination Station" style="max-width:100%;height:auto;border:0;display:block;margin:0 auto;" /></p>`
+        ? `<p style="margin:-18px 0 8px;text-align:center;line-height:0;font-size:0;"><img src="cid:${logo.cid}" width="300" alt="${seasonTitle}" style="max-width:100%;height:auto;border:0;display:block;margin:0 auto;" /></p>`
         : ""
     }
-    <p style="margin:0 0 6px;font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:#0ea5e9;">VBS Confirmation</p>
-    <h2 style="margin:0 0 8px;font-size:26px;line-height:1.2;font-weight:800;color:#0f172a;">You&apos;re all set for ${escapeHtml(seasonTitle)}!</h2>
-    <p style="margin:0 0 8px;font-size:15px;line-height:1.45;color:#0f766e;"><strong>Shining a light on who Jesus really is - John 8:12</strong></p>
+    <p style="margin:0 0 6px;font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:#0ea5e9;">${confirmationLabel}</p>
+    <h2 style="margin:0 0 8px;font-size:26px;line-height:1.2;font-weight:800;color:#0f172a;">You&apos;re all set for ${seasonTitle}!</h2>
+    ${themeTagline}
     <p style="margin:0 0 12px;">Hi ${escapeHtml(gname)},</p>
-    <p style="margin:0 0 14px;">Your confirmed registrations are ready. Each child&apos;s digital card is below:</p>
+    <p style="margin:0 0 14px;">Your confirmed registrations are ready. Each ${escapeHtml(ctx.participantSingularLabel.toLowerCase())}&apos;s digital card is below:</p>
     <table role="presentation" width="100%" cellspacing="0" cellpadding="0">${blocks}</table>
-    <p style="margin:10px 0 0;font-size:13px;color:#64748b;">Save this email and show each QR code at check-in. We can&apos;t wait to see your family!</p>
-    <p style="margin:8px 0 0;font-size:13px;color:#475569;">Questions? Email <a href="mailto:${escapeHtml(helpEmailAddress())}" style="color:#2563eb;">${escapeHtml(helpEmailAddress())}</a>.</p>
+    <p style="margin:10px 0 0;font-size:13px;color:#64748b;">Save this email and show each QR code at check-in.</p>
+    <p style="margin:8px 0 0;font-size:13px;color:#475569;">Questions? Email <a href="mailto:${escapeHtml(ctx.helpEmail)}" style="color:#2563eb;">${escapeHtml(ctx.helpEmail)}</a>.</p>
   `;
 
   const { result, error } = await sendHtml(
     submission.guardian.email.trim(),
     gname,
-    `${brandName()} — Your confirmed VBS registration(s)`,
-    emailShell(inner),
+    `${ctx.brandName} — Your confirmed ${ctx.eventName} registration(s)`,
+    emailShell(inner, ctx),
     attachments,
   );
 
@@ -642,18 +684,17 @@ export async function sendAllApprovedRegistrationsEmailForSubmission(submissionI
 
 function buildRegistrationCancelledEmailInner(args: {
   guardianName: string;
-  seasonName: string;
+  ctx: RegistrationEmailContext;
   childListHtml: string;
-  registerUrl: string;
 }): string {
-  const contact = helpEmailAddress();
-  const season = escapeHtml(args.seasonName);
-  const registerUrl = escapeHtml(args.registerUrl);
+  const contact = args.ctx.helpEmail;
+  const season = escapeHtml(args.ctx.eventName);
+  const registerUrl = escapeHtml(args.ctx.registerUrl);
 
   return `
     <p style="margin:0 0 12px;">Hi ${escapeHtml(args.guardianName)},</p>
     <p style="margin:0 0 16px;padding:12px 14px;border-radius:12px;background:#fef2f2;border:1px solid #fecaca;color:#991b1b;font-size:14px;line-height:1.55;">
-      Your VBS registration for <strong>${season}</strong> has been <strong>cancelled</strong> by our team.
+      Your registration for <strong>${season}</strong> has been <strong>cancelled</strong> by our team.
       ${args.childListHtml}
     </p>
     <p style="margin:0 0 12px;font-size:15px;line-height:1.55;color:#334155;">
@@ -674,6 +715,7 @@ function buildRegistrationCancelledEmailInner(args: {
 
 function childListBlockHtml(
   registrations: Array<{ child: { firstName: string; lastName: string } }>,
+  participantSingularLabel = "Child",
 ): string {
   if (registrations.length === 0) return "";
   const items = registrations
@@ -681,7 +723,7 @@ function childListBlockHtml(
       const n = `${r.child.firstName} ${r.child.lastName}`.trim();
       return n
         ? `<li style="margin:0 0 6px;"><strong>${escapeHtml(n)}</strong></li>`
-        : `<li style="margin:0 0 6px;">Child registration</li>`;
+        : `<li style="margin:0 0 6px;">${escapeHtml(participantSingularLabel)} registration</li>`;
     })
     .join("");
   return `
@@ -702,22 +744,22 @@ export async function sendRegistrationCancelledEmail(registrationId: string): Pr
 
   const gname = `${guardian.firstName} ${guardian.lastName}`.trim();
   const childName = `${reg.child.firstName} ${reg.child.lastName}`.trim();
-  const registerUrl = `${getPublicAppBaseUrl()}/register`;
-  const childListHtml = childListBlockHtml([{ child: reg.child }]);
+  const ctx = await loadRegistrationEmailContext(reg.seasonId);
+  if (!ctx) return "skipped_ineligible";
+  const childListHtml = childListBlockHtml([{ child: reg.child }], ctx.participantSingularLabel);
 
   const inner = buildRegistrationCancelledEmailInner({
     guardianName: gname,
-    seasonName: reg.season.name,
+    ctx,
     childListHtml,
-    registerUrl,
   });
 
-  const subjectChild = childName.split(" ")[0] || "your child";
+  const subjectChild = childName.split(" ")[0] || `your ${ctx.participantSingularLabel.toLowerCase()}`;
   const { result, error } = await sendHtml(
     guardian.email.trim(),
     gname,
-    `${brandName()} — Registration cancelled (${subjectChild})`,
-    emailShell(inner),
+    `${ctx.brandName} — ${ctx.eventName} registration cancelled (${subjectChild})`,
+    emailShell(inner, ctx),
   );
 
   if (result === "failed") console.error("[registration email cancelled]", error);
@@ -751,21 +793,21 @@ export async function sendSubmissionCancelledEmail(
   if (submission.registrations.length === 0) return "skipped_ineligible";
 
   const gname = `${submission.guardian.firstName} ${submission.guardian.lastName}`.trim();
-  const registerUrl = `${getPublicAppBaseUrl()}/register`;
-  const childListHtml = childListBlockHtml(submission.registrations);
+  const ctx = await loadRegistrationEmailContext(submission.seasonId);
+  if (!ctx) return "skipped_ineligible";
+  const childListHtml = childListBlockHtml(submission.registrations, ctx.participantSingularLabel);
 
   const inner = buildRegistrationCancelledEmailInner({
     guardianName: gname,
-    seasonName: submission.season.name,
+    ctx,
     childListHtml,
-    registerUrl,
   });
 
   const { result, error } = await sendHtml(
     submission.guardian.email.trim(),
     gname,
-    `${brandName()} — Registration cancelled`,
-    emailShell(inner),
+    `${ctx.brandName} — ${ctx.eventName} registration cancelled`,
+    emailShell(inner, ctx),
   );
 
   if (result === "failed") console.error("[registration email submission cancelled]", error);
@@ -781,32 +823,33 @@ export async function sendSubmissionCancelledEmail(
 export async function sendRegistrationsRemovedEmail(args: {
   guardianEmail: string;
   guardianName: string;
-  seasonName: string;
+  seasonId: string;
   children: Array<{ firstName: string; lastName: string }>;
 }): Promise<EmailSendResult> {
   const email = args.guardianEmail.trim();
   if (!email) return "skipped_no_email";
 
+  const ctx = await loadRegistrationEmailContext(args.seasonId);
+  if (!ctx) return "skipped_ineligible";
+
   const registrations = args.children.map((child) => ({ child }));
-  const childListHtml = childListBlockHtml(registrations);
-  const registerUrl = `${getPublicAppBaseUrl()}/register`;
+  const childListHtml = childListBlockHtml(registrations, ctx.participantSingularLabel);
   const inner = buildRegistrationCancelledEmailInner({
     guardianName: args.guardianName,
-    seasonName: args.seasonName,
+    ctx,
     childListHtml,
-    registerUrl,
   });
 
   const subjectChild =
     args.children.length === 1
-      ? args.children[0]!.firstName.trim() || "your child"
+      ? args.children[0]!.firstName.trim() || `your ${ctx.participantSingularLabel.toLowerCase()}`
       : "your family";
 
   const { result, error } = await sendHtml(
     email,
     args.guardianName,
-    `${brandName()} — Registration cancelled (${subjectChild})`,
-    emailShell(inner),
+    `${ctx.brandName} — ${ctx.eventName} registration cancelled (${subjectChild})`,
+    emailShell(inner, ctx),
   );
 
   if (result === "failed") console.error("[registration email removed]", error);
@@ -846,6 +889,9 @@ export async function sendCheckoutReminderEmail(formSubmissionId: string): Promi
   });
   if (!submission?.guardian.email?.trim()) return "skipped_no_email";
 
+  const ctx = await loadRegistrationEmailContext(submission.seasonId);
+  if (!ctx) return "skipped_ineligible";
+
   const sampleReg = submission.registrations[0];
   if (!sampleReg) return "skipped_ineligible";
 
@@ -874,9 +920,9 @@ export async function sendCheckoutReminderEmail(formSubmissionId: string): Promi
   const base = getPublicAppBaseUrl();
   const checkoutUrl = escapeHtml(resume.url);
   const cancelUrl = escapeHtml(submissionCancelUrl(cancelToken, base));
-  const contact = helpEmailAddress();
+  const contact = ctx.helpEmail;
   const gname = `${submission.guardian.firstName} ${submission.guardian.lastName}`.trim();
-  const season = escapeHtml(submission.season.name);
+  const season = escapeHtml(ctx.eventName);
   const code = escapeHtml(submission.registrationCode);
 
   const childLines = submission.registrations
@@ -884,20 +930,20 @@ export async function sendCheckoutReminderEmail(formSubmissionId: string): Promi
       const n = `${r.child.firstName} ${r.child.lastName}`.trim();
       return n
         ? `<li style="margin:0 0 6px;"><strong>${escapeHtml(n)}</strong></li>`
-        : `<li style="margin:0 0 6px;">Child registration</li>`;
+        : `<li style="margin:0 0 6px;">${escapeHtml(ctx.participantSingularLabel)} registration</li>`;
     })
     .join("");
 
   const inner = `
     <p style="margin:0 0 12px;">Hi ${escapeHtml(gname)},</p>
     <p style="margin:0 0 16px;padding:12px 14px;border-radius:12px;background:#eff6ff;border:1px solid #bfdbfe;color:#1e3a8a;font-size:14px;line-height:1.55;">
-      Your VBS registration for <strong>${season}</strong> (reference <strong>${code}</strong>) is saved, but
+      Your registration for <strong>${season}</strong> (reference <strong>${code}</strong>) is saved, but
       <strong>card payment is not finished yet</strong>. Use the button below to return to secure checkout and pay where you left off.
     </p>
-    <div style="margin:0 0 16px;">${paymentDeadlineNoticeHtml()}</div>
-    <p style="margin:0 0 8px;font-size:14px;font-weight:600;color:#0f172a;">Children on this registration</p>
+    <div style="margin:0 0 16px;">${paymentDeadlineNoticeHtml(ctx)}</div>
+    <p style="margin:0 0 8px;font-size:14px;font-weight:600;color:#0f172a;">${escapeHtml(ctx.participantPluralLabel.charAt(0).toUpperCase() + ctx.participantPluralLabel.slice(1))} on this registration</p>
     <ul style="margin:0 0 16px;padding-left:20px;color:#334155;font-size:15px;line-height:1.5;">
-      ${childLines || `<li>Your registered children</li>`}
+      ${childLines || `<li>Your registered ${escapeHtml(ctx.participantPluralLabel)}</li>`}
     </ul>
     <p style="margin:0 0 12px;">
       <a href="${checkoutUrl}" style="display:inline-block;background:#0f766e;color:#ffffff;padding:12px 18px;border-radius:999px;text-decoration:none;font-size:14px;line-height:1.1;font-weight:700;border:1px solid #0b5f58;">Complete payment</a>
@@ -919,8 +965,8 @@ export async function sendCheckoutReminderEmail(formSubmissionId: string): Promi
   const { result, error } = await sendHtml(
     submission.guardian.email.trim(),
     gname,
-    `${brandName()} — Complete your VBS payment`,
-    emailShell(inner),
+    `${ctx.brandName} — Complete your ${ctx.eventName} payment`,
+    emailShell(inner, ctx),
   );
 
   if (result === "failed") console.error("[registration email checkout reminder]", error);
@@ -943,16 +989,19 @@ export async function sendPaymentReminderEmail(registrationId: string): Promise<
   const guardian = reg.child.guardian;
   if (!guardian?.email?.trim()) return "skipped_no_email";
 
+  const ctx = await loadRegistrationEmailContext(reg.seasonId);
+  if (!ctx) return "skipped_ineligible";
+
   const childName = `${reg.child.firstName} ${reg.child.lastName}`;
   const gname = `${guardian.firstName} ${guardian.lastName}`.trim();
   const num = escapeHtml(reg.registrationNumber ?? "Pending approval");
-  const season = escapeHtml(reg.season.name);
-  const contact = helpEmailAddress();
+  const season = escapeHtml(ctx.eventName);
+  const contact = ctx.helpEmail;
 
   const inner = `
     <p style="margin:0 0 16px;">Hi ${escapeHtml(gname)},</p>
     <p style="margin:0 0 16px;">This is a friendly reminder about the program fee for <strong>${escapeHtml(childName)}</strong>’s registration <strong>${num}</strong> for <strong>${season}</strong>.</p>
-    <div style="margin:0 0 16px;">${paymentDeadlineNoticeHtml()}</div>
+    <div style="margin:0 0 16px;">${paymentDeadlineNoticeHtml(ctx)}</div>
     <p style="margin:0 0 16px;">If you’ve already paid, thank you — you can disregard this message.</p>
     ${
       contact
@@ -964,8 +1013,8 @@ export async function sendPaymentReminderEmail(registrationId: string): Promise<
   const { result, error } = await sendHtml(
     guardian.email.trim(),
     gname,
-    `${brandName()} — Payment reminder (VBS)`,
-    emailShell(inner),
+    `${ctx.brandName} — Payment reminder (${ctx.eventName})`,
+    emailShell(inner, ctx),
   );
 
   if (result === "failed") console.error("[registration email]", error);

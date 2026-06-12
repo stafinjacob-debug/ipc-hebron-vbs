@@ -3,6 +3,7 @@
  */
 import { prisma } from "@/lib/prisma";
 import { getPublicAppBaseUrl } from "@/lib/public-app-url";
+import { getPortalPublicPath } from "@/lib/portal-public-path";
 import {
   computeProcessingGrossUp,
   computeRegistrationBaseCents,
@@ -39,9 +40,20 @@ export async function createRegistrationStripeCheckoutSession(params: {
   const base = getPublicAppBaseUrl();
   const successUrl =
     params.successUrl ?? `${base}/register/thanks?session_id={CHECKOUT_SESSION_ID}`;
-  const cancelUrl =
-    params.cancelUrl ??
-    `${base}/register?season=${encodeURIComponent(params.seasonId)}&payment=canceled`;
+
+  let cancelUrl = params.cancelUrl;
+  if (!cancelUrl) {
+    const season = await prisma.vbsSeason.findUnique({
+      where: { id: params.seasonId },
+      select: { id: true, publicRegistrationSlug: true },
+    });
+    const portalPath = getPortalPublicPath(season ?? { publicRegistrationSlug: null });
+    if (season?.publicRegistrationSlug) {
+      cancelUrl = `${base}${portalPath}?payment=canceled`;
+    } else {
+      cancelUrl = `${base}${portalPath}?season=${encodeURIComponent(params.seasonId)}&payment=canceled`;
+    }
+  }
 
   const session = await stripe.checkout.sessions.create({
     mode: "payment",

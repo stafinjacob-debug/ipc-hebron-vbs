@@ -11,12 +11,20 @@ export const registrantLookupRegistrationWhere: Prisma.RegistrationWhereInput = 
   status: { in: REGISTRANT_LOOKUP_ACTIVE_STATUSES },
 };
 
+export function registrantLookupRegistrationWhereForSeason(
+  seasonId?: string | null,
+): Prisma.RegistrationWhereInput {
+  if (!seasonId?.trim()) return registrantLookupRegistrationWhere;
+  return { ...registrantLookupRegistrationWhere, seasonId: seasonId.trim() };
+}
+
 /** Match admin registration list — guardian email on the child profile. */
 export function registrantLookupRegistrationForEmail(
   emailNormalized: string,
+  seasonId?: string | null,
 ): Prisma.RegistrationWhereInput {
   return {
-    ...registrantLookupRegistrationWhere,
+    ...registrantLookupRegistrationWhereForSeason(seasonId),
     child: {
       guardian: { email: { equals: emailNormalized, mode: "insensitive" } },
     },
@@ -25,9 +33,10 @@ export function registrantLookupRegistrationForEmail(
 
 export function registrantLookupSubmissionForEmail(
   emailNormalized: string,
+  seasonId?: string | null,
 ): Prisma.FormSubmissionWhereInput {
   return {
-    registrations: { some: registrantLookupRegistrationForEmail(emailNormalized) },
+    registrations: { some: registrantLookupRegistrationForEmail(emailNormalized, seasonId) },
   };
 }
 

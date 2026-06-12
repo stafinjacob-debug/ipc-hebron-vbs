@@ -108,6 +108,13 @@ enum BadgeOrientation {
   HORIZONTAL
 }
 
+enum ProgramKind {
+  VBS
+  SPORTS
+  YOUTH
+  GENERAL
+}
+
 enum BadgeHorizontalLayout {
   STANDARD
   NAME_CODE_HEADER
@@ -251,6 +258,16 @@ model VbsSeason {
   publicRegistrationOpen Boolean @default(true)
   /// When true, check-in tracks attendance per camp day instead of a single checkedInAt flag.
   multiDayCheckInEnabled Boolean @default(false)
+  /// When set, public signup is at /register/{slug} instead of the legacy /register hub.
+  publicRegistrationSlug String? @unique
+  /// Drives admin defaults and form templates; does not affect routing.
+  programKind ProgramKind @default(VBS)
+  /// Age gate cutoff date for public registration (whole years as of this date).
+  participantAgeAsOfDate DateTime?
+  /// When false, classroom auto-assignment and class-based UI are skipped for this program.
+  classroomsEnabled Boolean @default(true)
+  checkInEnabled Boolean @default(true)
+  badgesEnabled Boolean @default(true)
   createdAt DateTime  @default(now())
   updatedAt DateTime @updatedAt
 
@@ -311,6 +328,18 @@ model PublicRegistrationSettings {
   registrationBackgroundDimmingPercent Int @default(48)
   /// Whether the form is centered over the media or split into two columns on large screens.
   registrationBackgroundLayout PublicRegistrationLayout @default(OVERLAY)
+
+  /// Browser tab / OG title for slugged portal pages.
+  publicPageTitle String? @db.Text
+  publicPageDescription String? @db.Text
+  publicHeaderLabel String? @db.Text
+  publicFooterNote String? @db.Text
+  publicLogoUrl String?
+  helpContactPhone String? @db.Text
+  contactSectionLabel String? @db.Text
+  participantSectionLabel String? @db.Text
+  participantSingularLabel String? @db.Text
+  sessionPickerLabel String? @db.Text
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

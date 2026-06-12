@@ -21,6 +21,7 @@ const DEFAULT_HELP_EMAIL = "vbs@ipchouston.com";
 function fallbackDisplay(): RegistrantLookupPageDisplay {
   return {
     churchDisplayName: CHURCH_DISPLAY_NAME,
+    headerLabel: `${CHURCH_DISPLAY_NAME} VBS`,
     contactEmail:
       process.env.NEXT_PUBLIC_VBS_CONTACT_EMAIL?.trim() ||
       process.env.VBS_HELP_EMAIL?.trim() ||
@@ -28,6 +29,8 @@ function fallbackDisplay(): RegistrantLookupPageDisplay {
     contactPhone: process.env.NEXT_PUBLIC_VBS_CONTACT_PHONE?.trim() ?? "",
     formTitle: null,
     seasonName: null,
+    seasonId: null,
+    registerPath: "/register",
     welcomeMessage: null,
     startDate: null,
     endDate: null,
@@ -66,6 +69,7 @@ export default async function RegistrantLookupPage() {
 
       display = {
         churchDisplayName: CHURCH_DISPLAY_NAME,
+        headerLabel: `${CHURCH_DISPLAY_NAME} VBS`,
         contactEmail:
           process.env.NEXT_PUBLIC_VBS_CONTACT_EMAIL?.trim() ||
           process.env.VBS_HELP_EMAIL?.trim() ||
@@ -73,6 +77,8 @@ export default async function RegistrantLookupPage() {
         contactPhone: process.env.NEXT_PUBLIC_VBS_CONTACT_PHONE?.trim() ?? "",
         formTitle: formRow.title,
         seasonName: season.name,
+        seasonId: null,
+        registerPath: "/register",
         welcomeMessage: formRow.welcomeMessage ?? settings?.welcomeMessage ?? null,
         startDate: calendarDateFromDate(season.startDate),
         endDate: calendarDateFromDate(season.endDate),

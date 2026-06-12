@@ -4,21 +4,15 @@ import type React from "react";
 import Link from "next/link";
 import { Fragment, useActionState, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Baby,
   CalendarDays,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
   Clock,
-  FileText,
-  Heart,
-  Lock,
   Mail,
   Plus,
   Search,
-  Shield,
   Trash2,
-  UserRound,
   X,
 } from "lucide-react";
 import {
@@ -26,14 +20,15 @@ import {
   type PublicRegistrationFieldRules,
 } from "@/lib/public-registration";
 import {
-  formatVbsParticipantAgeAsOfLabel,
-  publicVbsParticipantAgeYearsOnGateDate,
-  VBS_PARTICIPANT_MAX_YEARS,
-  VBS_PARTICIPANT_MIN_YEARS,
-} from "@/lib/vbs-participant-age-gate";
+  formatParticipantAgeAsOfLabel,
+  participantAgeYearsOnDate,
+  resolveParticipantAgeRules,
+  validateParticipantAge,
+} from "@/lib/participant-age-gate";
+import type { PortalBranding } from "@/lib/portal-branding";
 import type { WaiverSupplementalFieldDef } from "@/lib/waiver-merge-fields";
-import type { FormDefinitionV1, FormFieldDef } from "@/lib/registration-form-definition";
-import { sortSections } from "@/lib/registration-form-definition";
+import type { FormDefinitionV1, FormFieldDef, FormSectionDef } from "@/lib/registration-form-definition";
+import { RESERVED_CHILD_KEYS, sectionHasFillableFields, sortSections } from "@/lib/registration-form-definition";
 import { formatPhoneInput, phoneDigits } from "@/lib/phone-format";
 import { parseLocalDate } from "@/lib/schemas/vbs-registration";
 import {
@@ -44,6 +39,12 @@ import {
   STRIPE_PER_CHILD_MAX_PAID_COUNT,
 } from "@/lib/stripe-fee-math";
 import { extractStripeSkipEvaluationData } from "@/lib/registration-form-validate";
+import {
+  fieldMatchesEmail,
+  fieldMatchesPhone,
+  formIncludesGuardianPhoneField,
+  resolveGuardianContactFromForm,
+} from "@/lib/registration-form-validate";
 import { shouldSkipStripeForSubmission } from "@/lib/stripe-skip-rule";
 import type { PublicRegistrationLayout } from "@/generated/prisma";
 import { RegistrationBackgroundMedia } from "./registration-background-media";
@@ -86,6 +87,10 @@ export type PublicSeasonOption = {
   definition: FormDefinitionV1;
   minimumParticipantAgeYears: number | null;
   maximumParticipantAgeYears: number | null;
+  participantAgeAsOfDateIso: string;
+  participantSingularLabel: string;
+  sessionPickerLabel: string;
+  classroomsEnabled: boolean;
   stripeCheckoutEnabled: boolean;
   stripeAmountCents: number | null;
   stripePricingUnit: "PER_SUBMISSION" | "PER_CHILD";
@@ -103,6 +108,8 @@ export type PublicSeasonOption = {
   sessionTimeDescription: string | null;
   /** Optional per-season help email shown in public UI. */
   helpContactEmail: string | null;
+  lookupPath: string;
+  publicRegistrationSlug: string | null;
   waiverEnabled: boolean;
   waiverTitle: string | null;
   waiverDescription: string | null;
@@ -168,7 +175,14 @@ function parseChildAgeGateError(message: string): { childIndex: number; message:
 }
 
 /** Returns the same message shape as step validation when DOB fails age rules; `null` if incomplete or OK. */
-function childAgeGateMessageForDob(dobStr: string, childIndex: number): string | null {
+function childAgeGateMessageForDob(
+  dobStr: string,
+  childIndex: number,
+  season: Pick<
+    PublicSeasonOption,
+    "minimumParticipantAgeYears" | "maximumParticipantAgeYears" | "participantAgeAsOfDateIso" | "participantSingularLabel"
+  >,
+): string | null {
   const trimmed = dobStr.trim();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return null;
   let dob: Date;
@@ -177,15 +191,13 @@ function childAgeGateMessageForDob(dobStr: string, childIndex: number): string |
   } catch {
     return null;
   }
-  const age = publicVbsParticipantAgeYearsOnGateDate(dob);
-  const cutoffLabel = formatVbsParticipantAgeAsOfLabel();
-  if (age < VBS_PARTICIPANT_MIN_YEARS) {
-    return `Child ${childIndex + 1}: Must be at least ${VBS_PARTICIPANT_MIN_YEARS} years old as of ${cutoffLabel}.`;
-  }
-  if (age > VBS_PARTICIPANT_MAX_YEARS) {
-    return `Child ${childIndex + 1}: Must be at most ${VBS_PARTICIPANT_MAX_YEARS} years old as of ${cutoffLabel}.`;
-  }
-  return null;
+  const asOfDate = parseLocalDate(season.participantAgeAsOfDateIso);
+  const rules = resolveParticipantAgeRules({
+    minimumParticipantAgeYears: season.minimumParticipantAgeYears,
+    maximumParticipantAgeYears: season.maximumParticipantAgeYears,
+    participantAgeAsOfDate: asOfDate,
+  });
+  return validateParticipantAge(dob, rules, season.participantSingularLabel, childIndex);
 }
 
 function visible(field: FormFieldDef, ctx: Record<string, string>): boolean {
@@ -414,24 +426,37 @@ function AllergiesFieldInput({
   );
 }
 
-function SectionHeader({
-  icon: Icon,
-  title,
-  description,
-}: {
-  icon: React.ComponentType<{ className?: string; "aria-hidden"?: boolean }>;
-  title: string;
-  description: string;
-}) {
+function resolveSectionWizardKind(
+  def: FormDefinitionV1,
+  sec: FormSectionDef,
+): "guardian" | "participants" | "consent" | null {
+  if (!sectionHasFillableFields(def, sec.id)) return null;
+  if (sec.audience === "guardian") return "guardian";
+  if (sec.audience === "eachChild") return "participants";
+
+  const fieldKeys = def.fields
+    .filter(
+      (f) => f.sectionId === sec.id && f.type !== "sectionHeader" && f.type !== "staticText",
+    )
+    .map((f) => f.key);
+  if (fieldKeys.length === 0) return null;
+
+  const childLikeCount = fieldKeys.filter(
+    (k) => RESERVED_CHILD_KEYS.has(k) || k.startsWith("child"),
+  ).length;
+  if (childLikeCount > 0 && childLikeCount >= fieldKeys.length / 2) {
+    return "participants";
+  }
+
+  if (sec.audience === "consent" || sec.audience === "static") return "consent";
+  return null;
+}
+
+function SectionHeader({ title, description }: { title: string; description?: string }) {
   return (
-    <div className="mb-5 flex gap-3">
-      <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-brand-muted/80 text-brand dark:bg-brand-muted/30">
-        <Icon className="size-5" aria-hidden />
-      </span>
-      <div>
-        <h2 className="text-lg font-bold text-neutral-100">{title}</h2>
-        <p className="mt-0.5 text-sm text-neutral-200/85">{description}</p>
-      </div>
+    <div className="mb-5">
+      <h2 className="text-lg font-bold text-neutral-100">{title}</h2>
+      {description ? <p className="mt-0.5 text-sm text-neutral-200/85">{description}</p> : null}
     </div>
   );
 }
@@ -639,6 +664,7 @@ export function DynamicRegistrationWizard({
   contactEmail,
   contactPhone,
   churchDisplayName,
+  portalBranding,
   paymentCanceled = false,
   initialSeasonId,
   registrationClosedDisplay = null,
@@ -652,6 +678,7 @@ export function DynamicRegistrationWizard({
   /** e.g. after Stripe Checkout cancel — pre-select season. */
   initialSeasonId?: string;
   registrationClosedDisplay?: PublicRegistrationClosedDisplay | null;
+  portalBranding?: PortalBranding;
 } & RegisterContactProps) {
   const [state, formAction, pending] = useActionState(submitPublicRegistration, initial);
   const [seasonId, setSeasonId] = useState(() => {
@@ -686,7 +713,18 @@ export function DynamicRegistrationWizard({
   const current = useMemo(() => seasons.find((s) => s.id === seasonId), [seasons, seasonId]);
   const def = current?.definition;
   const rules = current?.rules ?? defaultPublicFieldRules;
-  const effectiveContactEmail = current?.helpContactEmail?.trim() || contactEmail;
+  const effectiveContactEmail = (current?.helpContactEmail?.trim() || contactEmail?.trim() || "") || "";
+  const participantAgeRules = useMemo(() => {
+    if (!current) return resolveParticipantAgeRules({});
+    return resolveParticipantAgeRules({
+      minimumParticipantAgeYears: current.minimumParticipantAgeYears,
+      maximumParticipantAgeYears: current.maximumParticipantAgeYears,
+      participantAgeAsOfDate: parseLocalDate(current.participantAgeAsOfDateIso),
+    });
+  }, [current]);
+  const participantLabel = current?.participantSingularLabel ?? portalBranding?.participantSingularLabel ?? "Child";
+  const sessionPickerLabel = current?.sessionPickerLabel ?? portalBranding?.sessionPickerLabel ?? "Session";
+  const teamReviewNote = portalBranding?.teamReviewNote ?? PAYMENT_SKIP_TEAM_REVIEW_NOTE;
 
   const waiverSnap = useMemo((): PublicSeasonWaiverSnapshot | null => {
     const fromMap = waiverBySeasonId[seasonId];
@@ -786,29 +824,20 @@ export function DynamicRegistrationWizard({
 
   /** When true, waiver signatures live on their own step so Privacy → Review cannot skip them. */
   const waiverStepActive = waiverSnap?.enabled === true;
-  const stepLabels = useMemo(
-    () =>
-      waiverStepActive
-        ? (["Your information", "Children", "Privacy", "Waiver", "Review"] as const)
-        : (["Your information", "Children", "Privacy", "Review"] as const),
-    [waiverStepActive],
-  );
-  const totalSteps = stepLabels.length;
-  const reviewStepIndex = waiverStepActive ? 4 : 3;
 
   const guardianSections = useMemo(() => {
     if (!def) return [];
-    return sortSections(def).filter((s) => s.audience === "guardian");
+    return sortSections(def).filter((s) => resolveSectionWizardKind(def, s) === "guardian");
   }, [def]);
 
   const childSections = useMemo(() => {
     if (!def) return [];
-    return sortSections(def).filter((s) => s.audience === "eachChild");
+    return sortSections(def).filter((s) => resolveSectionWizardKind(def, s) === "participants");
   }, [def]);
 
   const consentSections = useMemo(() => {
     if (!def) return [];
-    return sortSections(def).filter((s) => s.audience === "consent" || s.audience === "static");
+    return sortSections(def).filter((s) => resolveSectionWizardKind(def, s) === "consent");
   }, [def]);
 
   const childFieldKeys = useMemo(() => {
@@ -818,6 +847,85 @@ export function DynamicRegistrationWizard({
       .filter((f) => ids.has(f.sectionId) && f.type !== "sectionHeader" && f.type !== "staticText")
       .map((f) => f.key);
   }, [def, childSections]);
+
+  const hasParticipantStep = childSections.length > 0 && childFieldKeys.length > 0;
+  const hasConsentFormFields = useMemo(() => consentSections.length > 0, [consentSections]);
+
+  type WizardFormStep = {
+    kind: "guardian" | "participants" | "consent";
+    sectionIds: string[];
+    label: string;
+  };
+  type WizardStepDef =
+    | WizardFormStep
+    | { kind: "waiver"; label: string }
+    | { kind: "review"; label: string };
+
+  const activeSteps = useMemo((): WizardStepDef[] => {
+    if (!def) return [{ kind: "review", label: "Review" }];
+    const steps: WizardStepDef[] = [];
+    const defaultLabels = {
+      guardian: portalBranding?.contactSectionLabel ?? "Your information",
+      participants: portalBranding?.participantSectionLabel ?? "Participants",
+      consent: "Privacy",
+    };
+
+    for (const sec of sortSections(def)) {
+      const kind = resolveSectionWizardKind(def, sec);
+      if (!kind) continue;
+
+      const label = sec.title?.trim() || defaultLabels[kind];
+      const last = steps[steps.length - 1];
+      if (last && "sectionIds" in last && last.kind === kind) {
+        last.sectionIds.push(sec.id);
+      } else {
+        steps.push({ kind, sectionIds: [sec.id], label });
+      }
+    }
+
+    if (waiverStepActive) {
+      steps.push({ kind: "waiver", label: waiverSnap?.title?.trim() || "Waiver" });
+    }
+    steps.push({ kind: "review", label: "Review" });
+    return steps;
+  }, [def, portalBranding?.contactSectionLabel, portalBranding?.participantSectionLabel, waiverStepActive, waiverSnap?.title]);
+
+  const stepLabels = useMemo(() => activeSteps.map((s) => s.label), [activeSteps]);
+  const totalSteps = activeSteps.length;
+  const reviewStepIndex = useMemo(
+    () => Math.max(0, activeSteps.findIndex((s) => s.kind === "review")),
+    [activeSteps],
+  );
+  const currentStep = activeSteps[step];
+  const currentStepKind = currentStep?.kind ?? "review";
+  const eventName = current?.name ?? "this event";
+
+  const currentStepFormSections = useMemo(() => {
+    if (!def || !currentStep || !("sectionIds" in currentStep)) return [];
+    const ids = new Set(currentStep.sectionIds);
+    return sortSections(def).filter((sec) => ids.has(sec.id));
+  }, [def, currentStep]);
+
+  const isLastParticipantStep = useMemo(() => {
+    let lastIndex = -1;
+    activeSteps.forEach((s, i) => {
+      if (s.kind === "participants") lastIndex = i;
+    });
+    return lastIndex >= 0 && step === lastIndex;
+  }, [activeSteps, step]);
+
+  const currentStepShowsAgeGate = useMemo(() => {
+    if (currentStepKind !== "participants" || !def) return false;
+    const ids = new Set(currentStepFormSections.map((s) => s.id));
+    return def.fields.some(
+      (f) => ids.has(f.sectionId) && f.key === "childDateOfBirth" && f.type !== "sectionHeader" && f.type !== "staticText",
+    );
+  }, [currentStepKind, def, currentStepFormSections]);
+
+  const reviewContactLabel =
+    guardianSections[0]?.title ?? portalBranding?.contactSectionLabel ?? "Contact information";
+  const reviewParticipantLabel =
+    childSections[0]?.title ?? portalBranding?.participantSectionLabel ?? "Participants";
 
   const childRowIds = useMemo(() => children.map((c) => c.id).join(","), [children]);
 
@@ -842,7 +950,11 @@ export function DynamicRegistrationWizard({
       g[f.key] = f.defaultValue ?? "";
     }
     setGuardian(g);
-    setChildren([{ id: newChildId(), values: Object.fromEntries(childFieldKeys.map((k) => [k, ""])) }]);
+    setChildren(
+      childFieldKeys.length > 0
+        ? [{ id: newChildId(), values: Object.fromEntries(childFieldKeys.map((k) => [k, ""])) }]
+        : [],
+    );
     setStep(0);
     setConfirmAccurate(false);
     setSmsConsent(false);
@@ -895,7 +1007,7 @@ export function DynamicRegistrationWizard({
   const applyLiveDobAgeCheck = useCallback(
     (childIndex: number, dobStr: string) => {
       if (!current) return;
-      const msg = childAgeGateMessageForDob(dobStr, childIndex);
+      const msg = childAgeGateMessageForDob(dobStr, childIndex, current);
       setLiveDobAgeByChild((prev) => {
         const next = { ...prev };
         if (msg) next[childIndex] = msg;
@@ -904,7 +1016,7 @@ export function DynamicRegistrationWizard({
       });
       setAgeGateError((ag) => (ag?.childIndex === childIndex ? null : ag));
     },
-    [],
+    [current],
   );
 
   useEffect(() => {
@@ -937,8 +1049,12 @@ export function DynamicRegistrationWizard({
   const validateStep = useCallback(
     (s: number): string | null => {
       if (!def) return "Form not loaded.";
-      if (s === 0) {
-        for (const sec of guardianSections) {
+      const stepDef = activeSteps[s];
+      const kind = stepDef?.kind;
+      const stepSectionIds =
+        stepDef && "sectionIds" in stepDef ? new Set(stepDef.sectionIds) : null;
+      if (kind === "guardian" && stepSectionIds) {
+        for (const sec of guardianSections.filter((x) => stepSectionIds.has(x.id))) {
           for (const f of def.fields.filter((x) => x.sectionId === sec.id)) {
             if (f.type === "sectionHeader" || f.type === "staticText") continue;
             if (!visible(f, guardian)) continue;
@@ -946,26 +1062,28 @@ export function DynamicRegistrationWizard({
             const req =
               f.required ||
               (f.key === "guardianEmail" && rules.requireGuardianEmail) ||
-              (f.key === "guardianPhone" && rules.requireGuardianPhone);
+              (fieldMatchesEmail(f) && rules.requireGuardianEmail) ||
+              (f.key === "guardianPhone" && rules.requireGuardianPhone) ||
+              (fieldMatchesPhone(f) && rules.requireGuardianPhone);
             if (req && (f.type === "checkbox" || f.type === "boolean") && v !== "true") {
               return `${f.label} is required.`;
             }
             if (req && f.type !== "checkbox" && f.type !== "boolean" && !v.trim()) {
               return `${f.label} is required.`;
             }
-            if (f.key === "guardianEmail" && v.trim() && !emailLooksValid(v)) {
+            if ((f.key === "guardianEmail" || fieldMatchesEmail(f)) && v.trim() && !emailLooksValid(v)) {
               return "Please enter a valid email address.";
             }
-            if (f.key === "guardianPhone" && rules.requireGuardianPhone && !phoneDigits(v)) {
+            if ((f.key === "guardianPhone" || fieldMatchesPhone(f)) && rules.requireGuardianPhone && !phoneDigits(v)) {
               return "Phone is required.";
             }
           }
         }
       }
-      if (s === 1) {
+      if (kind === "participants" && stepSectionIds) {
         for (let i = 0; i < children.length; i++) {
           const row = children[i].values;
-          for (const sec of childSections) {
+          for (const sec of childSections.filter((x) => stepSectionIds.has(x.id))) {
             for (const f of def.fields.filter((x) => x.sectionId === sec.id)) {
               if (f.type === "sectionHeader" || f.type === "staticText") continue;
               if (!visible(f, row)) continue;
@@ -973,23 +1091,32 @@ export function DynamicRegistrationWizard({
               const req =
                 f.required || (f.key === "allergiesNotes" && rules.requireAllergiesNotes);
               if (req && (f.type === "checkbox" || f.type === "boolean") && v !== "true") {
-                return `Child ${i + 1}: ${f.label} is required.`;
+                return `${participantLabel} ${i + 1}: ${f.label} is required.`;
               }
               if (req && f.type !== "checkbox" && f.type !== "boolean" && !v.trim()) {
-                return `Child ${i + 1}: ${f.label} is required.`;
+                return `${participantLabel} ${i + 1}: ${f.label} is required.`;
               }
             }
           }
         }
-        if (current) {
-          for (let i = 0; i < children.length; i++) {
-            const msg = childAgeGateMessageForDob(children[i].values.childDateOfBirth ?? "", i);
-            if (msg) return msg;
+        if (current && stepSectionIds) {
+          const stepHasDob = def.fields.some(
+            (f) =>
+              stepSectionIds.has(f.sectionId) &&
+              f.key === "childDateOfBirth" &&
+              f.type !== "sectionHeader" &&
+              f.type !== "staticText",
+          );
+          if (stepHasDob) {
+            for (let i = 0; i < children.length; i++) {
+              const msg = childAgeGateMessageForDob(children[i].values.childDateOfBirth ?? "", i, current);
+              if (msg) return msg;
+            }
           }
         }
       }
-      if (s === 2) {
-        for (const sec of consentSections) {
+      if (kind === "consent" && stepSectionIds) {
+        for (const sec of consentSections.filter((x) => stepSectionIds.has(x.id))) {
           for (const f of def.fields.filter((x) => x.sectionId === sec.id)) {
             if (f.type === "sectionHeader" || f.type === "staticText") continue;
             if (!visible(f, guardian)) continue;
@@ -997,7 +1124,9 @@ export function DynamicRegistrationWizard({
             const req =
               f.required ||
               (f.key === "guardianEmail" && rules.requireGuardianEmail) ||
-              (f.key === "guardianPhone" && rules.requireGuardianPhone);
+              (fieldMatchesEmail(f) && rules.requireGuardianEmail) ||
+              (f.key === "guardianPhone" && rules.requireGuardianPhone) ||
+              (fieldMatchesPhone(f) && rules.requireGuardianPhone);
             if (req && (f.type === "checkbox" || f.type === "boolean") && v !== "true") {
               return `${f.label} is required.`;
             }
@@ -1009,20 +1138,16 @@ export function DynamicRegistrationWizard({
             }
           }
         }
-        if (!confirmAccurate) return "Please confirm the information is accurate to continue.";
-        if (smsConsent && !(guardian.guardianPhone ?? "").trim()) {
-          return "Please provide a phone number to receive SMS updates.";
-        }
         return null;
       }
-      if (s === 3 && waiverStepActive) {
+      if (kind === "waiver") {
         if (waiverPerChild.length !== children.length) {
           return "Waiver forms are still loading — try again in a moment.";
         }
         const waiverChildLabel = (i: number) => {
           const row = children[i]?.values;
           const n = `${row?.childFirstName ?? ""} ${row?.childLastName ?? ""}`.trim();
-          return n || `Child ${i + 1}`;
+          return n || `${participantLabel} ${i + 1}`;
         };
         const defs = waiverSnap?.supplementalFields ?? [];
         for (let i = 0; i < children.length; i++) {
@@ -1041,7 +1166,17 @@ export function DynamicRegistrationWizard({
         }
         return null;
       }
-      if (s === reviewStepIndex) {
+      if (kind === "review") {
+        if (!confirmAccurate) return "Please confirm the information is accurate to continue.";
+        const resolvedGuardian = def ? resolveGuardianContactFromForm(def, guardian) : null;
+        if (
+          smsConsent &&
+          def &&
+          formIncludesGuardianPhoneField(def) &&
+          !(resolvedGuardian?.guardianPhone ?? "").trim()
+        ) {
+          return "Please provide a phone number to receive SMS updates.";
+        }
         if (payLaterAvailable && paymentChoice !== "card" && paymentChoice !== "pay_later") {
           return "Choose how you would like to pay.";
         }
@@ -1051,6 +1186,7 @@ export function DynamicRegistrationWizard({
     },
     [
       def,
+      activeSteps,
       guardianSections,
       childSections,
       consentSections,
@@ -1060,12 +1196,11 @@ export function DynamicRegistrationWizard({
       smsConsent,
       waiverPerChild,
       rules,
-      waiverStepActive,
-      waiverSupplementalSig,
       waiverSnap,
-      reviewStepIndex,
       payLaterAvailable,
       paymentChoice,
+      current,
+      participantLabel,
     ],
   );
 
@@ -1089,11 +1224,11 @@ export function DynamicRegistrationWizard({
     if (!err) {
       setLocalError(null);
       setAgeGateError(null);
-      if (step === 1) setLiveDobAgeByChild({});
+      if (activeSteps[step]?.kind === "participants") setLiveDobAgeByChild({});
       setStep((x) => Math.min(x + 1, totalSteps - 1));
       return;
     }
-    const ageGate = step === 1 ? parseChildAgeGateError(err) : null;
+    const ageGate = activeSteps[step]?.kind === "participants" ? parseChildAgeGateError(err) : null;
     if (ageGate) {
       setLocalError(null);
       setAgeGateError(ageGate);
@@ -1168,7 +1303,7 @@ export function DynamicRegistrationWizard({
           <p className="mt-2 text-sm text-neutral-600 dark:text-neutral-300">{state?.message}</p>
           {state?.paymentSkippedAwaitingTeamReview ? (
             <p className="mt-4 rounded-xl border border-emerald-500/30 bg-emerald-50 px-4 py-3 text-left text-sm leading-relaxed text-emerald-950 dark:border-emerald-500/25 dark:bg-emerald-950/40 dark:text-emerald-50/95">
-              {PAYMENT_SKIP_TEAM_REVIEW_NOTE}
+              {teamReviewNote}
             </p>
           ) : null}
           {state?.payLaterSubmitted && state.payLaterNotice ? (
@@ -1232,7 +1367,7 @@ export function DynamicRegistrationWizard({
           </div>
           <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-neutral-200/85 lg:mt-3 lg:text-sm">
             {season.welcomeMessage?.trim() ||
-              `Please complete this form to register your ${children.length > 1 ? "children" : "child"} for VBS.`}
+              `Please complete this form to register for ${season.name}.`}
           </p>
           {effectiveContactEmail ? (
             <p className="mx-auto mt-2 inline-flex items-center gap-1.5 text-xs font-semibold text-cyan-100/95">
@@ -1245,7 +1380,7 @@ export function DynamicRegistrationWizard({
           {season.registrantLookupEnabled ? (
             <div className="mx-auto mt-4 max-w-md px-1">
               <Link
-                href="/register/lookup"
+                href={season.lookupPath ?? "/register/lookup"}
                 className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-white/30 bg-white/10 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:border-white/45 hover:bg-white/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/70"
               >
                 <Search className="size-4 shrink-0" aria-hidden />
@@ -1379,17 +1514,27 @@ export function DynamicRegistrationWizard({
             </div>
           )}
 
-          {step === 0 && (
+          {currentStepKind === "guardian" && (
             <div className={sectionCard}>
               <SectionHeader
-                icon={UserRound}
-                title="Parent / guardian"
-                description="We’ll use this for event updates and emergencies."
+                title={
+                  currentStepFormSections.length === 1
+                    ? (currentStepFormSections[0]?.title ??
+                      portalBranding?.contactSectionLabel ??
+                      "Contact information")
+                    : (currentStep?.label ?? portalBranding?.contactSectionLabel ?? "Your information")
+                }
+                description={
+                  currentStepFormSections.length === 1
+                    ? (currentStepFormSections[0]?.description?.trim() ||
+                      "We’ll use this for event updates and emergencies.")
+                    : undefined
+                }
               />
               {seasons.length > 1 && (
                 <div className="mb-5">
                   <label htmlFor="seasonSel" className={labelClass}>
-                    VBS session
+                    {sessionPickerLabel}
                   </label>
                   <select
                     id="seasonSel"
@@ -1405,9 +1550,9 @@ export function DynamicRegistrationWizard({
                   </select>
                 </div>
               )}
-              {guardianSections.map((sec) => (
+              {currentStepFormSections.map((sec) => (
                 <div key={sec.id} className="mb-6 last:mb-0">
-                  {guardianSections.length > 1 ? (
+                  {currentStepFormSections.length > 1 ? (
                     <>
                       <h3 className="mb-3 text-sm font-bold text-white">{sec.title}</h3>
                       {sec.description ? <p className="mb-3 text-sm text-neutral-300/85">{sec.description}</p> : null}
@@ -1455,21 +1600,25 @@ export function DynamicRegistrationWizard({
             </div>
           )}
 
-          {step === 1 && (
+          {currentStepKind === "participants" && (
             <div className={sectionCard}>
               <SectionHeader
-                icon={Baby}
-                title="Children attending VBS"
-                description="Add every child who will participate on this form."
+                title={currentStep?.label ?? portalBranding?.participantSectionLabel ?? "Participants"}
+                description={
+                  currentStepFormSections[0]?.description?.trim() ||
+                  `Add every ${participantLabel.toLowerCase()} who will participate on this form.`
+                }
               />
+              {currentStepShowsAgeGate ? (
               <p className="mb-4 rounded-lg border border-white/15 bg-white/8 px-3 py-2 text-sm text-neutral-100/90">
-                Each child must be between{" "}
-                <span className="font-semibold">{VBS_PARTICIPANT_MIN_YEARS}</span> and{" "}
-                <span className="font-semibold">{VBS_PARTICIPANT_MAX_YEARS}</span> years old (whole years) as of{" "}
-                <span className="font-semibold">{formatVbsParticipantAgeAsOfLabel()}</span>.
+                Each {participantLabel.toLowerCase()} must be between{" "}
+                <span className="font-semibold">{participantAgeRules.minimumYears}</span> and{" "}
+                <span className="font-semibold">{participantAgeRules.maximumYears}</span> years old (whole years) as of{" "}
+                <span className="font-semibold">{formatParticipantAgeAsOfLabel(participantAgeRules.asOfDate)}</span>.
               </p>
+              ) : null}
               {children.map((ch, idx) => {
-                const childShowsDob = childSections
+                const childShowsDob = currentStepFormSections
                   .flatMap((sec) => formDef.fields.filter((field) => field.sectionId === sec.id))
                   .some(
                     (field) =>
@@ -1486,7 +1635,7 @@ export function DynamicRegistrationWizard({
                     className="mb-4 rounded-xl border border-white/15 bg-black/30 p-4"
                   >
                     <div className="mb-3 flex items-center justify-between">
-                      <span className="text-sm font-bold text-brand">Child {idx + 1}</span>
+                      <span className="text-sm font-bold text-brand">{participantLabel} {idx + 1}</span>
                       {children.length > 1 && (
                         <button
                           type="button"
@@ -1503,7 +1652,7 @@ export function DynamicRegistrationWizard({
                       )}
                     </div>
                     <div className="grid gap-4 sm:grid-cols-2">
-                      {childSections.flatMap((sec) =>
+                      {currentStepFormSections.flatMap((sec) =>
                         formDef.fields
                           .filter((field) => field.sectionId === sec.id)
                           .map((field) => {
@@ -1578,7 +1727,7 @@ export function DynamicRegistrationWizard({
                   </div>
                 );
               })}
-              {children.length < 8 && (
+              {isLastParticipantStep && children.length < 8 && (
                 <button
                   type="button"
                   onClick={() =>
@@ -1590,35 +1739,25 @@ export function DynamicRegistrationWizard({
                   className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-brand/40 bg-brand-muted/20 py-3 text-sm font-semibold text-brand dark:bg-brand-muted/10"
                 >
                   <Plus className="size-4" aria-hidden />
-                  Add another child
+                  Add another {participantLabel.toLowerCase()}
                 </button>
               )}
             </div>
           )}
 
-          {step === 2 && (
+          {currentStepKind === "consent" && (
             <div className={sectionCard}>
               <SectionHeader
-                icon={Shield}
-                title="Privacy & consent"
-                description="Your family’s details are handled with care. Confirm below to continue."
+                title={currentStepFormSections[0]?.title?.trim() || currentStep?.label || "Additional information"}
+                description={
+                  currentStepFormSections.length === 1
+                    ? currentStepFormSections[0]?.description?.trim() || undefined
+                    : undefined
+                }
               />
-              <ul className="space-y-3 text-sm text-neutral-200/95">
-                <li className="flex gap-2">
-                  <Lock className="mt-0.5 size-4 shrink-0 text-brand" aria-hidden />
-                  <span>
-                    Information is used only for{" "}
-                    <strong>{churchDisplayName} VBS</strong> planning, safety, and follow-up.
-                  </span>
-                </li>
-                <li className="flex gap-2">
-                  <Heart className="mt-0.5 size-4 shrink-0 text-brand" aria-hidden />
-                  <span>We do not sell your data. Access is limited to authorized church staff.</span>
-                </li>
-              </ul>
-              {consentSections.map((sec) => (
+              {currentStepFormSections.map((sec) => (
                 <div key={sec.id} className="mt-5">
-                  {consentSections.length > 1 ? <h3 className="font-semibold text-neutral-100">{sec.title}</h3> : null}
+                  {currentStepFormSections.length > 1 ? <h3 className="font-semibold text-neutral-100">{sec.title}</h3> : null}
                   {formDef.fields
                     .filter((f) => f.sectionId === sec.id)
                     .map((f) => {
@@ -1654,40 +1793,16 @@ export function DynamicRegistrationWizard({
                   </p>
                 </div>
               )}
-              <label className="mt-6 flex cursor-pointer items-start gap-3 rounded-xl border border-white/15 bg-white/10 px-4 py-4">
-                <input
-                  type="checkbox"
-                  checked={confirmAccurate}
-                  onChange={(e) => setConfirmAccurate(e.target.checked)}
-                  className="mt-1 size-5 accent-brand"
-                />
-                <span className="text-sm leading-relaxed text-neutral-100">
-                  I confirm the information is accurate to the best of my knowledge, and I agree to the church using it
-                  for this VBS event.
-                </span>
-              </label>
-              <label className="mt-3 flex cursor-pointer items-start gap-3 rounded-xl border border-white/15 bg-white/10 px-4 py-4">
-                <input
-                  type="checkbox"
-                  checked={smsConsent}
-                  onChange={(e) => setSmsConsent(e.target.checked)}
-                  className="mt-1 size-5 accent-brand"
-                />
-                <span className="text-sm leading-relaxed text-neutral-100">
-                  I agree to receive SMS text messages on my provided phone number for VBS event updates and announcements.
-                </span>
-              </label>
             </div>
           )}
 
-          {step === 3 && waiverStepActive && (
+          {currentStepKind === "waiver" && (
             <div className={sectionCard}>
               <SectionHeader
-                icon={FileText}
                 title="Digital waiver"
                 description={
                   children.length > 1
-                    ? `You’re registering ${children.length} children — use a separate card for each. The name on each card is who this waiver is for.`
+                    ? `You’re registering ${children.length} ${participantLabel.toLowerCase()}s — use a separate card for each. The name on each card is who this waiver is for.`
                     : "Please read and sign below. You’ll review everything on the next step."
                 }
               />
@@ -1849,13 +1964,36 @@ export function DynamicRegistrationWizard({
           {step === reviewStepIndex && (
             <div className={sectionCard}>
               <SectionHeader
-                icon={CheckCircle2}
                 title="Review & submit"
                 description="Take a quick look before sending."
               />
+              <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-white/15 bg-white/10 px-4 py-4">
+                <input
+                  type="checkbox"
+                  checked={confirmAccurate}
+                  onChange={(e) => setConfirmAccurate(e.target.checked)}
+                  className="mt-1 size-5 accent-brand"
+                />
+                <span className="text-sm leading-relaxed text-neutral-100">
+                  I confirm the information is accurate to the best of my knowledge, and I agree to the church using
+                  it for {eventName}.
+                </span>
+              </label>
+              <label className="mt-3 flex cursor-pointer items-start gap-3 rounded-xl border border-white/15 bg-white/10 px-4 py-4">
+                <input
+                  type="checkbox"
+                  checked={smsConsent}
+                  onChange={(e) => setSmsConsent(e.target.checked)}
+                  className="mt-1 size-5 accent-brand"
+                />
+                <span className="text-sm leading-relaxed text-neutral-100">
+                  I agree to receive SMS text messages on my provided phone number for {eventName} updates and
+                  announcements.
+                </span>
+              </label>
               <div className="space-y-4 text-sm">
                 <div>
-                  <p className="text-xs font-bold uppercase text-neutral-400">Guardian</p>
+                  <p className="text-xs font-bold uppercase text-neutral-400">{reviewContactLabel}</p>
                   <ul className="mt-1 space-y-1.5">
                     {guardianSections.flatMap((sec) =>
                       formDef.fields
@@ -1879,12 +2017,15 @@ export function DynamicRegistrationWizard({
                     )}
                   </ul>
                 </div>
+                {hasParticipantStep ? (
                 <div>
-                  <p className="text-xs font-bold uppercase text-neutral-400">Children ({children.length})</p>
+                  <p className="text-xs font-bold uppercase text-neutral-400">
+                    {reviewParticipantLabel} ({children.length})
+                  </p>
                   <ul className="mt-2 space-y-2">
                     {children.map((ch, i) => (
                       <li key={ch.id} className="rounded-lg border border-white/15 bg-black/20 p-2">
-                        <span className="font-semibold text-neutral-100">Child {i + 1}</span>
+                        <span className="font-semibold text-neutral-100">{participantLabel} {i + 1}</span>
                         <ul className="mt-1 space-y-1.5 text-neutral-200/95">
                           {childSections.flatMap((sec) =>
                             formDef.fields
@@ -1921,6 +2062,7 @@ export function DynamicRegistrationWizard({
                     ))}
                   </ul>
                 </div>
+                ) : null}
                 <div>
                   <p className="text-xs font-bold uppercase text-neutral-400">SMS updates</p>
                   <p className="mt-1 text-neutral-200/90">{smsConsent ? "Consented" : "Not consented"}</p>
@@ -1930,7 +2072,10 @@ export function DynamicRegistrationWizard({
                     <p className="text-xs font-bold uppercase text-neutral-400">Waiver</p>
                     <p className="mt-1 text-sm text-neutral-200/95">
                       Digital waiver signed for {children.length}{" "}
-                      {children.length === 1 ? "child" : "children"} ({season.name}).
+                      {children.length === 1
+                        ? participantLabel.toLowerCase()
+                        : `${participantLabel.toLowerCase()}s`}{" "}
+                      ({season.name}).
                     </p>
                   </div>
                 ) : null}
@@ -2061,8 +2206,17 @@ export function DynamicRegistrationWizard({
                   <ChevronLeft className="size-4" aria-hidden />
                   Back
                 </button>
-              ) : (
+              ) : hasConsentFormFields ? (
                 <span className="text-sm text-neutral-300/90">Need help? Check the privacy step.</span>
+              ) : effectiveContactEmail ? (
+                <span className="text-sm text-neutral-300/90">
+                  Need help?{" "}
+                  <a href={`mailto:${effectiveContactEmail}`} className="text-brand underline-offset-2 hover:underline">
+                    {effectiveContactEmail}
+                  </a>
+                </span>
+              ) : (
+                <span className="text-sm text-neutral-300/90">Need help? Contact the event organizer.</span>
               )}
             </div>
             <div>

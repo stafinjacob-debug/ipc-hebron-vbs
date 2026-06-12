@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { ProgramKind } from "@/generated/prisma";
 
 /** Supported dynamic field types for the registration form builder. */
 export const fieldTypeSchema = z.enum([
@@ -212,6 +213,129 @@ export function createDefaultFormDefinition(): FormDefinitionV1 {
   };
 }
 
+/** Form definition template for a new program portal. */
+export function createFormDefinitionForProgramKind(kind: ProgramKind): FormDefinitionV1 {
+  if (kind === "VBS") return createDefaultFormDefinition();
+
+  const contactTitle = kind === "SPORTS" ? "Contact person" : "Contact information";
+  const participantTitle =
+    kind === "SPORTS" ? "Player information" : kind === "YOUTH" ? "Participant" : "Attendee information";
+  const participantDesc =
+    kind === "SPORTS"
+      ? "Add each player registering for this event."
+      : "Add each person attending this event.";
+
+  return {
+    version: 1,
+    sections: [
+      {
+        id: "sec_guardian",
+        title: contactTitle,
+        description: "We’ll use this for event updates and emergencies.",
+        audience: "guardian",
+        order: 0,
+      },
+      {
+        id: "sec_child",
+        title: participantTitle,
+        description: participantDesc,
+        audience: "eachChild",
+        order: 1,
+      },
+      {
+        id: "sec_consent",
+        title: "Consent",
+        description: "",
+        audience: "consent",
+        order: 2,
+      },
+    ],
+    fields: [
+      {
+        id: "f_g_fn",
+        sectionId: "sec_guardian",
+        key: "guardianFirstName",
+        type: "text",
+        label: "First name",
+        required: true,
+        order: 0,
+      },
+      {
+        id: "f_g_ln",
+        sectionId: "sec_guardian",
+        key: "guardianLastName",
+        type: "text",
+        label: "Last name",
+        required: true,
+        order: 1,
+      },
+      {
+        id: "f_g_em",
+        sectionId: "sec_guardian",
+        key: "guardianEmail",
+        type: "email",
+        label: "Email",
+        required: false,
+        order: 2,
+        placeholder: "name@example.com",
+      },
+      {
+        id: "f_g_ph",
+        sectionId: "sec_guardian",
+        key: "guardianPhone",
+        type: "tel",
+        label: "Phone",
+        required: false,
+        order: 3,
+        placeholder: "(555) 123-4567",
+      },
+      {
+        id: "f_c_fn",
+        sectionId: "sec_child",
+        key: "childFirstName",
+        type: "text",
+        label: kind === "SPORTS" ? "Player first name" : "First name",
+        required: true,
+        order: 0,
+      },
+      {
+        id: "f_c_ln",
+        sectionId: "sec_child",
+        key: "childLastName",
+        type: "text",
+        label: kind === "SPORTS" ? "Player last name" : "Last name",
+        required: true,
+        order: 1,
+      },
+      {
+        id: "f_c_dob",
+        sectionId: "sec_child",
+        key: "childDateOfBirth",
+        type: "date",
+        label: "Date of birth",
+        required: true,
+        order: 2,
+      },
+      {
+        id: "f_c_alg",
+        sectionId: "sec_child",
+        key: "allergiesNotes",
+        type: "textarea",
+        label: "Allergies or medical notes",
+        required: false,
+        order: 3,
+        placeholder: "None, or describe allergies / medications",
+      },
+    ],
+  };
+}
+
+export function defaultFormTitleForProgramKind(kind: ProgramKind, seasonName: string): string {
+  if (kind === "VBS") return `${seasonName} — VBS registration`;
+  if (kind === "SPORTS") return `${seasonName} — registration`;
+  return `${seasonName} — registration`;
+}
+
 function sanitizeFieldOptionsForStorage(f: FormFieldDef): FormFieldDef {
   if (f.type !== "select" && f.type !== "radio") return f;
   if (!f.options?.length) return f;
@@ -230,6 +354,12 @@ export function definitionToJson(def: FormDefinitionV1): string {
 
 export function sortSections(def: FormDefinitionV1): FormSectionDef[] {
   return [...def.sections].sort((a, b) => a.order - b.order);
+}
+
+export function sectionHasFillableFields(def: FormDefinitionV1, sectionId: string): boolean {
+  return def.fields.some(
+    (f) => f.sectionId === sectionId && f.type !== "sectionHeader" && f.type !== "staticText",
+  );
 }
 
 export function fieldsForSection(def: FormDefinitionV1, sectionId: string): FormFieldDef[] {

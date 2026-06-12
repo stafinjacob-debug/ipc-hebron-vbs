@@ -10,10 +10,13 @@ import { RegistrantLookupForm } from "./registrant-lookup-form";
 
 export type RegistrantLookupPageDisplay = {
   churchDisplayName: string;
+  headerLabel: string;
   contactEmail: string;
   contactPhone: string;
   formTitle: string | null;
   seasonName: string | null;
+  seasonId: string | null;
+  registerPath: string | null;
   welcomeMessage: string | null;
   startDate: string | null;
   endDate: string | null;
@@ -28,7 +31,8 @@ export type RegistrantLookupPageDisplay = {
 
 export function RegistrantLookupPageShell({ display }: { display: RegistrantLookupPageDisplay }) {
   const effectiveContactEmail = display.helpContactEmail?.trim() || display.contactEmail.trim();
-  const title = display.formTitle?.trim() || display.seasonName?.trim() || "Vacation Bible School";
+  const title = display.formTitle?.trim() || display.seasonName?.trim() || "Registration lookup";
+  const registerHref = display.registerPath ?? "/register";
   const dateRange =
     display.startDate && display.endDate
       ? formatSeasonDateRange(display.startDate, display.endDate)
@@ -39,7 +43,7 @@ export function RegistrantLookupPageShell({ display }: { display: RegistrantLook
       <header className="relative z-20 border-b border-neutral-200/80 bg-white/90 backdrop-blur dark:border-neutral-800 dark:bg-neutral-950/90">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3">
           <p className="text-sm font-semibold text-neutral-800 dark:text-neutral-100">
-            {display.churchDisplayName} VBS
+            {display.headerLabel}
           </p>
           <Link
             href="/login"
@@ -111,7 +115,7 @@ export function RegistrantLookupPageShell({ display }: { display: RegistrantLook
             <div className="mt-5 border-t border-white/10 px-5 py-6 sm:px-8 sm:py-7">
               {display.lookupEnabled ? (
                 <div className="rounded-2xl border border-neutral-200/80 bg-white/95 p-5 shadow-sm dark:border-neutral-700 dark:bg-neutral-950/95 sm:p-6">
-                  <RegistrantLookupForm />
+                  <RegistrantLookupForm seasonId={display.seasonId} />
                 </div>
               ) : (
                 <div className="rounded-2xl border border-amber-200/60 bg-amber-50/95 p-5 text-center text-sm text-amber-950 shadow-sm sm:p-6">
@@ -126,8 +130,8 @@ export function RegistrantLookupPageShell({ display }: { display: RegistrantLook
               <p className="mt-5 text-center text-sm text-neutral-200/90">
                 {display.registrationOpen ? (
                   <>
-                    <Link href="/register" className="font-medium text-cyan-100 underline decoration-cyan-100/40">
-                      Register for VBS
+                    <Link href={registerHref} className="font-medium text-cyan-100 underline decoration-cyan-100/40">
+                      Register
                     </Link>
                     {" · "}
                   </>

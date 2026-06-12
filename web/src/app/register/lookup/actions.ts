@@ -22,6 +22,7 @@ import {
   maskRegistrantLookupEmail,
   normalizeRegistrantLookupPhone,
   registrantLookupRegistrationWhere,
+  registrantLookupRegistrationWhereForSeason,
   type RegistrantLookupEmailOption,
   type RegistrantLookupMethod,
   type RegistrantLookupPickItem,
@@ -129,14 +130,10 @@ async function sendOtpToEmail(args: {
   return { ok: true, otpSentTo: maskRegistrantLookupEmail(args.emailNormalized) };
 }
 
-const submissionLookupInclude = {
-  guardian: true,
-  season: { select: { name: true } },
-  registrations: {
-    where: registrantLookupRegistrationWhere,
-    include: { child: { include: { guardian: true } } },
-  },
-} as const;
+function portalSeasonIdFrom(formData: FormData): string | undefined {
+  const v = String(formData.get("portalSeasonId") ?? "").trim();
+  return v || undefined;
+}
 
 function childLabel(firstName: string, lastName: string): string {
   const n = `${firstName} ${lastName}`.trim();
@@ -167,12 +164,23 @@ function pickItemFromSubmission(
   };
 }
 
+const submissionLookupIncludeFor = (seasonId?: string) =>
+  ({
+    guardian: true,
+    season: { select: { name: true } },
+    registrations: {
+      where: registrantLookupRegistrationWhereForSeason(seasonId),
+      include: { child: { include: { guardian: true } } },
+    },
+  }) as const;
+
 /** Find editable registrations using each season's configured lookup email field. */
 async function findLookupPickItems(
   emailNormalized: string,
   registrationCode?: string,
+  seasonId?: string,
 ): Promise<RegistrantLookupPickItem[]> {
-  const registrations = await findRegistrationsForLookupEmail(emailNormalized, registrationCode);
+  const registrations = await findRegistrationsForLookupEmail(emailNormalized, registrationCode, seasonId);
 
   type RegistrationRow = (typeof registrations)[number];
   const submissionIdList: string[] = [];
@@ -194,7 +202,7 @@ async function findLookupPickItems(
     const submissions = await prisma.formSubmission.findMany({
       where: { id: { in: submissionIdList } },
       orderBy: { submittedAt: "desc" },
-      include: submissionLookupInclude,
+      include: submissionLookupIncludeFor(seasonId),
     });
     for (const submission of submissions) {
       if (submission.registrations.length === 0) continue;
@@ -227,6 +235,7 @@ async function openLookupSession(item: RegistrantLookupPickItem, emailNormalized
 export async function requestRegistrantLookupOtpAction(
   formData: FormData,
 ): Promise<RegistrantLookupActionState> {
+  const portalSeasonId = portalSeasonIdFrom(formData);
   const lookupMethod = parseLookupMethod(String(formData.get("lookupMethod") ?? "email"));
   const registrationCodeInput = String(formData.get("registrationCode") ?? "").trim();
   const emailInput = normalizeRegistrantLookupEmail(String(formData.get("email") ?? ""));
@@ -249,7 +258,7 @@ export async function requestRegistrantLookupOtpAction(
     if (!registrationCodeInput) {
       return { ok: false, message: "Enter your registration number." };
     }
-    const resolved = await resolveEmailForRegistrationNumberLookup(registrationCodeInput);
+    const resolved = await resolveEmailForRegistrationNumberLookup(registrationCodeInput, portalSeasonId);
     if (!resolved) {
       return { ok: true, message: neutralMessage(), lookupMethod };
     }
@@ -273,13 +282,13 @@ export async function requestRegistrantLookupOtpAction(
       if (!parsedSelected.success) {
         return { ok: false, message: "Choose a valid email address." };
       }
-      const phoneOk = await emailMatchesPhoneForLookup(parsedSelected.data, phoneInput);
+      const phoneOk = await emailMatchesPhoneForLookup(parsedSelected.data, phoneInput, portalSeasonId);
       if (!phoneOk) {
         return { ok: false, message: "That email is not linked to this phone number." };
       }
       targetEmail = parsedSelected.data;
     } else {
-      const options = await findEmailOptionsForPhoneLookup(phoneInput);
+      const options = await findEmailOptionsForPhoneLookup(phoneInput, portalSeasonId);
       if (options.length === 0) {
         return { ok: true, message: neutralMessage(), lookupMethod, phone: phoneInput };
       }
@@ -301,7 +310,7 @@ export async function requestRegistrantLookupOtpAction(
     return { ok: true, message: neutralMessage(), lookupMethod };
   }
 
-  const pickItems = await findLookupPickItems(targetEmail, registrationCode);
+  const pickItems = await findLookupPickItems(targetEmail, registrationCode, portalSeasonId);
   if (pickItems.length === 0) {
     return { ok: true, message: neutralMessage(), lookupMethod };
   }

@@ -18,7 +18,7 @@ const METHOD_LABELS: Record<RegistrantLookupMethod, string> = {
   phone: "Phone number",
 };
 
-export function RegistrantLookupForm() {
+export function RegistrantLookupForm({ seasonId }: { seasonId?: string | null }) {
   const [step, setStep] = useState<Step>("request");
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
@@ -132,6 +132,7 @@ export function RegistrantLookupForm() {
 
       {step === "request" ? (
         <form onSubmit={handleRequest} className="space-y-4">
+          {seasonId ? <input type="hidden" name="portalSeasonId" value={seasonId} /> : null}
           <p className="text-sm text-foreground/75">
             Choose how you want to find your registration. We&apos;ll send a one-time verification code to
             the email on file.
@@ -282,6 +283,7 @@ export function RegistrantLookupForm() {
 
       {step === "verify" ? (
         <form onSubmit={handleVerify} className="space-y-4">
+          {seasonId ? <input type="hidden" name="portalSeasonId" value={seasonId} /> : null}
           <p className="text-sm text-foreground/75">
             Enter the 6-digit code sent to{" "}
             <strong>{otpSentTo || email}</strong>.

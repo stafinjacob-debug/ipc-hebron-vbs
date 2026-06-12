@@ -9,7 +9,7 @@ import {
   maskRegistrantLookupEmail,
   normalizeRegistrantLookupEmail,
   normalizeRegistrantLookupPhone,
-  registrantLookupRegistrationWhere,
+  registrantLookupRegistrationWhereForSeason,
   type RegistrantLookupEmailOption,
 } from "@/lib/registrant-lookup";
 import { prisma } from "@/lib/prisma";
@@ -22,13 +22,14 @@ function childLabel(firstName: string, lastName: string): string {
 /** Resolve the configured email field for a registration or family submission code. */
 export async function resolveEmailForRegistrationNumberLookup(
   code: string,
+  seasonId?: string | null,
 ): Promise<{ emailNormalized: string; registrationCode: string } | null> {
   const trimmed = code.trim();
   if (!trimmed) return null;
 
   const reg = await prisma.registration.findFirst({
     where: {
-      ...registrantLookupRegistrationWhere,
+      ...registrantLookupRegistrationWhereForSeason(seasonId),
       OR: [
         { registrationNumber: { equals: trimmed, mode: "insensitive" } },
         { formSubmission: { registrationCode: { equals: trimmed, mode: "insensitive" } } },
@@ -52,8 +53,9 @@ export async function resolveEmailForRegistrationNumberLookup(
 /** Distinct emails on active registrations matching a phone number via the configured phone field. */
 export async function findEmailOptionsForPhoneLookup(
   phoneRaw: string,
+  seasonId?: string | null,
 ): Promise<RegistrantLookupEmailOption[]> {
-  const registrations = await findRegistrationsForLookupPhone(phoneRaw);
+  const registrations = await findRegistrationsForLookupPhone(phoneRaw, seasonId);
   const byEmail = new Map<string, Set<string>>();
 
   for (const reg of registrations) {
@@ -76,11 +78,12 @@ export async function findEmailOptionsForPhoneLookup(
 export async function emailMatchesPhoneForLookup(
   emailNormalized: string,
   phoneRaw: string,
+  seasonId?: string | null,
 ): Promise<boolean> {
   const phoneDigits = normalizeRegistrantLookupPhone(phoneRaw);
   if (phoneDigits.length < 10) return false;
 
-  const phoneMatches = await findRegistrationsForLookupPhone(phoneRaw);
+  const phoneMatches = await findRegistrationsForLookupPhone(phoneRaw, seasonId);
   return phoneMatches.some((reg) => registrationMatchesLookupEmail(reg, emailNormalized));
 }
 

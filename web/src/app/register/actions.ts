@@ -19,11 +19,10 @@ import {
   resolveAutoClassAssignment,
 } from "@/lib/class-assignment";
 import {
-  formatVbsParticipantAgeAsOfLabel,
-  publicVbsParticipantAgeYearsOnGateDate,
-  VBS_PARTICIPANT_MAX_YEARS,
-  VBS_PARTICIPANT_MIN_YEARS,
-} from "@/lib/vbs-participant-age-gate";
+  formatParticipantAgeAsOfLabel,
+  resolveParticipantAgeRules,
+  validateParticipantAge,
+} from "@/lib/participant-age-gate";
 import { parseLocalDate } from "@/lib/schemas/vbs-registration";
 import {
   computeProcessingGrossUp,
@@ -162,7 +161,7 @@ async function submitPublicRegistrationCore(
   });
 
   if (!season) {
-    return { ok: false, message: "Choose a valid VBS season." };
+    return { ok: false, message: "Choose a valid program." };
   }
   if (!season.publicRegistrationOpen) {
     return {
@@ -258,27 +257,26 @@ async function submitPublicRegistrationCore(
     };
   }
 
-  const cutoffLabel = formatVbsParticipantAgeAsOfLabel();
+  const ageRules = resolveParticipantAgeRules({
+    minimumParticipantAgeYears: formRow.minimumParticipantAgeYears,
+    maximumParticipantAgeYears: formRow.maximumParticipantAgeYears,
+    participantAgeAsOfDate: season.participantAgeAsOfDate,
+    seasonStartDate: season.startDate,
+  });
+  const participantLabel = "Participant";
+
   for (let i = 0; i < dobDates.length; i++) {
-    const age = publicVbsParticipantAgeYearsOnGateDate(dobDates[i]);
-    if (age < VBS_PARTICIPANT_MIN_YEARS) {
+    const msg = validateParticipantAge(dobDates[i], ageRules, participantLabel, i);
+    if (msg) {
+      const cutoffLabel = formatParticipantAgeAsOfLabel(ageRules.asOfDate);
       return {
         ok: false,
-        message: `Child ${i + 1}: Must be at least ${VBS_PARTICIPANT_MIN_YEARS} years old as of ${cutoffLabel}.`,
+        message: msg,
         fieldErrors: {
           [`childDateOfBirth__${i}`]: [
-            `Must be at least ${VBS_PARTICIPANT_MIN_YEARS} years old as of ${cutoffLabel} (whole years).`,
-          ],
-        },
-      };
-    }
-    if (age > VBS_PARTICIPANT_MAX_YEARS) {
-      return {
-        ok: false,
-        message: `Child ${i + 1}: Must be at most ${VBS_PARTICIPANT_MAX_YEARS} years old as of ${cutoffLabel}.`,
-        fieldErrors: {
-          [`childDateOfBirth__${i}`]: [
-            `Must be at most ${VBS_PARTICIPANT_MAX_YEARS} years old as of ${cutoffLabel} (whole years).`,
+            msg.includes("at least")
+              ? `Must be at least ${ageRules.minimumYears} years old as of ${cutoffLabel} (whole years).`
+              : `Must be at most ${ageRules.maximumYears} years old as of ${cutoffLabel} (whole years).`,
           ],
         },
       };
@@ -421,7 +419,9 @@ async function submitPublicRegistrationCore(
       });
 
       const registeredAt = new Date();
-      const classrooms = await fetchClassroomsForAutoAssign(tx, seasonId);
+      const classrooms = season.classroomsEnabled
+        ? await fetchClassroomsForAutoAssign(tx, seasonId)
+        : [];
 
       const registrationIds: string[] = [];
       for (let i = 0; i < data.children.length; i++) {
@@ -462,19 +462,23 @@ async function submitPublicRegistrationCore(
           childDateOfBirth: c.childDateOfBirth,
           allergiesNotes: c.allergiesNotes ?? null,
         };
-        const assignResult = await resolveAutoClassAssignment(tx, {
-          childDob: dobDates[i],
-          registeredAt,
-          seasonStartDate: season.startDate,
-          currentStatus: status,
-          classrooms,
-          childFieldContext,
-        });
-        await applyAutoAssignmentToRegistration(tx, {
-          registrationId: reg.id,
-          result: assignResult,
-          existingNotes: baseNotes,
-        });
+        const assignResult = season.classroomsEnabled
+          ? await resolveAutoClassAssignment(tx, {
+              childDob: dobDates[i],
+              registeredAt,
+              seasonStartDate: season.startDate,
+              currentStatus: status,
+              classrooms,
+              childFieldContext,
+            })
+          : null;
+        if (assignResult) {
+          await applyAutoAssignmentToRegistration(tx, {
+            registrationId: reg.id,
+            result: assignResult,
+            existingNotes: baseNotes,
+          });
+        }
       }
 
       return {

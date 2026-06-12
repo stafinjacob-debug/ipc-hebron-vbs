@@ -385,7 +385,7 @@ export function LoginPageClient({
                       aria-hidden
                     />
                     <Link
-                      href="/register"
+                      href={seasons.length === 1 ? seasons[0].registerPath : "/register"}
                       className={`${loginCardDisplay.className} flex w-full items-center justify-center rounded-[1.15rem] bg-gradient-to-r from-teal-700 via-teal-600 to-cyan-500 px-5 py-4 text-center text-lg font-semibold tracking-wide text-white shadow-[0_8px_28px_-6px_rgba(13,148,136,0.55),0_2px_10px_-2px_rgba(124,58,237,0.2)] ring-2 ring-white/70 ring-offset-2 ring-offset-transparent transition hover:from-teal-600 hover:via-teal-500 hover:to-cyan-400 hover:shadow-[0_12px_32px_-6px_rgba(13,148,136,0.5),0_0_0_1px_rgba(255,255,255,0.35)_inset] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-fuchsia-400/90 active:scale-[0.99]`}
                     >
                       {primaryCtaLabel(seasons)}

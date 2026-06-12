@@ -3,6 +3,7 @@ import type {
   OpenPublicRegistrationSummary,
   PublicRegistrationCardBadge,
 } from "@/lib/open-public-registration-landing";
+import { getPortalPublicPath } from "@/lib/portal-public-path";
 import { prisma } from "@/lib/prisma";
 import { calendarDateFromDate } from "@/lib/season-calendar-date";
 
@@ -59,6 +60,8 @@ export async function listOpenPublicRegistrationSummaries(): Promise<OpenPublicR
       id: s.id,
       name: s.name,
       year: s.year,
+      registerPath: getPortalPublicPath(s),
+      publicRegistrationSlug: s.publicRegistrationSlug,
       startDateIso: calendarDateFromDate(s.startDate),
       endDateIso: calendarDateFromDate(s.endDate),
       sessionTimeDescription: s.publicRegistrationSettings?.sessionTimeDescription?.trim() || null,
