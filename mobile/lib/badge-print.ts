@@ -21,6 +21,7 @@ export type CheckInDeskSettings = {
   autoPrintOnCheckIn: boolean;
   multiDayCheckInEnabled: boolean;
   dismissalTrackingEnabled: boolean;
+  undoPinRequired: boolean;
   campDates: CampDateOption[];
   todayCampDate: string | null;
   selectedCampDate: string | null;

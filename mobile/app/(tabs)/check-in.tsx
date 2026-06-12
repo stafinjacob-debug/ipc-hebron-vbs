@@ -1,14 +1,10 @@
-import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
   Alert,
-  FlatList,
   Pressable,
   StyleSheet,
   Text,
   TextInput,
-  useWindowDimensions,
   View,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
@@ -17,7 +13,7 @@ import {
   type CheckInLookupMatch,
 } from '@/components/CheckInLookupModal';
 import { CheckInQrScanner } from '@/components/CheckInQrScanner';
-import { StatusChip } from '@/components/ui';
+import { PinEntryModal } from '@/components/PinEntryModal';
 import { palette } from '@/constants/theme';
 import { ApiError, apiFetch } from '@/lib/api';
 import {
@@ -30,28 +26,12 @@ import {
   type CheckInDeskSettings,
 } from '@/lib/badge-print';
 import { useAuth } from '@/lib/auth-context';
-import { pushRecentRegistrationId } from '@/lib/recent-search';
-
-type SearchRow = {
-  registrationId: string;
-  studentName: string;
-  ageYears: number;
-  className: string | null;
-  room: string | null;
-  registrationCode: string | null;
-  checkedIn: boolean;
-  guardianName: string;
-  hasMedicalAlert: boolean;
-};
 
 export default function CheckInScreen() {
-  const router = useRouter();
-  const { width } = useWindowDimensions();
-  const isWide = width >= 768;
   const { token, seasonId } = useAuth();
 
   const [mode, setMode] = useState<'arrivals' | 'dismissal'>('arrivals');
-  const [codeInput, setCodeInput] = useState('');
+  const [lookupInput, setLookupInput] = useState('');
   const [lookupPending, setLookupPending] = useState(false);
   const [lookupMessage, setLookupMessage] = useState<string | null>(null);
   const [lookupMatches, setLookupMatches] = useState<CheckInLookupMatch[]>([]);
@@ -60,11 +40,14 @@ export default function CheckInScreen() {
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [printingId, setPrintingId] = useState<string | null>(null);
   const [scannerOpen, setScannerOpen] = useState(false);
+  const [pinModalOpen, setPinModalOpen] = useState(false);
+  const [pinPendingMatch, setPinPendingMatch] = useState<CheckInLookupMatch | null>(null);
   const [deskSettings, setDeskSettings] = useState<CheckInDeskSettings>({
     badgePrintingEnabled: false,
     autoPrintOnCheckIn: false,
     multiDayCheckInEnabled: false,
     dismissalTrackingEnabled: false,
+    undoPinRequired: false,
     campDates: [],
     todayCampDate: null,
     selectedCampDate: null,
@@ -73,15 +56,8 @@ export default function CheckInScreen() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [printMode, setPrintMode] = useState<'brother' | 'airprint' | 'none'>('none');
 
-  const [q, setQ] = useState('');
-  const [debounced, setDebounced] = useState('');
-  const [results, setResults] = useState<SearchRow[]>([]);
-  const [searchLoading, setSearchLoading] = useState(false);
-
-  useEffect(() => {
-    const t = setTimeout(() => setDebounced(q.trim()), 320);
-    return () => clearTimeout(t);
-  }, [q]);
+  const dismissal =
+    deskSettings.dismissalTrackingEnabled && mode === 'dismissal';
 
   useFocusEffect(
     useCallback(() => {
@@ -104,6 +80,7 @@ export default function CheckInScreen() {
           autoPrintOnCheckIn: false,
           multiDayCheckInEnabled: false,
           dismissalTrackingEnabled: false,
+          undoPinRequired: false,
           campDates: [],
           todayCampDate: null,
           selectedCampDate: null,
@@ -126,32 +103,6 @@ export default function CheckInScreen() {
     return () => clearTimeout(t);
   }, [successMessage]);
 
-  const runSearch = useCallback(async () => {
-    if (!token || !seasonId || debounced.length < 2) {
-      setResults([]);
-      return;
-    }
-    setSearchLoading(true);
-    try {
-      const campDateQuery = campDate
-        ? `&campDate=${encodeURIComponent(campDate)}`
-        : '';
-      const res = await apiFetch<{ results: SearchRow[] }>(
-        `/api/mobile/v1/seasons/${seasonId}/search?q=${encodeURIComponent(debounced)}${campDateQuery}`,
-        { token },
-      );
-      setResults(res.results);
-    } catch {
-      setResults([]);
-    } finally {
-      setSearchLoading(false);
-    }
-  }, [token, seasonId, debounced, campDate]);
-
-  useEffect(() => {
-    void runSearch();
-  }, [runSearch]);
-
   function closeLookupModal() {
     setLookupModalOpen(false);
     setLookupMatches([]);
@@ -167,13 +118,13 @@ export default function CheckInScreen() {
   async function runLookup(rawInput: string) {
     const value = rawInput.trim();
     if (!value) {
-      setLookupMessage('Enter a registration code or scan a QR code.');
+      setLookupMessage('Enter a name, registration code, phone, or scan a QR code.');
       closeLookupModal();
       return;
     }
     if (!token || !seasonId) return;
 
-    setCodeInput(value);
+    setLookupInput(value);
     setLookupMessage(null);
     setLookupPending(true);
     try {
@@ -208,7 +159,11 @@ export default function CheckInScreen() {
     }
   }
 
-  async function handleCheckIn(match: CheckInLookupMatch) {
+  async function patchAttendance(
+    match: CheckInLookupMatch,
+    checkedIn: boolean,
+    undoPin?: string,
+  ) {
     if (!token || !seasonId) return;
     setPendingId(match.id);
     try {
@@ -220,28 +175,32 @@ export default function CheckInScreen() {
         {
           method: 'PATCH',
           token,
-          body: JSON.stringify({ checkedIn: !match.checkedIn, campDate }),
+          body: JSON.stringify({
+            checkedIn,
+            campDate,
+            undoPin,
+            dismissalCheckout: dismissal ? true : undefined,
+          }),
         },
       );
-      const nextCheckedIn = !match.checkedIn;
       setLookupMatches((prev) =>
         prev.map((m) =>
-          m.id === match.id ? { ...m, checkedIn: nextCheckedIn } : m,
+          m.id === match.id ? { ...m, checkedIn } : m,
         ),
       );
-      void runSearch();
-      if (nextCheckedIn) {
+      if (checkedIn) {
         closeLookupModal();
-        setCodeInput('');
+        setLookupInput('');
         setSuccessMessage(`Checked in: ${match.studentName}`);
-        if (
-          result.shouldPrintBadge &&
-          deskSettings.badgePrintingEnabled
-        ) {
+        if (result.shouldPrintBadge && deskSettings.badgePrintingEnabled) {
           printBadgeInBackground(token, seasonId, match.id, (msg) => {
             Alert.alert('Badge print failed', msg);
           });
         }
+      } else if (dismissal) {
+        closeLookupModal();
+        setLookupInput('');
+        setSuccessMessage(`Checked out: ${match.studentName}`);
       } else {
         setSuccessMessage(`Check-in undone: ${match.studentName}`);
       }
@@ -253,18 +212,54 @@ export default function CheckInScreen() {
     }
   }
 
-  async function openStudent(row: SearchRow) {
-    await pushRecentRegistrationId(row.registrationId);
-    const useDismissal =
-      deskSettings.dismissalTrackingEnabled && mode === 'dismissal';
-    router.push({
-      pathname: '/student/[id]',
-      params: {
-        id: row.registrationId,
-        mode: useDismissal ? 'dismissal' : 'arrivals',
-        campDate: campDate ?? '',
-      },
-    });
+  function handleCheckIn(match: CheckInLookupMatch) {
+    if (dismissal) {
+      if (!match.checkedIn) {
+        Alert.alert('Not checked in', 'This student is not marked as checked in.');
+        return;
+      }
+      Alert.alert(
+        'Confirm dismissal',
+        `Check out ${match.studentName}?`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Check out',
+            style: 'destructive',
+            onPress: () => void patchAttendance(match, false),
+          },
+        ],
+      );
+      return;
+    }
+
+    if (match.checkedIn) {
+      if (deskSettings.undoPinRequired) {
+        setPinPendingMatch(match);
+        setPinModalOpen(true);
+        return;
+      }
+      void patchAttendance(match, false);
+      return;
+    }
+
+    if (match.checkInBlocked) {
+      Alert.alert(
+        'Check-in blocked',
+        match.checkInBlockMessage ?? 'This registration cannot be checked in.',
+      );
+      return;
+    }
+
+    void patchAttendance(match, true);
+  }
+
+  function handlePinSubmit(pin: string) {
+    const match = pinPendingMatch;
+    setPinModalOpen(false);
+    setPinPendingMatch(null);
+    if (!match) return;
+    void patchAttendance(match, false, pin);
   }
 
   function renderCampDayChip(day: CampDateOption) {
@@ -295,158 +290,6 @@ export default function CheckInScreen() {
     );
   }
 
-  const lookupPanel = (
-    <View style={[styles.panel, isWide && styles.panelWide]}>
-      <Text style={styles.panelTitle}>Scan or enter code</Text>
-      <Text style={styles.panelHint}>
-        Scan a ticket or badge QR code, or type a registration number / family
-        submission code.
-      </Text>
-      <Pressable
-        onPress={() => setScannerOpen(true)}
-        style={({ pressed }) => [
-          styles.scanBtn,
-          pressed && { opacity: 0.92 },
-        ]}
-      >
-        <Text style={styles.scanBtnText}>Scan QR code</Text>
-      </Pressable>
-      <View style={styles.lookupRow}>
-        <TextInput
-          value={codeInput}
-          onChangeText={setCodeInput}
-          placeholder="Registration code, e.g. VBS-2026-001"
-          placeholderTextColor={palette.textSecondary}
-          style={styles.codeInput}
-          autoCapitalize="characters"
-          autoCorrect={false}
-          returnKeyType="search"
-          onSubmitEditing={() => void runLookup(codeInput)}
-        />
-        <Pressable
-          onPress={() => void runLookup(codeInput)}
-          disabled={lookupPending}
-          style={({ pressed }) => [
-            styles.lookupBtn,
-            lookupPending && styles.lookupBtnDisabled,
-            pressed && !lookupPending && { opacity: 0.92 },
-          ]}
-        >
-          <Text style={styles.lookupBtnText}>
-            {lookupPending ? '…' : 'Look up'}
-          </Text>
-        </Pressable>
-      </View>
-      {lookupMessage ? (
-        <View style={styles.messageBox}>
-          <Text style={styles.messageText}>{lookupMessage}</Text>
-        </View>
-      ) : null}
-    </View>
-  );
-
-  const searchPanel = (
-    <View style={[styles.panel, styles.searchPanel, isWide && styles.flex1]}>
-      {deskSettings.dismissalTrackingEnabled ? (
-        <View style={styles.segment}>
-          <Pressable
-            onPress={() => setMode('arrivals')}
-            style={[styles.segBtn, mode === 'arrivals' && styles.segBtnOn]}
-          >
-            <Text
-              style={[
-                styles.segLabel,
-                mode === 'arrivals' && styles.segLabelOn,
-              ]}
-            >
-              Arrivals
-            </Text>
-          </Pressable>
-          <Pressable
-            onPress={() => setMode('dismissal')}
-            style={[styles.segBtn, mode === 'dismissal' && styles.segBtnOn]}
-          >
-            <Text
-              style={[
-                styles.segLabel,
-                mode === 'dismissal' && styles.segLabelOn,
-              ]}
-            >
-              Dismissal
-            </Text>
-          </Pressable>
-        </View>
-      ) : null}
-
-      <TextInput
-        value={q}
-        onChangeText={setQ}
-        placeholder={
-          deskSettings.dismissalTrackingEnabled && mode === 'dismissal'
-            ? 'Find student to check out'
-            : 'Search name, parent, code, or phone'
-        }
-        placeholderTextColor={palette.textSecondary}
-        style={styles.search}
-        autoCapitalize="none"
-        autoCorrect={false}
-        clearButtonMode="while-editing"
-      />
-
-      {searchLoading ? (
-        <ActivityIndicator style={{ marginTop: 16 }} color={palette.accent} />
-      ) : (
-        <FlatList
-          data={results}
-          keyExtractor={(item) => item.registrationId}
-          style={styles.list}
-          contentContainerStyle={{ paddingBottom: 120 }}
-          ListEmptyComponent={
-            debounced.length >= 2 ? (
-              <Text style={styles.empty}>No matches</Text>
-            ) : (
-              <Text style={styles.hint}>
-                Type at least 2 characters to search by name.
-              </Text>
-            )
-          }
-          renderItem={({ item }) => (
-            <Pressable
-              onPress={() => void openStudent(item)}
-              style={({ pressed }) => [
-                styles.card,
-                pressed && { opacity: 0.92 },
-              ]}
-            >
-              <View style={styles.cardTop}>
-                <Text style={styles.name}>{item.studentName}</Text>
-                {item.hasMedicalAlert ? (
-                  <StatusChip label="Alert" tone="warning" />
-                ) : null}
-              </View>
-              <Text style={styles.meta}>
-                {item.className ?? 'Class TBD'}
-                {item.room ? ` · Room ${item.room}` : ''}
-              </Text>
-              <Text style={styles.meta}>
-                {item.ageYears} yrs · {item.guardianName}
-              </Text>
-              <View style={styles.rowFooter}>
-                <StatusChip
-                  label={item.checkedIn ? 'Checked in' : 'Expected'}
-                  tone={item.checkedIn ? 'success' : 'neutral'}
-                />
-                {item.registrationCode ? (
-                  <Text style={styles.code}>{item.registrationCode}</Text>
-                ) : null}
-              </View>
-            </Pressable>
-          )}
-        />
-      )}
-    </View>
-  );
-
   return (
     <View style={styles.wrap}>
       {successMessage ? (
@@ -468,17 +311,89 @@ export default function CheckInScreen() {
           ) : null}
         </View>
       ) : null}
-      {isWide ? (
-        <View style={styles.rowLayout}>
-          {lookupPanel}
-          {searchPanel}
+
+      <View style={styles.panel}>
+        {deskSettings.dismissalTrackingEnabled ? (
+          <View style={styles.segment}>
+            <Pressable
+              onPress={() => setMode('arrivals')}
+              style={[styles.segBtn, mode === 'arrivals' && styles.segBtnOn]}
+            >
+              <Text
+                style={[
+                  styles.segLabel,
+                  mode === 'arrivals' && styles.segLabelOn,
+                ]}
+              >
+                Arrivals
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() => setMode('dismissal')}
+              style={[styles.segBtn, mode === 'dismissal' && styles.segBtnOn]}
+            >
+              <Text
+                style={[
+                  styles.segLabel,
+                  mode === 'dismissal' && styles.segLabelOn,
+                ]}
+              >
+                Dismissal
+              </Text>
+            </Pressable>
+          </View>
+        ) : null}
+
+        <Text style={styles.panelTitle}>Look up student</Text>
+        <Text style={styles.panelHint}>
+          Scan a ticket or badge QR code, or search by child name, parent name, phone,
+          registration number, or family submission code.
+        </Text>
+        <Pressable
+          onPress={() => setScannerOpen(true)}
+          style={({ pressed }) => [
+            styles.scanBtn,
+            pressed && { opacity: 0.92 },
+          ]}
+        >
+          <Text style={styles.scanBtnText}>Scan QR code</Text>
+        </Pressable>
+        <View style={styles.lookupRow}>
+          <TextInput
+            value={lookupInput}
+            onChangeText={setLookupInput}
+            placeholder={
+              dismissal
+                ? 'Find student to check out'
+                : 'Name, parent, phone, or registration code'
+            }
+            placeholderTextColor={palette.textSecondary}
+            style={styles.codeInput}
+            autoCapitalize="none"
+            autoCorrect={false}
+            returnKeyType="search"
+            onSubmitEditing={() => void runLookup(lookupInput)}
+          />
+          <Pressable
+            onPress={() => void runLookup(lookupInput)}
+            disabled={lookupPending}
+            style={({ pressed }) => [
+              styles.lookupBtn,
+              lookupPending && styles.lookupBtnDisabled,
+              pressed && !lookupPending && { opacity: 0.92 },
+            ]}
+          >
+            <Text style={styles.lookupBtnText}>
+              {lookupPending ? '…' : 'Look up'}
+            </Text>
+          </Pressable>
         </View>
-      ) : (
-        <>
-          {lookupPanel}
-          {searchPanel}
-        </>
-      )}
+        {lookupMessage ? (
+          <View style={styles.messageBox}>
+            <Text style={styles.messageText}>{lookupMessage}</Text>
+          </View>
+        ) : null}
+      </View>
 
       <CheckInQrScanner
         visible={scannerOpen}
@@ -504,8 +419,20 @@ export default function CheckInScreen() {
         onClose={closeLookupModal}
         onSelect={(match) => setSelectedMatchId(match.id)}
         checkInDisabled={campDateLocked}
-        onCheckIn={(match) => void handleCheckIn(match)}
+        dismissalMode={dismissal}
+        onCheckIn={(match) => handleCheckIn(match)}
         onPrintBadge={(match) => void runPrintBadge(match.id)}
+      />
+
+      <PinEntryModal
+        visible={pinModalOpen}
+        title="Security code required"
+        message="Enter the 4-digit code to undo this check-in."
+        onCancel={() => {
+          setPinModalOpen(false);
+          setPinPendingMatch(null);
+        }}
+        onSubmit={handlePinSubmit}
       />
     </View>
   );
@@ -524,11 +451,6 @@ const styles = StyleSheet.create({
     marginTop: 8,
     marginBottom: 12,
   },
-  rowLayout: {
-    flex: 1,
-    flexDirection: 'row',
-    gap: 16,
-  },
   panel: {
     backgroundColor: palette.surface,
     borderRadius: 16,
@@ -537,12 +459,6 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: palette.border,
   },
-  panelWide: {
-    width: 360,
-    marginBottom: 0,
-  },
-  flex1: { flex: 1, marginBottom: 0 },
-  searchPanel: { flex: 1 },
   panelTitle: {
     fontSize: 16,
     fontWeight: '700',
@@ -623,42 +539,6 @@ const styles = StyleSheet.create({
   segBtnOn: { backgroundColor: palette.surface },
   segLabel: { fontSize: 15, fontWeight: '600', color: palette.textSecondary },
   segLabelOn: { color: palette.text },
-  search: {
-    backgroundColor: palette.bg,
-    borderRadius: 14,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: palette.border,
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    fontSize: 18,
-    color: palette.text,
-  },
-  list: { marginTop: 8 },
-  card: {
-    backgroundColor: palette.bg,
-    borderRadius: 14,
-    padding: 16,
-    marginTop: 12,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: palette.border,
-  },
-  cardTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 8,
-  },
-  name: { fontSize: 18, fontWeight: '700', color: palette.text, flex: 1 },
-  meta: { fontSize: 14, color: palette.textSecondary, marginTop: 4 },
-  rowFooter: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 10,
-  },
-  code: { fontSize: 12, color: palette.textSecondary, fontWeight: '600' },
-  empty: { textAlign: 'center', marginTop: 24, color: palette.textSecondary },
-  hint: { textAlign: 'center', marginTop: 24, color: palette.textSecondary },
   printHint: {
     fontSize: 12,
     color: palette.textSecondary,

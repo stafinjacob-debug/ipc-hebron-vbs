@@ -64,6 +64,10 @@ function MatchSummary({ match }: { match: CheckInLookupMatch }) {
             <span className="inline-flex items-center rounded-full bg-emerald-500/15 px-2.5 py-0.5 text-xs font-medium text-emerald-800 dark:text-emerald-300">
               Already checked in
             </span>
+          ) : match.checkInBlocked ? (
+            <span className="inline-flex items-center rounded-full bg-amber-500/15 px-2.5 py-0.5 text-xs font-medium text-amber-900 dark:text-amber-200">
+              Blocked
+            </span>
           ) : (
             <span className="inline-flex items-center rounded-full bg-foreground/10 px-2.5 py-0.5 text-xs font-medium text-muted">
               Expected today
@@ -71,6 +75,11 @@ function MatchSummary({ match }: { match: CheckInLookupMatch }) {
           )}
         </dd>
       </div>
+      {match.checkInBlocked && !match.checkedIn && match.checkInBlockMessage ? (
+        <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-2.5 py-2 text-sm text-amber-900 dark:text-amber-100">
+          {match.checkInBlockMessage}
+        </div>
+      ) : null}
     </dl>
   );
 }
@@ -167,7 +176,11 @@ export function CheckInLookupResultModal({
             </button>
             <button
               type="button"
-              disabled={isPending || checkInDisabled}
+              disabled={
+                isPending ||
+                checkInDisabled ||
+                Boolean(activeMatch.checkInBlocked && !activeMatch.checkedIn)
+              }
               onClick={() => onCheckIn(activeMatch)}
               className={
                 activeMatch.checkedIn

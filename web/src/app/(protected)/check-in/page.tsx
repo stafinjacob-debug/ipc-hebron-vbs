@@ -112,6 +112,7 @@ export default async function CheckInPage({ searchParams }: Props) {
           badgePrintingEnabled={badgeSettings.enabled}
           autoPrintOnCheckIn={badgeSettings.autoPrintOnCheckIn}
           multiDayCheckInEnabled={attendanceContext.multiDayCheckInEnabled}
+          undoPinRequired={Boolean(activeSeason.checkInUndoPin)}
           campDates={attendanceContext.campDates}
           selectedCampDate={attendanceContext.defaultCampDate}
           rows={registrations.map((r) => ({

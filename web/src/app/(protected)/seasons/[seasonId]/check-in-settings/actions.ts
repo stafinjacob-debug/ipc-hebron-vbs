@@ -1,6 +1,11 @@
 "use server";
 
 import { auth } from "@/auth";
+import {
+  parseCheckInBlockSettings,
+  serializeCheckInBlockSettings,
+  type CheckInBlockSettings,
+} from "@/lib/check-in-block";
 import { prisma } from "@/lib/prisma";
 import { canManageDirectory } from "@/lib/roles";
 import { revalidatePath } from "next/cache";
@@ -9,6 +14,24 @@ export type SaveCheckInSettingsState = {
   ok: boolean;
   message: string;
 };
+
+function parseBlockedValues(raw: FormDataEntryValue | null): string[] {
+  if (typeof raw !== "string") return [];
+  return raw
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+function parseUndoPin(raw: FormDataEntryValue | null): string | null {
+  if (typeof raw !== "string") return null;
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  if (!/^\d{4}$/.test(trimmed)) {
+    throw new Error("INVALID_PIN");
+  }
+  return trimmed;
+}
 
 export async function saveCheckInSettings(
   seasonId: string,
@@ -25,11 +48,33 @@ export async function saveCheckInSettings(
     return { ok: false, message: "Season not found." };
   }
 
+  let undoPin: string | null;
+  try {
+    undoPin = parseUndoPin(formData.get("checkInUndoPin"));
+  } catch {
+    return { ok: false, message: "Security code must be exactly 4 digits, or left blank." };
+  }
+
+  const blockSettings: CheckInBlockSettings = {
+    enabled: formData.get("checkInBlockEnabled") === "on",
+    fieldKey:
+      typeof formData.get("checkInBlockFieldKey") === "string"
+        ? String(formData.get("checkInBlockFieldKey")).trim()
+        : parseCheckInBlockSettings(null).fieldKey,
+    blockedValues: parseBlockedValues(formData.get("checkInBlockValues")),
+    message:
+      typeof formData.get("checkInBlockMessage") === "string"
+        ? String(formData.get("checkInBlockMessage")).trim()
+        : parseCheckInBlockSettings(null).message,
+  };
+
   await prisma.vbsSeason.update({
     where: { id: seasonId },
     data: {
       multiDayCheckInEnabled: formData.get("multiDayCheckInEnabled") === "on",
       dismissalTrackingEnabled: formData.get("dismissalTrackingEnabled") === "on",
+      checkInBlockRulesJson: serializeCheckInBlockSettings(blockSettings),
+      checkInUndoPin: undoPin,
     },
   });
 

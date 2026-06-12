@@ -35,6 +35,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     autoPrintOnCheckIn: settings.enabled && settings.autoPrintOnCheckIn,
     multiDayCheckInEnabled: context?.multiDayCheckInEnabled ?? false,
     dismissalTrackingEnabled: season.dismissalTrackingEnabled,
+    undoPinRequired: Boolean(season.checkInUndoPin),
     campDates: context?.campDates ?? [],
     todayCampDate: context?.todayCampDate ?? null,
     selectedCampDate: context?.defaultCampDate ?? null,

@@ -55,6 +55,8 @@ export type CheckInLookupMatch = {
   dateOfBirth: string | null;
   allergiesNotes: string | null;
   registrationStatus: string;
+  checkInBlocked?: boolean;
+  checkInBlockMessage?: string | null;
 };
 
 const CHECK_IN_LOOKUP_INCLUDE = {
@@ -303,7 +305,22 @@ export async function findCheckInRegistrationsForInput(
   }
 
   if (!isLikelyRegistrationOrSubmissionCode(text) && /[A-Za-z]/.test(text)) {
-    return findByName(baseWhere, text);
+    const byName = await findByName(baseWhere, text);
+    if (byName.length > 0) return byName;
+  }
+
+  const qDigits = text.replace(/\D/g, "");
+  if (qDigits.length >= 3) {
+    const byPhone = await prisma.registration.findMany({
+      where: {
+        ...baseWhere,
+        child: { guardian: { phone: { contains: qDigits } } },
+      },
+      include: CHECK_IN_LOOKUP_INCLUDE,
+      orderBy: registrationOrderBy(),
+      take: MAX_CHECK_IN_LOOKUP_RESULTS,
+    });
+    if (byPhone.length > 0) return byPhone;
   }
 
   const partial = await findByPartialCode(baseWhere, text);

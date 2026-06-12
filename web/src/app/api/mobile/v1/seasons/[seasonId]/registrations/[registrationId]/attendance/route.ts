@@ -20,9 +20,14 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
   const denied = requireCheckInRole(auth);
   if (denied) return denied;
 
-  let body: { checkedIn?: boolean; campDate?: string };
+  let body: { checkedIn?: boolean; campDate?: string; undoPin?: string; dismissalCheckout?: boolean };
   try {
-    body = (await req.json()) as { checkedIn?: boolean; campDate?: string };
+    body = (await req.json()) as {
+      checkedIn?: boolean;
+      campDate?: string;
+      undoPin?: string;
+      dismissalCheckout?: boolean;
+    };
   } catch {
     return jsonError(400, "Invalid JSON");
   }
@@ -45,6 +50,8 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     checkedIn: body.checkedIn,
     campDateKey: body.campDate,
     actorUserId: auth.userId,
+    undoPin: body.undoPin,
+    dismissalCheckout: body.dismissalCheckout,
   });
 
   if (!result.ok) {

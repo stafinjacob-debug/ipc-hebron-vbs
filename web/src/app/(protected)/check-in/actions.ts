@@ -15,6 +15,12 @@ import {
   parseCheckInLookupInput,
   type CheckInLookupMatch,
 } from "@/lib/check-in-lookup";
+import {
+  CHECK_IN_BLOCK_REGISTRATION_SELECT,
+  evaluateCheckInBlock,
+  parseCheckInBlockSettings,
+  type CheckInBlockRegistrationRow,
+} from "@/lib/check-in-block";
 import { canUseCheckInActions } from "@/lib/permissions";
 
 export type LookupRegistrationForCheckInResult =
@@ -33,7 +39,14 @@ export async function lookupRegistrationForCheckIn(
 
   const season = await prisma.vbsSeason.findUnique({
     where: { id: seasonId },
-    select: { id: true, name: true, multiDayCheckInEnabled: true, startDate: true, endDate: true },
+    select: {
+      id: true,
+      name: true,
+      multiDayCheckInEnabled: true,
+      startDate: true,
+      endDate: true,
+      checkInBlockRulesJson: true,
+    },
   });
   if (!season) return { ok: false, message: "Season not found." };
 
@@ -59,11 +72,34 @@ export async function lookupRegistrationForCheckIn(
     season.multiDayCheckInEnabled,
   );
 
+  const blockSettings = parseCheckInBlockSettings(season.checkInBlockRulesJson);
+  const blockRows =
+    blockSettings.enabled && rows.length > 0
+      ? await prisma.registration.findMany({
+          where: { id: { in: rows.map((r) => r.id) } },
+          select: CHECK_IN_BLOCK_REGISTRATION_SELECT,
+        })
+      : [];
+  const blockRowMap = new Map(blockRows.map((r) => [r.id, r]));
+
   return {
     ok: true,
-    matches: rows.map((r) =>
-      mapRegistrationToCheckInLookupMatch(r, checkedInMap.get(r.id) ?? false),
-    ),
+    matches: rows.map((r) => {
+      const match = mapRegistrationToCheckInLookupMatch(r, checkedInMap.get(r.id) ?? false);
+      const blockRow = blockRowMap.get(r.id);
+      if (blockRow) {
+        const block = evaluateCheckInBlock(
+          blockRow as CheckInBlockRegistrationRow,
+          season.name,
+          blockSettings,
+        );
+        if (block.blocked) {
+          match.checkInBlocked = true;
+          match.checkInBlockMessage = block.message;
+        }
+      }
+      return match;
+    }),
   };
 }
 
@@ -77,6 +113,7 @@ export async function toggleCheckIn(
   registrationId: string,
   nextChecked: boolean,
   campDateKey?: string | null,
+  undoPin?: string | null,
 ): Promise<ToggleCheckInResult> {
   const session = await auth();
   if (!session?.user?.role || !canUseCheckInActions(session.user.role)) {
@@ -106,6 +143,7 @@ export async function toggleCheckIn(
     checkedIn: nextChecked,
     campDateKey,
     actorUserId: session.user.id,
+    undoPin,
   });
 
   if (!result.ok) {

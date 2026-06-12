@@ -3,6 +3,12 @@ import type { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { loadSeasonAttendanceContext, resolveCheckedInMap } from "@/lib/attendance";
 import {
+  CHECK_IN_BLOCK_REGISTRATION_SELECT,
+  evaluateCheckInBlock,
+  parseCheckInBlockSettings,
+  type CheckInBlockRegistrationRow,
+} from "@/lib/check-in-block";
+import {
   findCheckInRegistrationsForInput,
   mapRegistrationToCheckInLookupMatch,
   parseCheckInLookupInput,
@@ -50,7 +56,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 
   const seasonRow = await prisma.vbsSeason.findUnique({
     where: { id: seasonId },
-    select: { multiDayCheckInEnabled: true },
+    select: { multiDayCheckInEnabled: true, name: true, checkInBlockRulesJson: true },
   });
   const context = await loadSeasonAttendanceContext(seasonId, body.campDate);
   const campDate = context?.defaultCampDate ?? "";
@@ -60,9 +66,32 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     seasonRow?.multiDayCheckInEnabled ?? false,
   );
 
+  const blockSettings = parseCheckInBlockSettings(seasonRow?.checkInBlockRulesJson);
+  const blockRows =
+    blockSettings.enabled && rows.length > 0
+      ? await prisma.registration.findMany({
+          where: { id: { in: rows.map((r) => r.id) } },
+          select: CHECK_IN_BLOCK_REGISTRATION_SELECT,
+        })
+      : [];
+  const blockRowMap = new Map(blockRows.map((r) => [r.id, r]));
+
   return NextResponse.json({
-    matches: rows.map((r) =>
-      mapRegistrationToCheckInLookupMatch(r, checkedInMap.get(r.id) ?? false),
-    ),
+    matches: rows.map((r) => {
+      const match = mapRegistrationToCheckInLookupMatch(r, checkedInMap.get(r.id) ?? false);
+      const blockRow = blockRowMap.get(r.id);
+      if (blockRow && seasonRow) {
+        const block = evaluateCheckInBlock(
+          blockRow as CheckInBlockRegistrationRow,
+          seasonRow.name,
+          blockSettings,
+        );
+        if (block.blocked) {
+          match.checkInBlocked = true;
+          match.checkInBlockMessage = block.message;
+        }
+      }
+      return match;
+    }),
   });
 }

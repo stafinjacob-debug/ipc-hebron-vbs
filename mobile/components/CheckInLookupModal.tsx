@@ -22,6 +22,8 @@ export type CheckInLookupMatch = {
   dateOfBirth: string | null;
   allergiesNotes: string | null;
   registrationStatus: string;
+  checkInBlocked?: boolean;
+  checkInBlockMessage?: string | null;
 };
 
 type Props = {
@@ -32,6 +34,7 @@ type Props = {
   printingId: string | null;
   badgePrintingEnabled: boolean;
   checkInDisabled?: boolean;
+  dismissalMode?: boolean;
   onClose: () => void;
   onSelect: (match: CheckInLookupMatch) => void;
   onCheckIn: (match: CheckInLookupMatch) => void;
@@ -55,6 +58,7 @@ export function CheckInLookupModal({
   printingId,
   badgePrintingEnabled,
   checkInDisabled = false,
+  dismissalMode = false,
   onClose,
   onSelect,
   onCheckIn,
@@ -138,6 +142,12 @@ export function CheckInLookupModal({
                     <Text style={styles.alertBody}>{active.allergiesNotes}</Text>
                   </View>
                 ) : null}
+                {active.checkInBlocked && !active.checkedIn && active.checkInBlockMessage ? (
+                  <View style={styles.blockBox}>
+                    <Text style={styles.blockTitle}>Check-in blocked</Text>
+                    <Text style={styles.blockBody}>{active.checkInBlockMessage}</Text>
+                  </View>
+                ) : null}
                 <DetailRow
                   label="Registration status"
                   value={active.registrationStatus}
@@ -160,10 +170,18 @@ export function CheckInLookupModal({
                   pendingId === active.id
                     ? 'Updating…'
                     : active.checkedIn
-                      ? 'Undo check-in'
-                      : 'Check in'
+                      ? dismissalMode
+                        ? 'Check out'
+                        : 'Undo check-in'
+                      : dismissalMode
+                        ? 'Not checked in'
+                        : 'Check in'
                 }
-                disabled={checkInDisabled}
+                disabled={
+                  checkInDisabled ||
+                  Boolean(active.checkInBlocked && !active.checkedIn) ||
+                  Boolean(dismissalMode && !active.checkedIn)
+                }
                 loading={pendingId === active.id}
                 onPress={() => onCheckIn(active)}
               />
@@ -247,6 +265,22 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   alertBody: { fontSize: 15, color: palette.text, lineHeight: 21 },
+  blockBox: {
+    marginTop: 8,
+    marginBottom: 8,
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: palette.warningBg,
+    borderWidth: 1,
+    borderColor: palette.warning,
+  },
+  blockTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: palette.warning,
+    marginBottom: 4,
+  },
+  blockBody: { fontSize: 15, color: palette.text, lineHeight: 21 },
   pickRow: {
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: palette.border,

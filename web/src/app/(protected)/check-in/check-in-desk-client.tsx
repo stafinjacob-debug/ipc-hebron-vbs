@@ -26,6 +26,7 @@ type Props = {
   badgePrintingEnabled: boolean;
   autoPrintOnCheckIn: boolean;
   multiDayCheckInEnabled: boolean;
+  undoPinRequired: boolean;
   campDates: CampDateOption[];
   selectedCampDate: string;
 };
@@ -36,6 +37,7 @@ export function CheckInDeskClient({
   badgePrintingEnabled,
   autoPrintOnCheckIn,
   multiDayCheckInEnabled,
+  undoPinRequired,
   campDates,
   selectedCampDate,
 }: Props) {
@@ -101,35 +103,69 @@ export function CheckInDeskClient({
     });
   }
 
+  function promptUndoPin(): string | null {
+    const pin = window.prompt("Enter the 4-digit security code to undo check-in:");
+    if (pin === null) return null;
+    return pin.trim();
+  }
+
   function handleCheckInFromModal(match: CheckInLookupMatch) {
-    setPendingId(match.id);
+    const nextChecked = !match.checkedIn;
+    if (!nextChecked && undoPinRequired) {
+      const pin = promptUndoPin();
+      if (pin === null) return;
+      performToggle(match.id, nextChecked, pin, () => {
+        setLookupMatches((prev) =>
+          prev.map((m) => (m.id === match.id ? { ...m, checkedIn: nextChecked } : m)),
+        );
+        if (nextChecked) {
+          closeLookupModal();
+          setLookupQuery("");
+        }
+      }, match.id);
+      return;
+    }
+    performToggleFromModal(match, nextChecked);
+  }
+
+  function performToggleFromModal(match: CheckInLookupMatch, nextChecked: boolean) {
+    performToggle(match.id, nextChecked, null, () => {
+      setLookupMatches((prev) =>
+        prev.map((m) => (m.id === match.id ? { ...m, checkedIn: nextChecked } : m)),
+      );
+      if (nextChecked) {
+        closeLookupModal();
+        setLookupQuery("");
+      }
+    }, match.id);
+  }
+
+  function performToggle(
+    registrationId: string,
+    nextChecked: boolean,
+    undoPin: string | null,
+    onSuccess: () => void,
+    pendingRegistrationId: string,
+  ) {
+    setPendingId(pendingRegistrationId);
     setError(null);
     startTransition(async () => {
       try {
-        const result = await toggleCheckIn(match.id, !match.checkedIn, campDate);
+        const result = await toggleCheckIn(registrationId, nextChecked, campDate, undoPin);
         if (!result.ok) {
           setError(result.message);
           return;
         }
 
-        const nextCheckedIn = !match.checkedIn;
-        setLookupMatches((prev) =>
-          prev.map((m) => (m.id === match.id ? { ...m, checkedIn: nextCheckedIn } : m)),
-        );
-
+        onSuccess();
         router.refresh();
 
         if (result.shouldPrintBadge && badgePrintingEnabled) {
           try {
-            await printBadgeByRegistrationId(match.id);
+            await printBadgeByRegistrationId(registrationId);
           } catch (printErr) {
             setError(printErr instanceof Error ? printErr.message : "Badge print failed.");
           }
-        }
-
-        if (nextCheckedIn) {
-          closeLookupModal();
-          setLookupQuery("");
         }
       } catch {
         setError("Check-in update failed.");
@@ -140,29 +176,14 @@ export function CheckInDeskClient({
   }
 
   function handleToggle(row: CheckInRow) {
-    setPendingId(row.id);
-    setError(null);
-    startTransition(async () => {
-      try {
-        const result = await toggleCheckIn(row.id, !row.checkedIn, campDate);
-        if (!result.ok) {
-          setError(result.message);
-          return;
-        }
-        router.refresh();
-        if (result.shouldPrintBadge && badgePrintingEnabled) {
-          try {
-            await printBadgeByRegistrationId(row.id);
-          } catch (printErr) {
-            setError(printErr instanceof Error ? printErr.message : "Badge print failed.");
-          }
-        }
-      } catch {
-        setError("Check-in update failed.");
-      } finally {
-        setPendingId(null);
-      }
-    });
+    const nextChecked = !row.checkedIn;
+    if (!nextChecked && undoPinRequired) {
+      const pin = promptUndoPin();
+      if (pin === null) return;
+      performToggle(row.id, nextChecked, pin, () => {}, row.id);
+      return;
+    }
+    performToggle(row.id, nextChecked, null, () => {}, row.id);
   }
 
   return (

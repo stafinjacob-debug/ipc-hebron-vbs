@@ -1,5 +1,11 @@
 import { prisma } from "@/lib/prisma";
 import {
+  CHECK_IN_BLOCK_REGISTRATION_SELECT,
+  evaluateCheckInBlock,
+  parseCheckInBlockSettings,
+  type CheckInBlockRegistrationRow,
+} from "@/lib/check-in-block";
+import {
   campDateKeyToUtcDate,
   isPastCampDate,
   isTodayCampDate,
@@ -100,14 +106,20 @@ export async function setRegistrationAttendance(input: {
   checkedIn: boolean;
   campDateKey?: string | null;
   actorUserId?: string | null;
+  undoPin?: string | null;
+  /** When checking out via dismissal pickup, skip the undo security code. */
+  dismissalCheckout?: boolean;
 }): Promise<SetAttendanceResult> {
   const season = await prisma.vbsSeason.findUnique({
     where: { id: input.seasonId },
     select: {
       id: true,
+      name: true,
       multiDayCheckInEnabled: true,
       startDate: true,
       endDate: true,
+      checkInBlockRulesJson: true,
+      checkInUndoPin: true,
     },
   });
   if (!season) return { ok: false, message: "Season not found." };
@@ -117,6 +129,33 @@ export async function setRegistrationAttendance(input: {
     select: { id: true, checkedInAt: true },
   });
   if (!existing) return { ok: false, message: "Registration not found." };
+
+  if (!input.checkedIn && season.checkInUndoPin && !input.dismissalCheckout) {
+    const provided = (input.undoPin ?? "").trim();
+    if (provided !== season.checkInUndoPin) {
+      return { ok: false, message: "Incorrect security code." };
+    }
+  }
+
+  if (input.checkedIn) {
+    const blockSettings = parseCheckInBlockSettings(season.checkInBlockRulesJson);
+    if (blockSettings.enabled) {
+      const row = await prisma.registration.findUnique({
+        where: { id: input.registrationId },
+        select: CHECK_IN_BLOCK_REGISTRATION_SELECT,
+      });
+      if (row) {
+        const block = evaluateCheckInBlock(
+          row as CheckInBlockRegistrationRow,
+          season.name,
+          blockSettings,
+        );
+        if (block.blocked) {
+          return { ok: false, message: block.message };
+        }
+      }
+    }
+  }
 
   if (!season.multiDayCheckInEnabled) {
     if (input.checkedIn) {

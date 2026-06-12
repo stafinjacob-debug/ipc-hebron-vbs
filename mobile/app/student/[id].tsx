@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { palette } from '@/constants/theme';
+import { PinEntryModal } from '@/components/PinEntryModal';
 import { Card, PrimaryButton, SecondaryButton, StatusChip } from '@/components/ui';
 import { ApiError, apiFetch } from '@/lib/api';
 import {
@@ -68,10 +69,12 @@ export default function StudentDetailScreen() {
     autoPrintOnCheckIn: false,
     multiDayCheckInEnabled: false,
     dismissalTrackingEnabled: false,
+    undoPinRequired: false,
     campDates: [],
     todayCampDate: null,
     selectedCampDate: null,
   });
+  const [pinModalOpen, setPinModalOpen] = useState(false);
   const dismissal =
     deskSettings.dismissalTrackingEnabled && mode === 'dismissal';
 
@@ -109,6 +112,8 @@ export default function StudentDetailScreen() {
           badgePrintingEnabled: false,
           autoPrintOnCheckIn: false,
           multiDayCheckInEnabled: false,
+          dismissalTrackingEnabled: false,
+          undoPinRequired: false,
           campDates: [],
           todayCampDate: null,
           selectedCampDate: null,
@@ -128,7 +133,7 @@ export default function StudentDetailScreen() {
     }
   }
 
-  async function patchAttendance(checkedIn: boolean) {
+  async function patchAttendance(checkedIn: boolean, undoPin?: string) {
     if (!token || !seasonId || !id) return;
     setActing(true);
     try {
@@ -140,6 +145,8 @@ export default function StudentDetailScreen() {
           body: JSON.stringify({
             checkedIn,
             campDate: typeof campDate === 'string' ? campDate : undefined,
+            undoPin,
+            dismissalCheckout: dismissal ? true : undefined,
           }),
         },
       );
@@ -201,6 +208,13 @@ export default function StudentDetailScreen() {
         Alert.alert('Already checked in', 'Use Dismissal tab to check out.');
         return;
       }
+      const confirmUndo = () => {
+        if (deskSettings.undoPinRequired) {
+          setPinModalOpen(true);
+          return;
+        }
+        void patchAttendance(false);
+      };
       Alert.alert(
         'Undo check-in',
         `Remove ${data.student.firstName}'s check-in for today?`,
@@ -209,7 +223,7 @@ export default function StudentDetailScreen() {
           {
             text: 'Undo check-in',
             style: 'destructive',
-            onPress: () => void patchAttendance(false),
+            onPress: confirmUndo,
           },
         ],
       );
@@ -351,6 +365,17 @@ export default function StudentDetailScreen() {
           onPress={onPrimaryPress}
         />
       </View>
+
+      <PinEntryModal
+        visible={pinModalOpen}
+        title="Security code required"
+        message="Enter the 4-digit code to undo this check-in."
+        onCancel={() => setPinModalOpen(false)}
+        onSubmit={(pin) => {
+          setPinModalOpen(false);
+          void patchAttendance(false, pin);
+        }}
+      />
     </View>
   );
 }
