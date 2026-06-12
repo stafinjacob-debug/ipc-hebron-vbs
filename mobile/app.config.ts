@@ -1,7 +1,7 @@
 import type { ExpoConfig } from 'expo/config';
 
 const config: ExpoConfig = {
-  name: 'IPC Hebron VBS',
+  name: 'Anchor Check Ins',
   slug: 'ipc-hebron-vbs',
   owner: 'stafindebug',
   version: '1.0.0',
@@ -28,7 +28,7 @@ const config: ExpoConfig = {
     infoPlist: {
       ITSAppUsesNonExemptEncryption: false,
       NSFaceIDUsageDescription:
-        'Unlock the VBS staff app with Face ID or Touch ID.',
+        'Unlock Anchor Check Ins with Face ID or Touch ID.',
       NSCameraUsageDescription:
         'Scan registration QR codes at the check-in desk.',
     },

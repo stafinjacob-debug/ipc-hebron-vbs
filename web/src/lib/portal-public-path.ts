@@ -11,6 +11,23 @@ export function getPortalLookupPath(season: { publicRegistrationSlug: string | n
   return `${base}/lookup`;
 }
 
+/** Absolute public signup URL for QR codes and share links. */
+export function buildPublicSignupUrl(
+  publicBase: string,
+  season: { publicRegistrationSlug: string | null | undefined },
+): string {
+  const base = publicBase.replace(/\/$/, "");
+  return `${base}${getPortalPublicPath(season)}`;
+}
+
+export function buildPublicLookupUrl(
+  publicBase: string,
+  season: { publicRegistrationSlug: string | null | undefined },
+): string {
+  const base = publicBase.replace(/\/$/, "");
+  return `${base}${getPortalLookupPath(season)}`;
+}
+
 const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 export function normalizePortalSlug(raw: string): string | null {

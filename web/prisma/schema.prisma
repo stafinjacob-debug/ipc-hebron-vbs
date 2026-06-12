@@ -369,6 +369,8 @@ model BadgePrintSettings {
   logoUrl String?
   /// [{ "id": "…", "fieldKey": "guardian:guardianPhone" | "child:customKey" }]
   customFieldsJson Json @default("[]")
+  /// { namePt, classPt, detailPt, lineGapIn, wrapGapIn, qrSizeIn, … } — Brother horizontal badge tuning.
+  typographyJson Json @default("{}")
   autoPrintOnCheckIn Boolean @default(false)
 
   createdAt DateTime @default(now())

@@ -17,6 +17,8 @@ import {
 
 type Props = {
   seasonId: string;
+  registerPath: string;
+  lookupPath: string;
   publicRegistrationOpen: boolean;
   registrantLookupEnabled: boolean;
   seasonStartDate: Date;
@@ -54,6 +56,8 @@ export function PublicRegistrationSettingsForm(p: Props) {
       <PublicRegistrationAccessFields
         publicRegistrationOpen={p.publicRegistrationOpen}
         registrantLookupEnabled={p.registrantLookupEnabled}
+        registerPath={p.registerPath}
+        lookupPath={p.lookupPath}
       />
 
       <div className="rounded-xl border border-foreground/10 p-4">
@@ -98,6 +102,7 @@ export function PublicRegistrationSettingsForm(p: Props) {
         registrationBackgroundVideoUrl={p.registrationBackgroundVideoUrl}
         registrationBackgroundDimmingPercent={p.registrationBackgroundDimmingPercent}
         registrationBackgroundLayout={p.registrationBackgroundLayout}
+        registerPath={p.registerPath}
       />
 
       <PublicRegistrationHelpEmailField helpContactEmail={p.helpContactEmail} />

@@ -201,7 +201,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const unlockWithBiometrics = useCallback(async () => {
     const r = await LocalAuthentication.authenticateAsync({
-      promptMessage: 'Unlock VBS',
+      promptMessage: 'Unlock Anchor Check Ins',
       fallbackLabel: 'Use password',
       cancelLabel: 'Cancel',
     });

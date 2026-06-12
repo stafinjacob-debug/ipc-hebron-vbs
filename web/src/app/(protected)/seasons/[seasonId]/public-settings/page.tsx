@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { getPortalLookupPath, getPortalPublicPath } from "@/lib/portal-public-path";
 import { auth } from "@/auth";
 import { ensureRegistrationFormForSeason } from "@/lib/ensure-registration-form";
 import { prisma } from "@/lib/prisma";
@@ -23,6 +24,8 @@ export default async function PublicRegistrationSettingsPage({ params }: PagePro
   if (!season) notFound();
 
   const form = await ensureRegistrationFormForSeason(season.id, season.name);
+  const registerPath = getPortalPublicPath(season);
+  const lookupPath = getPortalLookupPath(season);
 
   return (
     <div className="space-y-8">
@@ -35,12 +38,14 @@ export default async function PublicRegistrationSettingsPage({ params }: PagePro
         <h1 className="mt-2 text-2xl font-semibold tracking-tight">Public registration</h1>
         <p className="mt-1 text-foreground/70">
           {season.name} ({season.year}) — control the parent-facing form at{" "}
-          <code className="rounded bg-foreground/10 px-1.5 py-0.5 text-sm">/register</code>
+          <code className="rounded bg-foreground/10 px-1.5 py-0.5 text-sm">{registerPath}</code>
         </p>
       </div>
 
       <PublicRegistrationSettingsForm
         seasonId={season.id}
+        registerPath={registerPath}
+        lookupPath={lookupPath}
         publicRegistrationOpen={season.publicRegistrationOpen}
         registrantLookupEnabled={form.registrantLookupEnabled}
         seasonStartDate={season.startDate}

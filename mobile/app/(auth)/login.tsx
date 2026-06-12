@@ -2,6 +2,7 @@ import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
   Alert,
+  Image,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -63,10 +64,12 @@ export default function LoginScreen() {
         contentContainerStyle={styles.scroll}
         keyboardShouldPersistTaps="handled"
       >
-        <View style={styles.logoPlaceholder}>
-          <Text style={styles.logoText}>VBS</Text>
-        </View>
-        <Text style={styles.title}>IPC Hebron VBS</Text>
+        <Image
+          source={require('@/assets/images/logocheckin.png')}
+          style={styles.logo}
+          accessibilityLabel="Anchor Check Ins logo"
+        />
+        <Text style={styles.title}>Anchor Check Ins</Text>
         <Text style={styles.subtitle}>Staff & volunteer sign in</Text>
 
         <View style={styles.form}>
@@ -114,20 +117,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingBottom: 32,
   },
-  logoPlaceholder: {
+  logo: {
     alignSelf: 'center',
-    width: 88,
-    height: 88,
-    borderRadius: 20,
-    backgroundColor: palette.accentMuted,
-    alignItems: 'center',
-    justifyContent: 'center',
+    width: 120,
+    height: 120,
     marginBottom: 20,
-  },
-  logoText: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: palette.accent,
+    borderRadius: 24,
   },
   title: {
     fontSize: 26,

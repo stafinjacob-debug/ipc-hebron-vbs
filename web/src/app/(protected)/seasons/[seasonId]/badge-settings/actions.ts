@@ -7,6 +7,7 @@ import {
   parseBadgeHorizontalLayout,
   parseBadgeLabelSize,
   parseBadgeOrientation,
+  parseBadgeTypographyForm,
 } from "@/lib/badge-print";
 import { deleteLocalBadgeLogo, uploadBadgeLogoImage } from "@/lib/badge-logo-upload";
 import { canManageDirectory } from "@/lib/roles";
@@ -61,6 +62,7 @@ export async function saveBadgePrintSettings(
 
   const formFields = parseBadgeFormFieldsForm(str(formData, "customFieldsJson"));
   const customFieldsJson = formFields.map(({ id, fieldKey }) => ({ id, fieldKey }));
+  const typographyJson = parseBadgeTypographyForm(str(formData, "typographyJson"));
 
   await prisma.badgePrintSettings.upsert({
     where: { seasonId },
@@ -80,6 +82,7 @@ export async function saveBadgePrintSettings(
       showAllergyFlag: checkbox(formData, "showAllergyFlag"),
       logoUrl,
       customFieldsJson,
+      typographyJson,
       autoPrintOnCheckIn: checkbox(formData, "autoPrintOnCheckIn"),
     },
     update: {
@@ -97,6 +100,7 @@ export async function saveBadgePrintSettings(
       showAllergyFlag: checkbox(formData, "showAllergyFlag"),
       logoUrl,
       customFieldsJson,
+      typographyJson,
       autoPrintOnCheckIn: checkbox(formData, "autoPrintOnCheckIn"),
     },
   });

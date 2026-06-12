@@ -2,10 +2,11 @@
 
 import { useActionState, useMemo, useState } from "react";
 import Link from "next/link";
-import type { BadgeFormFieldSelection, ResolvedBadgePrintSettings } from "@/lib/badge-print";
+import type { BadgeFormFieldSelection, BadgeTypographySettings, ResolvedBadgePrintSettings } from "@/lib/badge-print";
 import {
   BADGE_HORIZONTAL_LAYOUT_OPTIONS,
   badgeLabelSizeOptions,
+  DEFAULT_BADGE_TYPOGRAPHY,
   sampleBadgePreviewPayload,
 } from "@/lib/badge-print";
 import type { ExportFieldOption } from "@/lib/registration-export";
@@ -55,6 +56,45 @@ function FieldCheckbox({
   );
 }
 
+function TypographyNumberField({
+  label,
+  description,
+  value,
+  min,
+  max,
+  step,
+  unit,
+  onChange,
+}: {
+  label: string;
+  description?: string;
+  value: number;
+  min: number;
+  max: number;
+  step: number;
+  unit: string;
+  onChange: (value: number) => void;
+}) {
+  return (
+    <div>
+      <label className="block text-xs font-medium text-foreground/70">{label}</label>
+      {description ? <p className="mt-0.5 text-[11px] text-muted">{description}</p> : null}
+      <div className="mt-1 flex items-center gap-2">
+        <input
+          type="number"
+          min={min}
+          max={max}
+          step={step}
+          value={value}
+          onChange={(e) => onChange(Number.parseFloat(e.target.value))}
+          className="w-full rounded-md border border-foreground/15 bg-background px-3 py-2 text-sm tabular-nums"
+        />
+        <span className="shrink-0 text-xs text-muted">{unit}</span>
+      </div>
+    </div>
+  );
+}
+
 export function BadgePrintSettingsForm({
   seasonId,
   seasonName,
@@ -71,11 +111,12 @@ export function BadgePrintSettingsForm({
 
   const [draft, setDraft] = useState<ResolvedBadgePrintSettings>(settings);
   const [formFields, setFormFields] = useState<BadgeFormFieldSelection[]>(settings.formFields);
+  const [typography, setTypography] = useState<BadgeTypographySettings>(settings.typography);
   const [logoPreview, setLogoPreview] = useState<string | null>(settings.logoUrl);
 
   const previewSettings = useMemo(
-    () => ({ ...draft, formFields, logoUrl: logoPreview }),
-    [draft, formFields, logoPreview],
+    () => ({ ...draft, formFields, logoUrl: logoPreview, typography }),
+    [draft, formFields, logoPreview, typography],
   );
   const previewPayload = useMemo(
     () =>
@@ -105,9 +146,14 @@ export function BadgePrintSettingsForm({
     setLogoPreview(url);
   }
 
+  function patchTypography(patch: Partial<BadgeTypographySettings>) {
+    setTypography((prev) => ({ ...prev, ...patch }));
+  }
+
   return (
     <form action={action} encType="multipart/form-data" className="max-w-2xl space-y-8">
       <input type="hidden" name="customFieldsJson" value={JSON.stringify(formFields)} readOnly />
+      <input type="hidden" name="typographyJson" value={JSON.stringify(typography)} readOnly />
 
       {state?.message ? (
         <div
@@ -233,6 +279,113 @@ export function BadgePrintSettingsForm({
           <input type="hidden" name="horizontalLayout" value={draft.horizontalLayout} readOnly />
         )}
       </div>
+
+      {draft.orientation === "HORIZONTAL" ? (
+        <div className="rounded-xl border border-foreground/10 p-4">
+          <h2 className="text-sm font-semibold text-foreground/90">Typography & spacing</h2>
+          <p className="mt-1 text-sm text-muted">
+            Tune font sizes and spacing for iPad Brother printing. If detail lines hide behind the QR
+            code, try a smaller <strong className="font-medium text-foreground/80">QR size</strong> or{" "}
+            <strong className="font-medium text-foreground/80">detail size</strong>, and increase{" "}
+            <strong className="font-medium text-foreground/80">line spacing</strong>. Changes apply on
+            the next badge print — no app update needed.
+          </p>
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            <TypographyNumberField
+              label="Child name"
+              value={typography.namePt}
+              min={8}
+              max={36}
+              step={1}
+              unit="pt"
+              onChange={(namePt) => patchTypography({ namePt })}
+            />
+            <TypographyNumberField
+              label="Class line"
+              value={typography.classPt}
+              min={8}
+              max={32}
+              step={1}
+              unit="pt"
+              onChange={(classPt) => patchTypography({ classPt })}
+            />
+            <TypographyNumberField
+              label="Detail lines"
+              description="Guardian, emergency contact, medical info, etc."
+              value={typography.detailPt}
+              min={6}
+              max={24}
+              step={1}
+              unit="pt"
+              onChange={(detailPt) => patchTypography({ detailPt })}
+            />
+            <TypographyNumberField
+              label="Season line"
+              value={typography.seasonPt}
+              min={6}
+              max={18}
+              step={1}
+              unit="pt"
+              onChange={(seasonPt) => patchTypography({ seasonPt })}
+            />
+            <TypographyNumberField
+              label="Security code"
+              value={typography.codePt}
+              min={6}
+              max={18}
+              step={1}
+              unit="pt"
+              onChange={(codePt) => patchTypography({ codePt })}
+            />
+            <TypographyNumberField
+              label="Timestamp"
+              value={typography.timestampPt}
+              min={6}
+              max={16}
+              step={1}
+              unit="pt"
+              onChange={(timestampPt) => patchTypography({ timestampPt })}
+            />
+            <TypographyNumberField
+              label="Line spacing"
+              description="Space between separate fields (e.g. guardian → medical)."
+              value={typography.lineGapIn}
+              min={0}
+              max={0.12}
+              step={0.004}
+              unit="in"
+              onChange={(lineGapIn) => patchTypography({ lineGapIn })}
+            />
+            <TypographyNumberField
+              label="Wrapped line spacing"
+              description="Space when a long line wraps to a second row."
+              value={typography.wrapGapIn}
+              min={0}
+              max={0.08}
+              step={0.002}
+              unit="in"
+              onChange={(wrapGapIn) => patchTypography({ wrapGapIn })}
+            />
+            <TypographyNumberField
+              label="QR code size"
+              description="Smaller QR leaves more room for text on the left."
+              value={typography.qrSizeIn}
+              min={0.45}
+              max={1.2}
+              step={0.05}
+              unit="in"
+              onChange={(qrSizeIn) => patchTypography({ qrSizeIn })}
+            />
+          </div>
+          <button
+            type="button"
+            onClick={() => setTypography({ ...DEFAULT_BADGE_TYPOGRAPHY })}
+            className="mt-4 text-sm font-medium text-brand underline-offset-4 hover:underline"
+          >
+            Reset typography to defaults
+          </button>
+        </div>
+      ) : null}
 
       <div className="rounded-xl border border-foreground/10 p-4">
         <h2 className="text-sm font-semibold text-foreground/90">Fields to print</h2>

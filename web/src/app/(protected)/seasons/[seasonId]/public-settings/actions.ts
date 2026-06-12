@@ -2,6 +2,7 @@
 
 import { auth } from "@/auth";
 import { ensureRegistrationFormForSeason } from "@/lib/ensure-registration-form";
+import { getPortalLookupPath, getPortalPublicPath } from "@/lib/portal-public-path";
 import { prisma } from "@/lib/prisma";
 import { canManageDirectory } from "@/lib/roles";
 import { parsePublicRegistrationLayout } from "@/lib/public-registration-layout";
@@ -179,11 +180,12 @@ export async function savePublicRegistrationSettings(
   revalidatePath(`/registrations/forms/${seasonId}/settings`);
 
   let message = "Public registration settings saved.";
+  const registerPath = getPortalPublicPath(season);
+  const lookupPath = getPortalLookupPath(season);
   if (!publicOpen) {
-    message =
-      "Public registration settings saved. Registration is now closed — families will see a closed message on /register.";
+    message = `Public registration settings saved. Registration is now closed — families will see a closed message on ${registerPath}.`;
     if (registrantLookupEnabled) {
-      message += " Registration lookup remains open at /register/lookup.";
+      message += ` Registration lookup remains open at ${lookupPath}.`;
     }
   }
 

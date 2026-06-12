@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { getDashboardSnapshot } from "@/lib/dashboard-data";
 import type { EventPhase } from "@/lib/event-phase";
 import { getPublicBaseUrl } from "@/lib/public-base-url";
+import { buildPublicSignupUrl, getPortalPublicPath } from "@/lib/portal-public-path";
 import { canManageDirectory, canViewOperations } from "@/lib/roles";
 import {
   AlertTriangle,
@@ -171,7 +172,7 @@ function PanelEmpty({
 function headerCtas(
   phase: EventPhase,
   manage: boolean,
-  publicBase: string,
+  publicSignupUrl: string,
 ): Array<{ key: string; href: string; label: string; primary?: boolean; external?: boolean }> {
   if (phase === "live") {
     return [
@@ -192,7 +193,7 @@ function headerCtas(
     { key: "cls", href: "/classes", label: "Manage classes" },
     {
       key: "pub",
-      href: `${publicBase}/register`,
+      href: publicSignupUrl,
       label: "View public page",
       external: true as const,
     },
@@ -211,6 +212,10 @@ export default async function DashboardPage() {
   const manage = canManageDirectory(session.user.role);
   const data = ops ? await getDashboardSnapshot() : null;
   const publicBase = ops ? await getPublicBaseUrl() : "";
+  const publicSignupUrl = data?.activeSeason
+    ? buildPublicSignupUrl(publicBase, data.activeSeason)
+    : `${publicBase.replace(/\/$/, "")}/register`;
+  const publicSignupPath = data?.activeSeason ? getPortalPublicPath(data.activeSeason) : "/register";
 
   return (
     <div className="mx-auto max-w-6xl space-y-9 pb-12">
@@ -324,7 +329,7 @@ export default async function DashboardPage() {
                 </div>
               </div>
               <div className="flex flex-shrink-0 flex-wrap gap-2 lg:flex-col lg:items-stretch">
-                {headerCtas(data.eventPhase, manage, publicBase).map((a) =>
+                {headerCtas(data.eventPhase, manage, publicSignupUrl).map((a) =>
                   a.external ? (
                     <a
                       key={a.key}
@@ -620,7 +625,7 @@ export default async function DashboardPage() {
                       description="Open online signup or add families from the desk to fill this list."
                       primaryHref={manage ? "/registrations/new" : "/registrations"}
                       primaryLabel={manage ? "Add registration" : "View registrations"}
-                      secondaryHref="/register"
+                      secondaryHref={publicSignupPath}
                       secondaryLabel="Public signup page"
                     />
                   ) : (

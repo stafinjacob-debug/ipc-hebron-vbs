@@ -13,6 +13,7 @@ import {
   listLookupPhoneFieldOptions,
 } from "@/lib/registrant-lookup-fields";
 import { getPublicBaseUrl } from "@/lib/public-base-url";
+import { buildPublicSignupUrl } from "@/lib/portal-public-path";
 import { prisma } from "@/lib/prisma";
 import { parsePublicRegistrationLayout } from "@/lib/public-registration-layout";
 import { clampRegistrationBackgroundDimmingPercent } from "@/lib/registration-background-scrim";
@@ -53,7 +54,7 @@ export default async function RegistrationFormWorkspacePage({
   const hasPublishedDefinition = !!form.publishedDefinitionJson;
 
   const publicBase = await getPublicBaseUrl();
-  const publicSignupUrl = `${publicBase}/register`;
+  const publicSignupUrl = buildPublicSignupUrl(publicBase, season);
   const publicRules = rulesFromDb(season.publicRegistrationSettings);
   const publicWelcome = season.publicRegistrationSettings?.welcomeMessage ?? "";
   const paymentConditionFieldOptions = ([

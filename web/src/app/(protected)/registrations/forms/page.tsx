@@ -1,6 +1,7 @@
 import { auth } from "@/auth";
 import { isFormRegistrationOpen, ensureRegistrationFormForSeason } from "@/lib/ensure-registration-form";
 import { getPublicBaseUrl } from "@/lib/public-base-url";
+import { buildPublicSignupUrl } from "@/lib/portal-public-path";
 import { prisma } from "@/lib/prisma";
 import { canManageDirectory, canViewOperations } from "@/lib/roles";
 import { redirect } from "next/navigation";
@@ -28,7 +29,6 @@ export default async function RegistrationFormsListPage() {
   );
 
   const publicBase = await getPublicBaseUrl();
-  const publicSignupUrl = `${publicBase}/register`;
 
   const workspaceRows: FormBuilderSeasonRow[] = rows.map(({ season: s, form }) => {
     if (!form) {
@@ -49,7 +49,7 @@ export default async function RegistrationFormsListPage() {
       publicRegistrationOpen: s.publicRegistrationOpen,
       acceptingResponses,
       updatedAtIso: form.updatedAt.toISOString(),
-      publicSignupUrl,
+      publicSignupUrl: buildPublicSignupUrl(publicBase, s),
       canEdit,
     };
   });

@@ -271,38 +271,34 @@ function kidCheckBodyLines(payload: BadgePrintPayload): KidCheckBodyLine[] {
   return lines;
 }
 
-/** Brother horizontal badges: larger pt sizes for legibility on 62×100 mm labels at 300 DPI. */
-const BROTHER_HOR_PT = {
-  name: 22,
-  code: 11,
-  class: 18,
-  line: 12,
-  season: 10,
-  timestamp: 9,
-} as const;
+/** Brother horizontal badges: pt sizes from season badge typography settings. */
+function brotherHorPt(payload: BadgePrintPayload) {
+  return payload.settings.typography;
+}
 
 /** Brother 62 mm media: text block left, QR right — drawn landscape, rotated at output. */
 function renderKidCheckBrotherWide(payload: BadgePrintPayload, canvas: LabelCanvas): string {
   const { w, h } = canvas;
   const s = payload.structured;
+  const t = brotherHorPt(payload);
   const name = escapeXml(`${s.firstName} ${s.lastName}`.trim() || payload.childName);
 
   const pad = inchToPx(0.1, canvas);
-  const nameSize = ptToPx(BROTHER_HOR_PT.name, canvas);
-  const codeSize = ptToPx(BROTHER_HOR_PT.code, canvas);
-  const classSize = ptToPx(BROTHER_HOR_PT.class, canvas);
-  const lineSize = ptToPx(BROTHER_HOR_PT.line, canvas);
-  const seasonSize = ptToPx(BROTHER_HOR_PT.season, canvas);
-  const timestampSize = ptToPx(BROTHER_HOR_PT.timestamp, canvas);
-  const lineGap = inchToPx(0.032, canvas);
-  const wrapGap = inchToPx(0.018, canvas);
+  const nameSize = ptToPx(t.namePt, canvas);
+  const codeSize = ptToPx(t.codePt, canvas);
+  const classSize = ptToPx(t.classPt, canvas);
+  const lineSize = ptToPx(t.detailPt, canvas);
+  const seasonSize = ptToPx(t.seasonPt, canvas);
+  const timestampSize = ptToPx(t.timestampPt, canvas);
+  const lineGap = inchToPx(t.lineGapIn, canvas);
+  const wrapGap = inchToPx(t.wrapGapIn, canvas);
   const stroke = Math.max(2, Math.round(inchToPx(0.018, canvas)));
-  const qrSize = inchToPx(0.95, canvas);
+  const qrSize = inchToPx(t.qrSizeIn, canvas);
 
   const stripW = payload.settings.logoUrl ? inchToPx(0.28, canvas) : 0;
   const stripX = w - pad - stripW;
   const qrX = stripX - (stripW ? inchToPx(0.04, canvas) : 0) - qrSize;
-  const textMaxX = qrX - inchToPx(0.05, canvas);
+  const textMaxX = qrX - inchToPx(0.06, canvas);
 
   const codePadY = inchToPx(0.016, canvas);
   const codeText = s.securityCode ? escapeXml(s.securityCode) : "";
@@ -320,23 +316,26 @@ function renderKidCheckBrotherWide(payload: BadgePrintPayload, canvas: LabelCanv
 
   let bodyY = dividerY + inchToPx(0.055, canvas);
   const bodyParts: string[] = [];
-  const maxChars = Math.max(22, Math.floor((textMaxX - pad) / (lineSize * 0.48)));
+  const maxChars = Math.max(18, Math.floor((textMaxX - pad) / (lineSize * 0.55)));
+  const bodyBottom = h - pad - (s.printedAt ? timestampSize + inchToPx(0.04, canvas) : 0);
   for (const line of kidCheckBodyLines(payload)) {
     const size =
       line.kind === "season" ? seasonSize : line.kind === "class" ? classSize : lineSize;
     const weight = line.kind === "class" ? 800 : 600;
     const fill = line.kind === "season" ? "#64748b" : "#1e293b";
-    const wrapped = wrapKidCheckLine(line.text, maxChars, 3);
+    const wrapped = wrapKidCheckLine(line.text, maxChars, 4);
     for (let j = 0; j < wrapped.length; j++) {
+      if (bodyY + size > bodyBottom) break;
       bodyY += size + (j === 0 ? 0 : wrapGap);
       bodyParts.push(
         `<text x="${pad}" y="${bodyY}" font-family="${BADGE_PRINT_FONT_FAMILY}" font-size="${size}" font-weight="${weight}" fill="${fill}">${wrapped[j]}</text>`,
       );
     }
     bodyY += lineGap;
+    if (bodyY > bodyBottom) break;
   }
 
-  const timestampY = bodyY + timestampSize + inchToPx(0.025, canvas);
+  const timestampY = Math.min(bodyY + timestampSize + inchToPx(0.025, canvas), bodyBottom);
   const timestamp = s.printedAt
     ? `<text x="${pad}" y="${timestampY}" font-family="${BADGE_PRINT_FONT_FAMILY}" font-size="${timestampSize}" fill="#64748b">${escapeXml(s.printedAt)}</text>`
     : "";
@@ -357,12 +356,17 @@ function renderKidCheckBrotherWide(payload: BadgePrintPayload, canvas: LabelCanv
        </g>`
     : "";
 
+  const bodyClip = `<clipPath id="kidcheck-body-clip"><rect x="0" y="${dividerY}" width="${textMaxX}" height="${h - dividerY}" /></clipPath>`;
+
   return `
+    ${bodyClip}
     <text x="${pad}" y="${nameY}" font-family="${BADGE_PRINT_FONT_FAMILY}" font-size="${nameSize}" font-weight="800" fill="#0f172a">${name}</text>
     ${code}
     <line x1="${pad}" y1="${dividerY}" x2="${textMaxX}" y2="${dividerY}" stroke="#0f172a" stroke-width="${stroke}" />
-    ${bodyParts.join("\n")}
-    ${timestamp}
+    <g clip-path="url(#kidcheck-body-clip)">
+      ${bodyParts.join("\n")}
+      ${timestamp}
+    </g>
     ${footerQr}
     ${logoStrip}
   `;
@@ -370,39 +374,42 @@ function renderKidCheckBrotherWide(payload: BadgePrintPayload, canvas: LabelCanv
 
 function renderStandardBrotherWide(payload: BadgePrintPayload, canvas: LabelCanvas): string {
   const { w } = canvas;
+  const t = brotherHorPt(payload);
   const pad = inchToPx(0.1, canvas);
-  const qrSize = inchToPx(0.95, canvas);
+  const qrSize = inchToPx(t.qrSizeIn, canvas);
   const qrX = w - pad - qrSize;
   const textMaxX = qrX - inchToPx(0.06, canvas);
+  const lineGap = inchToPx(t.lineGapIn, canvas);
 
-  let y = pad + ptToPx(BROTHER_HOR_PT.name, canvas);
+  let y = pad + ptToPx(t.namePt, canvas);
   const lines = payload.lines
     .map((line) => {
       const size =
         line.kind === "name"
-          ? ptToPx(BROTHER_HOR_PT.name, canvas)
+          ? ptToPx(t.namePt, canvas)
           : line.kind === "season"
-            ? ptToPx(BROTHER_HOR_PT.season, canvas)
+            ? ptToPx(t.seasonPt, canvas)
             : line.kind === "number"
               ? ptToPx(12, canvas)
               : line.kind === "allergy"
-                ? ptToPx(BROTHER_HOR_PT.season, canvas)
-                : ptToPx(BROTHER_HOR_PT.line, canvas);
+                ? ptToPx(t.seasonPt, canvas)
+                : ptToPx(t.detailPt, canvas);
       const weight = line.kind === "name" || line.kind === "number" ? 700 : 600;
       const fill = line.kind === "allergy" ? "#b45309" : "#0f172a";
       const lineY = y + size;
-      y += size + inchToPx(0.032, canvas);
+      y += size + lineGap;
       return `<text x="${pad}" y="${lineY}" font-family="${BADGE_PRINT_FONT_FAMILY}" font-size="${size}" font-weight="${weight}" fill="${fill}">${escapeXml(line.text)}</text>`;
     })
     .join("\n");
 
-  const qrY = pad + ptToPx(BROTHER_HOR_PT.name, canvas) + inchToPx(0.04, canvas);
+  const bodyClip = `<clipPath id="standard-body-clip"><rect x="0" y="0" width="${textMaxX}" height="${canvas.h}" /></clipPath>`;
+  const qrY = pad + ptToPx(t.namePt, canvas) + inchToPx(0.04, canvas);
   const qr =
     payload.qrDataUrl && payload.settings.showQrCode
       ? `<image href="${payload.qrDataUrl}" x="${qrX}" y="${qrY}" width="${qrSize}" height="${qrSize}" />`
       : "";
 
-  return `${lines}${qr}`;
+  return `${bodyClip}<g clip-path="url(#standard-body-clip)">${lines}</g>${qr}`;
 }
 
 function resolveBadgeRenderCanvas(

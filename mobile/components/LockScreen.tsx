@@ -10,7 +10,7 @@ export function LockScreen() {
 
   return (
     <View style={styles.wrap}>
-      <Text style={styles.title}>VBS is locked</Text>
+      <Text style={styles.title}>Anchor Check Ins is locked</Text>
       <Text style={styles.sub}>
         Use Face ID or Touch ID to continue. Your session stays signed in.
       </Text>

@@ -5,9 +5,13 @@ import type { PublicRegistrationLayout } from "@/generated/prisma";
 export function PublicRegistrationAccessFields({
   publicRegistrationOpen,
   registrantLookupEnabled,
+  registerPath = "/register",
+  lookupPath = "/register/lookup",
 }: {
   publicRegistrationOpen: boolean;
   registrantLookupEnabled: boolean;
+  registerPath?: string;
+  lookupPath?: string;
 }) {
   return (
     <div className="rounded-xl border border-foreground/10 p-4">
@@ -28,8 +32,8 @@ export function PublicRegistrationAccessFields({
               <span className="font-medium text-foreground">Accept new registrations</span>
               <span className="mt-0.5 block text-sm text-foreground/60">
                 When off, this season is hidden from{" "}
-                <Link href="/register" className="font-medium text-foreground underline">
-                  /register
+                <Link href={registerPath} className="font-medium text-foreground underline">
+                  {registerPath}
                 </Link>{" "}
                 and the public landing page. Use this to close registration when you are no longer accepting
                 signups.
@@ -49,8 +53,8 @@ export function PublicRegistrationAccessFields({
               <span className="font-medium text-foreground">Registration lookup open</span>
               <span className="mt-0.5 block text-sm text-foreground/60">
                 When on, families can verify by email and view or update their registration at{" "}
-                <Link href="/register/lookup" className="font-medium text-foreground underline">
-                  /register/lookup
+                <Link href={lookupPath} className="font-medium text-foreground underline">
+                  {lookupPath}
                 </Link>
                 , even after new registrations are closed.
               </span>
@@ -102,24 +106,26 @@ export function RegistrationBackgroundFields({
   registrationBackgroundVideoUrl,
   registrationBackgroundDimmingPercent,
   registrationBackgroundLayout,
+  registerPath = "/register",
 }: {
   registrationBackgroundImageUrl: string | null;
   registrationBackgroundVideoUrl: string | null;
   registrationBackgroundDimmingPercent: number;
   registrationBackgroundLayout: PublicRegistrationLayout;
+  registerPath?: string;
 }) {
   return (
     <div className="rounded-xl border border-foreground/10 p-4">
       <h2 className="text-sm font-semibold text-foreground/90">Registration page background</h2>
       <p className="mt-1 text-sm text-foreground/60">
-        Shown on <code className="rounded bg-foreground/10 px-1">/register</code> when parents pick
+        Shown on <code className="rounded bg-foreground/10 px-1">{registerPath}</code> when parents pick
         this season. Image: JPEG, PNG, WebP, or GIF, max 2.5 MB. Optional video: MP4 or WebM, max
         10 MB — if both are set, the <strong>video</strong> is used. Without Azure, files go under{" "}
         <code className="rounded bg-foreground/10 px-1">public/uploads</code>.
       </p>
 
       <fieldset className="mt-6 space-y-3">
-        <legend className="text-sm font-medium text-foreground/80">Layout on /register</legend>
+        <legend className="text-sm font-medium text-foreground/80">Layout on {registerPath}</legend>
         {LAYOUT_OPTIONS.map((opt) => (
           <label key={opt.value} className="flex cursor-pointer items-start gap-3 rounded-lg border border-transparent px-1 py-1 hover:border-foreground/10">
             <input
@@ -198,7 +204,7 @@ export function RegistrationBackgroundFields({
           Background dimming (0–100%)
         </label>
         <p className="mt-1 text-xs text-foreground/60">
-          Dark overlay on top of the photo on <code className="rounded bg-foreground/10 px-1">/register</code>.{" "}
+          Dark overlay on top of the photo on <code className="rounded bg-foreground/10 px-1">{registerPath}</code>.{" "}
           Try roughly 35–55 if you want the picture to read clearly; raise it if the form text is hard to read.
         </p>
         <input

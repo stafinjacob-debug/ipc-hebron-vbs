@@ -25,6 +25,7 @@ export type DashboardSnapshot = {
     endDate: Date;
     isActive: boolean;
     publicRegistrationOpen: boolean;
+    publicRegistrationSlug: string | null;
   } | null;
   kpis: {
     activeSeasonsCount: number;

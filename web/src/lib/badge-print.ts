@@ -39,6 +39,35 @@ export type ResolvedBadgePrintSettings = {
   logoUrl: string | null;
   formFields: BadgeFormFieldSelection[];
   autoPrintOnCheckIn: boolean;
+  typography: BadgeTypographySettings;
+};
+
+/** Font sizes (pt) and spacing (inches) for badge rendering — especially Brother horizontal labels. */
+export type BadgeTypographySettings = {
+  namePt: number;
+  classPt: number;
+  detailPt: number;
+  seasonPt: number;
+  codePt: number;
+  timestampPt: number;
+  /** Gap between field blocks (guardian, medical, etc.). */
+  lineGapIn: number;
+  /** Gap between wrapped lines within one field. */
+  wrapGapIn: number;
+  /** QR square size on horizontal Brother badges. */
+  qrSizeIn: number;
+};
+
+export const DEFAULT_BADGE_TYPOGRAPHY: BadgeTypographySettings = {
+  namePt: 22,
+  classPt: 18,
+  detailPt: 12,
+  seasonPt: 10,
+  codePt: 11,
+  timestampPt: 9,
+  lineGapIn: 0.032,
+  wrapGapIn: 0.018,
+  qrSizeIn: 0.95,
 };
 
 export const DEFAULT_BADGE_PRINT_SETTINGS: ResolvedBadgePrintSettings = {
@@ -57,6 +86,7 @@ export const DEFAULT_BADGE_PRINT_SETTINGS: ResolvedBadgePrintSettings = {
   logoUrl: null,
   formFields: [],
   autoPrintOnCheckIn: false,
+  typography: { ...DEFAULT_BADGE_TYPOGRAPHY },
 };
 
 export type BadgePrintLine = {
@@ -152,6 +182,48 @@ export function parseBadgeHorizontalLayout(raw: string): BadgeHorizontalLayout {
   return "STANDARD";
 }
 
+function clampTypographyNumber(
+  value: unknown,
+  min: number,
+  max: number,
+  fallback: number,
+): number {
+  const n =
+    typeof value === "number"
+      ? value
+      : typeof value === "string" && value.trim()
+        ? Number.parseFloat(value)
+        : Number.NaN;
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(max, Math.max(min, n));
+}
+
+export function parseBadgeTypographyJson(raw: unknown): BadgeTypographySettings {
+  const d = DEFAULT_BADGE_TYPOGRAPHY;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return { ...d };
+  const o = raw as Record<string, unknown>;
+  return {
+    namePt: clampTypographyNumber(o.namePt, 8, 36, d.namePt),
+    classPt: clampTypographyNumber(o.classPt, 8, 32, d.classPt),
+    detailPt: clampTypographyNumber(o.detailPt, 6, 24, d.detailPt),
+    seasonPt: clampTypographyNumber(o.seasonPt, 6, 18, d.seasonPt),
+    codePt: clampTypographyNumber(o.codePt, 6, 18, d.codePt),
+    timestampPt: clampTypographyNumber(o.timestampPt, 6, 16, d.timestampPt),
+    lineGapIn: clampTypographyNumber(o.lineGapIn, 0, 0.12, d.lineGapIn),
+    wrapGapIn: clampTypographyNumber(o.wrapGapIn, 0, 0.08, d.wrapGapIn),
+    qrSizeIn: clampTypographyNumber(o.qrSizeIn, 0.45, 1.2, d.qrSizeIn),
+  };
+}
+
+export function parseBadgeTypographyForm(raw: string): BadgeTypographySettings {
+  if (!raw.trim()) return { ...DEFAULT_BADGE_TYPOGRAPHY };
+  try {
+    return parseBadgeTypographyJson(JSON.parse(raw));
+  } catch {
+    return { ...DEFAULT_BADGE_TYPOGRAPHY };
+  }
+}
+
 export function parseBadgeFormFieldsJson(raw: unknown): BadgeFormFieldSelection[] {
   if (!Array.isArray(raw)) return [];
   const out: BadgeFormFieldSelection[] = [];
@@ -201,6 +273,7 @@ export function resolveBadgePrintSettings(
     logoUrl: row.logoUrl?.trim() || null,
     formFields: parseBadgeFormFieldsJson(row.customFieldsJson),
     autoPrintOnCheckIn: row.autoPrintOnCheckIn,
+    typography: parseBadgeTypographyJson(row.typographyJson),
   };
 }
 
