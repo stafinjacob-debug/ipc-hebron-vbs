@@ -1,5 +1,5 @@
 import type { BadgePrintPayload } from "@/lib/badge-print";
-import { badgeFormFieldFontPt, badgeLabelPageCss } from "@/lib/badge-print";
+import { badgeFormFieldFontPt, badgeLabelPageCss, type BadgeDetailFieldId } from "@/lib/badge-print";
 import {
   BADGE_PRINT_FONT_FAMILY,
   badgePrintFontDir,
@@ -256,58 +256,82 @@ type KidCheckBodyLine = { text: string; kind: "season" | "class" | "detail"; fon
 function kidCheckBodyLines(payload: BadgePrintPayload): KidCheckBodyLine[] {
   const s = payload.structured;
   const settings = payload.settings;
-  const lines: KidCheckBodyLine[] = [];
   const detailPt = (fieldKey: string) => badgeFormFieldFontPt(settings, fieldKey);
 
-  if (s.seasonLine) lines.push({ text: escapeXml(s.seasonLine), kind: "season" });
-  if (s.classLine) lines.push({ text: escapeXml(s.classLine), kind: "class" });
-  else if (s.serviceLine) lines.push({ text: escapeXml(s.serviceLine), kind: "class" });
-  if (s.guardianLine) {
-    lines.push({
-      text: `Guardian: ${escapeXml(s.guardianLine)}`,
-      kind: "detail",
-      fontPt: detailPt("guardian:guardianFirstName"),
-    });
-  }
-  if (s.guardianPhone) {
-    lines.push({
-      text: `Emergency contact: ${escapeXml(s.guardianPhone)}`,
-      kind: "detail",
-      fontPt: detailPt("guardian:guardianPhone"),
-    });
-  }
-  if (s.birthdate) {
-    lines.push({
-      text: `Birthdate: ${escapeXml(s.birthdate)}`,
-      kind: "detail",
-      fontPt: detailPt("child:childDateOfBirth"),
-    });
-  }
-  if (s.medicalLine) {
-    lines.push({
-      text: `Medical / allergy info: ${escapeXml(s.medicalLine)}`,
-      kind: "detail",
-      fontPt: settings.formFields.some((f) => f.fieldKey === "child:allergiesNotes")
-        ? detailPt("child:allergiesNotes")
-        : settings.typography.detailPt,
-    });
-  }
-  if (s.notesLine) {
-    lines.push({
-      text: `Note: ${escapeXml(s.notesLine)}`,
-      kind: "detail",
-      fontPt: detailPt("staffNotes"),
-    });
-  }
-  for (const line of s.answerLines) {
-    const label = line.label?.trim();
-    const text = label ? `${label}: ${line.text}` : line.text;
-    if (!text.trim()) continue;
-    lines.push({
-      text: escapeXml(text),
-      kind: "detail",
-      fontPt: line.fontPt ?? (line.fieldKey ? detailPt(line.fieldKey) : settings.typography.detailPt),
-    });
+  const blocks: Record<BadgeDetailFieldId, KidCheckBodyLine[]> = {
+    season: s.seasonLine ? [{ text: escapeXml(s.seasonLine), kind: "season" }] : [],
+    class: s.classLine
+      ? [{ text: escapeXml(s.classLine), kind: "class" }]
+      : s.serviceLine
+        ? [{ text: escapeXml(s.serviceLine), kind: "class" }]
+        : [],
+    guardian: s.guardianLine
+      ? [
+          {
+            text: `Guardian: ${escapeXml(s.guardianLine)}`,
+            kind: "detail",
+            fontPt: detailPt("guardian:guardianFirstName"),
+          },
+        ]
+      : [],
+    emergency: s.guardianPhone
+      ? [
+          {
+            text: `Emergency contact: ${escapeXml(s.guardianPhone)}`,
+            kind: "detail",
+            fontPt: detailPt("guardian:guardianPhone"),
+          },
+        ]
+      : [],
+    birthdate: s.birthdate
+      ? [
+          {
+            text: `Birthdate: ${escapeXml(s.birthdate)}`,
+            kind: "detail",
+            fontPt: detailPt("child:childDateOfBirth"),
+          },
+        ]
+      : [],
+    medical: s.medicalLine
+      ? [
+          {
+            text: `Medical / allergy info: ${escapeXml(s.medicalLine)}`,
+            kind: "detail",
+            fontPt: settings.formFields.some((f) => f.fieldKey === "child:allergiesNotes")
+              ? detailPt("child:allergiesNotes")
+              : settings.typography.detailPt,
+          },
+        ]
+      : [],
+    notes: s.notesLine
+      ? [
+          {
+            text: `Note: ${escapeXml(s.notesLine)}`,
+            kind: "detail",
+            fontPt: detailPt("staffNotes"),
+          },
+        ]
+      : [],
+    formFields: s.answerLines
+      .map((line) => {
+        const label = line.label?.trim();
+        const text = label ? `${label}: ${line.text}` : line.text;
+        if (!text.trim()) return null;
+        return {
+          text: escapeXml(text),
+          kind: "detail" as const,
+          fontPt:
+            line.fontPt ??
+            (line.fieldKey ? detailPt(line.fieldKey) : settings.typography.detailPt),
+        };
+      })
+      .filter((line): line is KidCheckBodyLine => line !== null),
+  };
+
+  const order = settings.typography.detailFieldOrder;
+  const lines: KidCheckBodyLine[] = [];
+  for (const blockId of order) {
+    lines.push(...(blocks[blockId] ?? []));
   }
   return lines;
 }

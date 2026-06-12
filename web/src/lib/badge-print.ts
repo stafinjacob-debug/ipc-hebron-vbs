@@ -58,7 +58,58 @@ export type BadgeTypographySettings = {
   wrapGapIn: number;
   /** QR square size on horizontal Brother badges. */
   qrSizeIn: number;
+  /** Print order for KidCheck detail blocks below the divider. */
+  detailFieldOrder: BadgeDetailFieldId[];
 };
+
+/** Reorderable blocks on KidCheck / horizontal badges (below name & security code). */
+export type BadgeDetailFieldId =
+  | "season"
+  | "class"
+  | "guardian"
+  | "emergency"
+  | "birthdate"
+  | "medical"
+  | "notes"
+  | "formFields";
+
+export const DEFAULT_BADGE_DETAIL_FIELD_ORDER: BadgeDetailFieldId[] = [
+  "season",
+  "class",
+  "guardian",
+  "emergency",
+  "birthdate",
+  "medical",
+  "notes",
+  "formFields",
+];
+
+export const BADGE_DETAIL_FIELD_OPTIONS: {
+  id: BadgeDetailFieldId;
+  label: string;
+  description: string;
+}[] = [
+  { id: "season", label: "Season name", description: "When enabled under Fields to print." },
+  { id: "class", label: "Class / badge name", description: "Classroom or badge display name." },
+  { id: "guardian", label: "Guardian", description: "When guardian name is added as a form field." },
+  {
+    id: "emergency",
+    label: "Emergency contact",
+    description: "When guardian phone is added as a form field.",
+  },
+  { id: "birthdate", label: "Birthdate", description: "When birthdate is added as a form field." },
+  {
+    id: "medical",
+    label: "Medical / allergy info",
+    description: "Allergy flag or allergies form field.",
+  },
+  { id: "notes", label: "Staff notes", description: "When staff notes are added as a form field." },
+  {
+    id: "formFields",
+    label: "Registration form fields",
+    description: "Custom fields you add below — use ↑↓ there to order within this group.",
+  },
+];
 
 export const DEFAULT_BADGE_TYPOGRAPHY: BadgeTypographySettings = {
   namePt: 22,
@@ -70,6 +121,7 @@ export const DEFAULT_BADGE_TYPOGRAPHY: BadgeTypographySettings = {
   lineGapIn: 0.032,
   wrapGapIn: 0.018,
   qrSizeIn: 0.95,
+  detailFieldOrder: [...DEFAULT_BADGE_DETAIL_FIELD_ORDER],
 };
 
 export const DEFAULT_BADGE_PRINT_SETTINGS: ResolvedBadgePrintSettings = {
@@ -204,6 +256,21 @@ function clampTypographyNumber(
   return Math.min(max, Math.max(min, n));
 }
 
+function parseBadgeDetailFieldOrder(raw: unknown): BadgeDetailFieldId[] {
+  const allowed = new Set<BadgeDetailFieldId>(DEFAULT_BADGE_DETAIL_FIELD_ORDER);
+  if (!Array.isArray(raw)) return [...DEFAULT_BADGE_DETAIL_FIELD_ORDER];
+  const out: BadgeDetailFieldId[] = [];
+  for (const item of raw) {
+    if (typeof item !== "string" || !allowed.has(item as BadgeDetailFieldId)) continue;
+    const id = item as BadgeDetailFieldId;
+    if (!out.includes(id)) out.push(id);
+  }
+  for (const id of DEFAULT_BADGE_DETAIL_FIELD_ORDER) {
+    if (!out.includes(id)) out.push(id);
+  }
+  return out;
+}
+
 export function parseBadgeTypographyJson(raw: unknown): BadgeTypographySettings {
   const d = DEFAULT_BADGE_TYPOGRAPHY;
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return { ...d };
@@ -218,6 +285,7 @@ export function parseBadgeTypographyJson(raw: unknown): BadgeTypographySettings 
     lineGapIn: clampTypographyNumber(o.lineGapIn, 0, 0.12, d.lineGapIn),
     wrapGapIn: clampTypographyNumber(o.wrapGapIn, 0, 0.08, d.wrapGapIn),
     qrSizeIn: clampTypographyNumber(o.qrSizeIn, 0.45, 1.2, d.qrSizeIn),
+    detailFieldOrder: parseBadgeDetailFieldOrder(o.detailFieldOrder),
   };
 }
 

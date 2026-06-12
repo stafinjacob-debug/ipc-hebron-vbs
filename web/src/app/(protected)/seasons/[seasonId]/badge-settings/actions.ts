@@ -61,7 +61,7 @@ export async function saveBadgePrintSettings(
   }
 
   const formFields = parseBadgeFormFieldsForm(str(formData, "customFieldsJson"));
-  const customFieldsJson = formFields.map(({ id, fieldKey }) => ({ id, fieldKey }));
+  const customFieldsJson = formFields.map(({ id, fieldKey, fontPt }) => ({ id, fieldKey, fontPt }));
   const typographyJson = parseBadgeTypographyForm(str(formData, "typographyJson"));
 
   await prisma.badgePrintSettings.upsert({

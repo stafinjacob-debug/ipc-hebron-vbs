@@ -10,6 +10,7 @@ import {
   sampleBadgePreviewPayload,
 } from "@/lib/badge-print";
 import type { ExportFieldOption } from "@/lib/registration-export";
+import { BadgeDetailFieldOrderEditor } from "@/components/badge-print/badge-detail-field-order";
 import { BadgeFormFieldsPicker } from "@/components/badge-print/badge-form-fields-picker";
 import { BadgePreviewCard } from "@/components/badge-print/badge-preview-card";
 import { saveBadgePrintSettings, type SaveBadgePrintSettingsState } from "./actions";
@@ -359,6 +360,23 @@ export function BadgePrintSettingsForm({
           />
         </div>
       </div>
+
+      {draft.orientation === "HORIZONTAL" &&
+      (draft.horizontalLayout === "KIDCHECK" || draft.horizontalLayout === "NAME_CODE_HEADER") ? (
+        <div className="rounded-xl border border-foreground/10 p-4">
+          <h2 className="text-sm font-semibold text-foreground/90">Detail field order</h2>
+          <p className="mt-1 text-sm text-muted">
+            Reorder lines printed below the name on horizontal badges. Name, security code, QR code, logo
+            strip, and timestamp stay in fixed positions — only the detail block order changes.
+          </p>
+          <div className="mt-4">
+            <BadgeDetailFieldOrderEditor
+              order={typography.detailFieldOrder}
+              onChange={(detailFieldOrder) => patchTypography({ detailFieldOrder })}
+            />
+          </div>
+        </div>
+      ) : null}
 
       {draft.orientation === "HORIZONTAL" ? (
         <div className="rounded-xl border border-foreground/10 p-4">

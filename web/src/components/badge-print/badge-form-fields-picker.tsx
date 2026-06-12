@@ -1,6 +1,6 @@
 "use client";
 
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, ChevronDown, ChevronUp } from "lucide-react";
 import Link from "next/link";
 import {
   DEFAULT_BADGE_FORM_FIELD_FONT_PT,
@@ -51,6 +51,14 @@ export function BadgeFormFieldsPicker({
 
   function patchField(id: string, patch: Partial<BadgeFormFieldSelection>) {
     onChange(fields.map((f) => (f.id === id ? { ...f, ...patch } : f)));
+  }
+
+  function moveField(index: number, direction: -1 | 1) {
+    const next = index + direction;
+    if (next < 0 || next >= fields.length) return;
+    const copy = [...fields];
+    [copy[index], copy[next]] = [copy[next]!, copy[index]!];
+    onChange(copy);
   }
 
   if (options.length === 0) {
@@ -114,6 +122,26 @@ export function BadgeFormFieldsPicker({
                     </div>
                   </div>
                 ) : null}
+                <div className="flex shrink-0 flex-col gap-0.5">
+                  <button
+                    type="button"
+                    disabled={index === 0}
+                    onClick={() => moveField(index, -1)}
+                    className="rounded p-1 text-muted hover:bg-foreground/10 disabled:opacity-30"
+                    aria-label="Move field up"
+                  >
+                    <ChevronUp className="size-4" aria-hidden />
+                  </button>
+                  <button
+                    type="button"
+                    disabled={index === fields.length - 1}
+                    onClick={() => moveField(index, 1)}
+                    className="rounded p-1 text-muted hover:bg-foreground/10 disabled:opacity-30"
+                    aria-label="Move field down"
+                  >
+                    <ChevronDown className="size-4" aria-hidden />
+                  </button>
+                </div>
                 <button
                   type="button"
                   onClick={() => remove(field.id)}
