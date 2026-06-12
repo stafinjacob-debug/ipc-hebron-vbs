@@ -20,6 +20,7 @@ type Props = {
   registerPath: string;
   lookupPath: string;
   publicRegistrationOpen: boolean;
+  showOnPublicLanding: boolean;
   registrantLookupEnabled: boolean;
   seasonStartDate: Date;
   seasonEndDate: Date;
@@ -55,6 +56,7 @@ export function PublicRegistrationSettingsForm(p: Props) {
 
       <PublicRegistrationAccessFields
         publicRegistrationOpen={p.publicRegistrationOpen}
+        showOnPublicLanding={p.showOnPublicLanding}
         registrantLookupEnabled={p.registrantLookupEnabled}
         registerPath={p.registerPath}
         lookupPath={p.lookupPath}

@@ -853,6 +853,7 @@ export type FormWorkspacePayload = {
     maxTotalRegistrations: number | null;
     waitlistEnabled: boolean;
     publicRegistrationOpen: boolean;
+    showOnPublicLanding: boolean;
     minimumParticipantAgeYears: number | null;
     maximumParticipantAgeYears: number | null;
     registrationNumberPrefix: string | null;
@@ -1017,6 +1018,7 @@ export async function loadFormWorkspacePayload(
         maxTotalRegistrations: form.maxTotalRegistrations,
         waitlistEnabled: form.waitlistEnabled,
         publicRegistrationOpen: season.publicRegistrationOpen,
+        showOnPublicLanding: season.showOnPublicLanding,
         minimumParticipantAgeYears: form.minimumParticipantAgeYears,
         maximumParticipantAgeYears: form.maximumParticipantAgeYears,
         registrationNumberPrefix: form.registrationNumberPrefix,

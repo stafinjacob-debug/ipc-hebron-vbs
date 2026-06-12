@@ -256,6 +256,8 @@ model VbsSeason {
   isActive  Boolean   @default(true)
   /// When false, the public /register form hides this season.
   publicRegistrationOpen Boolean @default(true)
+  /// When false, program is omitted from the login landing “Programs open now” list (direct register link still works).
+  showOnPublicLanding Boolean @default(true)
   /// When true, check-in tracks attendance per camp day instead of a single checkedInAt flag.
   multiDayCheckInEnabled Boolean @default(false)
   /// When true, the check-in app shows separate Arrivals and Dismissal modes for checkout at pickup.

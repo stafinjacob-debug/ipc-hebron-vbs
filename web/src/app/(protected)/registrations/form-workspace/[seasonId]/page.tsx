@@ -142,6 +142,7 @@ export default async function RegistrationFormWorkspacePage({
           maxTotalRegistrations: form.maxTotalRegistrations,
           waitlistEnabled: form.waitlistEnabled,
           publicRegistrationOpen: season.publicRegistrationOpen,
+          showOnPublicLanding: season.showOnPublicLanding,
           minimumParticipantAgeYears: form.minimumParticipantAgeYears,
           maximumParticipantAgeYears: form.maximumParticipantAgeYears,
           registrationNumberPrefix: form.registrationNumberPrefix,

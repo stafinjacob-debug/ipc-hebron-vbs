@@ -4,11 +4,13 @@ import type { PublicRegistrationLayout } from "@/generated/prisma";
 /** Registration signup + family lookup gates for a season. */
 export function PublicRegistrationAccessFields({
   publicRegistrationOpen,
+  showOnPublicLanding,
   registrantLookupEnabled,
   registerPath = "/register",
   lookupPath = "/register/lookup",
 }: {
   publicRegistrationOpen: boolean;
+  showOnPublicLanding: boolean;
   registrantLookupEnabled: boolean;
   registerPath?: string;
   lookupPath?: string;
@@ -35,8 +37,28 @@ export function PublicRegistrationAccessFields({
                 <Link href={registerPath} className="font-medium text-foreground underline">
                   {registerPath}
                 </Link>{" "}
-                and the public landing page. Use this to close registration when you are no longer accepting
-                signups.
+                and families cannot sign up. Use this when you are no longer accepting signups.
+              </span>
+            </span>
+          </label>
+        </li>
+        <li>
+          <label className="flex cursor-pointer items-start gap-3">
+            <input
+              type="checkbox"
+              name="showOnPublicLanding"
+              defaultChecked={showOnPublicLanding}
+              className="mt-1"
+            />
+            <span>
+              <span className="font-medium text-foreground">Show on public landing page</span>
+              <span className="mt-0.5 block text-sm text-foreground/60">
+                When off, this program is hidden from the home page “Programs open now” list. Registration
+                stays available at{" "}
+                <Link href={registerPath} className="font-medium text-foreground underline">
+                  {registerPath}
+                </Link>{" "}
+                for anyone with the link.
               </span>
             </span>
           </label>
@@ -69,14 +91,17 @@ export function PublicRegistrationAccessFields({
 /** @deprecated Use {@link PublicRegistrationAccessFields}. */
 export function PublicRegistrationGateFields({
   publicRegistrationOpen,
+  showOnPublicLanding = true,
   registrantLookupEnabled = true,
 }: {
   publicRegistrationOpen: boolean;
+  showOnPublicLanding?: boolean;
   registrantLookupEnabled?: boolean;
 }) {
   return (
     <PublicRegistrationAccessFields
       publicRegistrationOpen={publicRegistrationOpen}
+      showOnPublicLanding={showOnPublicLanding}
       registrantLookupEnabled={registrantLookupEnabled}
     />
   );

@@ -33,7 +33,7 @@ function computeBadge(args: {
 /** Server-only: loads open programs for the login landing. */
 export async function listOpenPublicRegistrationSummaries(): Promise<OpenPublicRegistrationSummary[]> {
   const seasons = await prisma.vbsSeason.findMany({
-    where: { publicRegistrationOpen: true },
+    where: { publicRegistrationOpen: true, showOnPublicLanding: true },
     orderBy: [{ year: "desc" }, { startDate: "desc" }],
     include: { publicRegistrationSettings: true, registrationForm: true },
   });

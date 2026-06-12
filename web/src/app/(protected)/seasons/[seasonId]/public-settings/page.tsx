@@ -47,6 +47,7 @@ export default async function PublicRegistrationSettingsPage({ params }: PagePro
         registerPath={registerPath}
         lookupPath={lookupPath}
         publicRegistrationOpen={season.publicRegistrationOpen}
+        showOnPublicLanding={season.showOnPublicLanding}
         registrantLookupEnabled={form.registrantLookupEnabled}
         seasonStartDate={season.startDate}
         seasonEndDate={season.endDate}

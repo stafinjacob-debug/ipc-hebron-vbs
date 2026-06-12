@@ -21,6 +21,7 @@ const initial: SavePublicSettingsState | null = null;
 export function WorkspacePublicDisplayForm({
   seasonId,
   publicRegistrationOpen,
+  showOnPublicLanding,
   registrantLookupEnabled,
   registrationBackgroundImageUrl,
   registrationBackgroundVideoUrl,
@@ -35,6 +36,7 @@ export function WorkspacePublicDisplayForm({
 }: {
   seasonId: string;
   publicRegistrationOpen: boolean;
+  showOnPublicLanding: boolean;
   registrantLookupEnabled: boolean;
   registrationBackgroundImageUrl: string | null;
   registrationBackgroundVideoUrl: string | null;
@@ -73,6 +75,7 @@ export function WorkspacePublicDisplayForm({
 
       <PublicRegistrationAccessFields
         publicRegistrationOpen={publicRegistrationOpen}
+        showOnPublicLanding={showOnPublicLanding}
         registrantLookupEnabled={registrantLookupEnabled}
       />
 

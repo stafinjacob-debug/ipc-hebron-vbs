@@ -91,6 +91,7 @@ export async function savePublicRegistrationSettings(
   );
 
   const publicOpen = formData.get("publicRegistrationOpen") === "on";
+  const showOnPublicLanding = formData.get("showOnPublicLanding") === "on";
   const registrantLookupEnabled = formData.get("registrantLookupEnabled") === "on";
   const requireGuardianEmail = formData.get("requireGuardianEmail") === "on";
   const requireGuardianPhone = formData.get("requireGuardianPhone") === "on";
@@ -127,6 +128,7 @@ export async function savePublicRegistrationSettings(
       where: { id: seasonId },
       data: {
         publicRegistrationOpen: publicOpen,
+        showOnPublicLanding,
         startDate: seasonStartDate,
         endDate: seasonEndDate,
       },
