@@ -155,6 +155,7 @@ export default async function RegistrationFormWorkspacePage({
           stripeCapPaidChildrenAtThree: form.stripeCapPaidChildrenAtThree,
           stripePayLaterEnabled: form.stripePayLaterEnabled,
           stripePayLaterMessage: form.stripePayLaterMessage,
+          stripePaymentDeadlineNotice: form.stripePaymentDeadlineNotice,
           stripeProcessingFeeMode: form.stripeProcessingFeeMode,
           stripeProductLabel: form.stripeProductLabel,
           stripeSkipWhenFieldKey: form.stripeSkipWhenFieldKey,
