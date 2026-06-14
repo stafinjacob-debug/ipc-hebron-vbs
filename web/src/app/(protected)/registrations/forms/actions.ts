@@ -201,6 +201,7 @@ export async function updateRegistrationFormSettings(
     stripeCapPaidChildrenAtThree: boolean;
     stripePayLaterEnabled: boolean;
     stripePayLaterMessage: string | null;
+    stripePaymentDeadlineNotice: string | null;
     stripeProcessingFeeMode: "OPTIONAL" | "REQUIRED";
     stripeProductLabel: string | null;
     stripeSkipWhenFieldKey: string | null;
@@ -371,6 +372,9 @@ export async function updateRegistrationFormSettings(
           data.stripeCheckoutEnabled && data.stripePayLaterEnabled
             ? data.stripePayLaterMessage?.trim() || null
             : null,
+        stripePaymentDeadlineNotice: data.stripeCheckoutEnabled
+          ? data.stripePaymentDeadlineNotice?.trim() || null
+          : null,
         stripeProcessingFeeMode: data.stripeProcessingFeeMode,
         stripeProductLabel: data.stripeProductLabel?.trim() ? data.stripeProductLabel.trim() : null,
         stripeSkipWhenFieldKey: data.stripeCheckoutEnabled ? stripeSkipWhenFieldKey : null,
@@ -460,6 +464,7 @@ export async function cloneRegistrationFormFromSeason(
       stripeCapPaidChildrenAtThree: srcForm.stripeCapPaidChildrenAtThree,
       stripePayLaterEnabled: srcForm.stripePayLaterEnabled,
       stripePayLaterMessage: srcForm.stripePayLaterMessage,
+      stripePaymentDeadlineNotice: srcForm.stripePaymentDeadlineNotice,
       stripeProcessingFeeMode: srcForm.stripeProcessingFeeMode,
       stripeProductLabel: srcForm.stripeProductLabel,
       stripeSkipWhenFieldKey: srcForm.stripeSkipWhenFieldKey,
@@ -842,6 +847,7 @@ export type FormWorkspacePayload = {
     welcomeMessage: string;
     sessionTimeDescription: string;
     helpContactEmail: string;
+    publicContactFooterText: string;
   };
   settingsInitial: {
     title: string;
@@ -865,6 +871,7 @@ export type FormWorkspacePayload = {
     stripeCapPaidChildrenAtThree: boolean;
     stripePayLaterEnabled: boolean;
     stripePayLaterMessage: string | null;
+    stripePaymentDeadlineNotice: string | null;
     stripeProcessingFeeMode: "OPTIONAL" | "REQUIRED";
     stripeProductLabel: string | null;
     stripeSkipWhenFieldKey: string | null;
@@ -1007,6 +1014,7 @@ export async function loadFormWorkspacePayload(
         welcomeMessage: publicWelcome,
         sessionTimeDescription: season.publicRegistrationSettings?.sessionTimeDescription ?? "",
         helpContactEmail: season.publicRegistrationSettings?.helpContactEmail ?? "",
+        publicContactFooterText: season.publicRegistrationSettings?.publicContactFooterText ?? "",
       },
       settingsInitial: {
         title: form.title,
@@ -1030,6 +1038,7 @@ export async function loadFormWorkspacePayload(
         stripeCapPaidChildrenAtThree: form.stripeCapPaidChildrenAtThree,
         stripePayLaterEnabled: form.stripePayLaterEnabled,
         stripePayLaterMessage: form.stripePayLaterMessage,
+        stripePaymentDeadlineNotice: form.stripePaymentDeadlineNotice,
         stripeProcessingFeeMode: form.stripeProcessingFeeMode,
         stripeProductLabel: form.stripeProductLabel,
         stripeSkipWhenFieldKey: form.stripeSkipWhenFieldKey,
