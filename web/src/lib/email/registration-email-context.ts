@@ -2,12 +2,9 @@ import type { ProgramKind } from "@/generated/prisma";
 import { resolvePaymentDeadlineNotice } from "@/lib/pay-later";
 import { prisma } from "@/lib/prisma";
 import { resolvePortalBranding } from "@/lib/portal-branding";
-import { getPortalPublicPath } from "@/lib/portal-public-path";
+import { getPortalPublicPath, isLegacyVbsPortal } from "@/lib/portal-public-path";
 import { getPublicAppBaseUrl } from "@/lib/public-app-url";
-import {
-  isLegacyVbsPortal,
-  resolveTicketEmailHeroUrl,
-} from "@/lib/registration-ticket-display";
+import { resolveTicketEmailHeroUrl } from "@/lib/registration-ticket-display";
 
 export type RegistrationEmailContext = {
   eventName: string;

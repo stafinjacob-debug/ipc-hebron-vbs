@@ -50,7 +50,7 @@ import type { PublicRegistrationLayout } from "@/generated/prisma";
 import { RegistrationBackgroundMedia } from "./registration-background-media";
 import { RegistrationHeroBrand } from "./registration-hero-brand";
 import { payLaterNoticeParagraphs, resolvePayLaterNotice } from "@/lib/pay-later";
-import { isLegacyVbsPortal } from "@/lib/registration-ticket-display";
+import { isLegacyVbsPortal } from "@/lib/portal-public-path";
 import { formatSeasonDateRange } from "@/lib/season-calendar-date";
 import type { PublicRegistrationClosedDisplay } from "@/lib/public-registration-closed-display";
 import { submitPublicRegistration, type PublicRegisterState } from "./actions";

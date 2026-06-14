@@ -2,6 +2,7 @@ import type { PublicRegistrationSettings, VbsSeason } from "@/generated/prisma";
 import { resolvePortalBranding } from "@/lib/portal-branding";
 import { clampRegistrationBackgroundDimmingPercent } from "@/lib/registration-background-scrim";
 import { getPublicAppBaseUrl } from "@/lib/public-app-url";
+import { isLegacyVbsPortal } from "@/lib/portal-public-path";
 import { promises as fs } from "fs";
 import path from "path";
 
@@ -19,14 +20,7 @@ export type RegistrationTicketDisplay = {
   isLegacyVbs: boolean;
 };
 
-/** True only for programs on the shared legacy `/register` portal (no slug). */
-export function isLegacyVbsPortal(
-  season: Pick<VbsSeason, "publicRegistrationSlug">,
-): boolean {
-  return !season.publicRegistrationSlug?.trim();
-}
-
-function absolutizePublicAssetUrl(url: string): string {
+import { isLegacyVbsPortal } from "@/lib/portal-public-path";
   const trimmed = url.trim();
   if (/^https?:\/\//i.test(trimmed) || trimmed.startsWith("data:")) return trimmed;
   const base = getPublicAppBaseUrl().replace(/\/$/, "");

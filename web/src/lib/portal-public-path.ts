@@ -5,6 +5,11 @@ export function getPortalPublicPath(season: { publicRegistrationSlug: string | n
   return "/register";
 }
 
+/** True only for programs on the shared legacy `/register` portal (no slug). */
+export function isLegacyVbsPortal(season: { publicRegistrationSlug: string | null | undefined }): boolean {
+  return !season.publicRegistrationSlug?.trim();
+}
+
 export function getPortalLookupPath(season: { publicRegistrationSlug: string | null | undefined }): string {
   const base = getPortalPublicPath(season);
   if (base === "/register") return "/register/lookup";
