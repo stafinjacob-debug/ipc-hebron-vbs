@@ -19,8 +19,14 @@ import { isMicrosoftGraphEmailConfigured, sendMailViaMicrosoftGraph } from "@/li
 import {
   loadRegistrationEmailContext,
   paymentDeadlineNoticeText,
+  registrationContactFooterInput,
+  registrationEmailFromName,
   type RegistrationEmailContext,
 } from "@/lib/email/registration-email-context";
+import {
+  registrationCancellationContactHtml,
+  registrationContactFooterHtml,
+} from "@/lib/email/registration-contact-footer-html";
 import { promises as fs } from "fs";
 import path from "path";
 
@@ -30,10 +36,6 @@ function defaultBrandName(): string {
     process.env.EMAIL_FROM_DISPLAY_NAME?.trim() ||
     "IPC Hebron VBS"
   );
-}
-
-function helpEmailAddress(): string {
-  return process.env.VBS_HELP_EMAIL?.trim() || "vbs@ipchouston.com";
 }
 
 function escapeHtml(s: string): string {
@@ -115,7 +117,10 @@ async function sendHtml(
   toName: string | null | undefined,
   subject: string,
   html: string,
-  attachments?: Parameters<typeof sendMailViaMicrosoftGraph>[0]["attachments"],
+  opts?: {
+    attachments?: Parameters<typeof sendMailViaMicrosoftGraph>[0]["attachments"];
+    fromName?: string | null;
+  },
 ): Promise<{ result: EmailSendResult; error?: string }> {
   if (!isMicrosoftGraphEmailConfigured()) {
     return { result: "skipped_no_graph" };
@@ -125,7 +130,8 @@ async function sendHtml(
     toName,
     subject,
     htmlBody: html,
-    attachments,
+    attachments: opts?.attachments,
+    fromName: opts?.fromName,
   });
   if (r.ok) return { result: "sent" };
   return { result: "failed", error: r.error };
@@ -290,7 +296,9 @@ export async function sendSubmissionPendingReviewEmail(submissionId: string): Pr
   const to = submission.guardian.email.trim();
   const gname = `${submission.guardian.firstName} ${submission.guardian.lastName}`.trim();
   const season = escapeHtml(ctx.eventName);
-  const contact = ctx.helpEmail;
+  const contactFooter = registrationContactFooterHtml(registrationContactFooterInput(ctx), {
+    style: "margin:0;font-size:14px;color:#475569;",
+  });
 
   const waitlisted = submission.registrations.some((r) => r.status === "WAITLIST");
   const waitlistNote = waitlisted
@@ -317,11 +325,7 @@ export async function sendSubmissionPendingReviewEmail(submissionId: string): Pr
       ${childLines || `<li style="margin:0;">Your registered ${escapeHtml(ctx.participantPluralLabel)}</li>`}
     </ul>
     <p style="margin:0 0 12px;font-size:14px;color:#475569;">If anything else is needed, we will reach out using the contact information you provided.</p>
-    ${
-      contact
-        ? `<p style="margin:0;font-size:14px;color:#475569;">Questions in the meantime? Write to <a href="mailto:${escapeHtml(contact)}" style="color:#2563eb;">${escapeHtml(contact)}</a>.</p>`
-        : `<p style="margin:0;font-size:14px;color:#475569;">Questions? Contact the church office.</p>`
-    }
+    ${contactFooter}
   `;
 
   const { result, error } = await sendHtml(
@@ -329,6 +333,7 @@ export async function sendSubmissionPendingReviewEmail(submissionId: string): Pr
     gname,
     `${ctx.brandName} — Registration received (${season})`,
     emailShell(inner, ctx),
+    { fromName: registrationEmailFromName(ctx) },
   );
 
   if (result === "sent") {
@@ -483,7 +488,7 @@ export async function sendSubmissionReceivedEmail(submissionId: string): Promise
     <table role="presentation" width="100%" cellspacing="0" cellpadding="0">${blocks}</table>
     ${payLaterBlock}
     <p style="margin:10px 0 0;font-size:13px;color:#64748b;">Show each ${escapeHtml(ctx.participantSingularLabel.toLowerCase())}&apos;s digital card (QR code) at check-in. Staff may still follow up if details need review.</p>
-    <p style="margin:8px 0 0;font-size:13px;color:#475569;">Questions? Email <a href="mailto:${escapeHtml(ctx.helpEmail)}" style="color:#2563eb;">${escapeHtml(ctx.helpEmail)}</a>.</p>
+    ${registrationContactFooterHtml(registrationContactFooterInput(ctx))}
   `
     : `
     <p style="margin:0 0 12px;">Hi ${escapeHtml(gname)},</p>
@@ -491,7 +496,7 @@ export async function sendSubmissionReceivedEmail(submissionId: string): Promise
     ${cardsIntro}
     <table role="presentation" width="100%" cellspacing="0" cellpadding="0">${blocks}</table>
     <p style="margin:10px 0 0;font-size:13px;color:#64748b;">Save this email for check-in day. Staff may still follow up if details need review.</p>
-    <p style="margin:8px 0 0;font-size:13px;color:#475569;">Questions? Email <a href="mailto:${escapeHtml(ctx.helpEmail)}" style="color:#2563eb;">${escapeHtml(ctx.helpEmail)}</a>.</p>
+    ${registrationContactFooterHtml(registrationContactFooterInput(ctx))}
   `;
 
   const subject = isPayLater
@@ -503,7 +508,7 @@ export async function sendSubmissionReceivedEmail(submissionId: string): Promise
     gname,
     subject,
     emailShell(inner, ctx),
-    attachments,
+    { attachments, fromName: registrationEmailFromName(ctx) },
   );
 
   if (result === "sent") {
@@ -612,7 +617,7 @@ export async function sendRegistrationApprovedEmail(
       </tr>
     </table>
     ${closingReminder}
-    <p style="margin:8px 0 0;font-size:13px;color:#475569;">Questions? Email <a href="mailto:${escapeHtml(ctx.helpEmail)}" style="color:#2563eb;">${escapeHtml(ctx.helpEmail)}</a>.</p>
+    ${registrationContactFooterHtml(registrationContactFooterInput(ctx))}
   `;
 
   const { result, error } = await sendHtml(
@@ -620,16 +625,19 @@ export async function sendRegistrationApprovedEmail(
     gname,
     `${ctx.brandName} — Confirmed: ${ctx.eventName} registration for ${childName.split(" ")[0]}`,
     emailShell(inner, ctx),
-    [
-      ...(logo ? [logo.attachment] : []),
-      {
-        name: "check-in-qr.png",
-        contentType: "image/png",
-        contentBytesBase64: qrB64,
-        isInline: true,
-        contentId: cid,
-      },
-    ],
+    {
+      attachments: [
+        ...(logo ? [logo.attachment] : []),
+        {
+          name: "check-in-qr.png",
+          contentType: "image/png",
+          contentBytesBase64: qrB64,
+          isInline: true,
+          contentId: cid,
+        },
+      ],
+      fromName: registrationEmailFromName(ctx),
+    },
   );
 
   if (result === "failed") console.error("[registration email]", error);
@@ -715,7 +723,7 @@ export async function sendAllApprovedRegistrationsEmailForSubmission(submissionI
     <p style="margin:0 0 14px;">Your confirmed registrations are ready. Each ${escapeHtml(ctx.participantSingularLabel.toLowerCase())}&apos;s digital card is below:</p>
     <table role="presentation" width="100%" cellspacing="0" cellpadding="0">${blocks}</table>
     <p style="margin:10px 0 0;font-size:13px;color:#64748b;">Save this email and show each QR code at check-in.</p>
-    <p style="margin:8px 0 0;font-size:13px;color:#475569;">Questions? Email <a href="mailto:${escapeHtml(ctx.helpEmail)}" style="color:#2563eb;">${escapeHtml(ctx.helpEmail)}</a>.</p>
+    ${registrationContactFooterHtml(registrationContactFooterInput(ctx))}
   `;
 
   const { result, error } = await sendHtml(
@@ -723,7 +731,7 @@ export async function sendAllApprovedRegistrationsEmailForSubmission(submissionI
     gname,
     `${ctx.brandName} — Your confirmed ${ctx.eventName} registration(s)`,
     emailShell(inner, ctx),
-    attachments,
+    { attachments, fromName: registrationEmailFromName(ctx) },
   );
 
   if (result === "failed") console.error("[registration email]", error);
@@ -744,9 +752,9 @@ function buildRegistrationCancelledEmailInner(args: {
   ctx: RegistrationEmailContext;
   childListHtml: string;
 }): string {
-  const contact = args.ctx.helpEmail;
   const season = escapeHtml(args.ctx.eventName);
   const registerUrl = escapeHtml(args.ctx.registerUrl);
+  const contactBlock = registrationCancellationContactHtml(registrationContactFooterInput(args.ctx));
 
   return `
     <p style="margin:0 0 12px;">Hi ${escapeHtml(args.guardianName)},</p>
@@ -763,10 +771,7 @@ function buildRegistrationCancelledEmailInner(args: {
     <p style="margin:0 0 16px;">
       <a href="${registerUrl}" style="display:inline-block;background:#0f766e;color:#ffffff;padding:12px 18px;border-radius:999px;text-decoration:none;font-size:14px;line-height:1.1;font-weight:700;border:1px solid #0b5f58;">Register again</a>
     </p>
-    <p style="margin:0 0 12px;font-size:14px;line-height:1.55;color:#475569;">
-      If you believe this cancellation was made in error, please contact us immediately at
-      <a href="mailto:${escapeHtml(contact)}" style="color:#2563eb;font-weight:600;">${escapeHtml(contact)}</a>.
-    </p>
+    ${contactBlock}
   `;
 }
 
@@ -817,6 +822,7 @@ export async function sendRegistrationCancelledEmail(registrationId: string): Pr
     gname,
     `${ctx.brandName} — ${ctx.eventName} registration cancelled (${subjectChild})`,
     emailShell(inner, ctx),
+    { fromName: registrationEmailFromName(ctx) },
   );
 
   if (result === "failed") console.error("[registration email cancelled]", error);
@@ -865,6 +871,7 @@ export async function sendSubmissionCancelledEmail(
     gname,
     `${ctx.brandName} — ${ctx.eventName} registration cancelled`,
     emailShell(inner, ctx),
+    { fromName: registrationEmailFromName(ctx) },
   );
 
   if (result === "failed") console.error("[registration email submission cancelled]", error);
@@ -907,6 +914,7 @@ export async function sendRegistrationsRemovedEmail(args: {
     args.guardianName,
     `${ctx.brandName} — ${ctx.eventName} registration cancelled (${subjectChild})`,
     emailShell(inner, ctx),
+    { fromName: registrationEmailFromName(ctx) },
   );
 
   if (result === "failed") console.error("[registration email removed]", error);
@@ -977,7 +985,6 @@ export async function sendCheckoutReminderEmail(formSubmissionId: string): Promi
   const base = getPublicAppBaseUrl();
   const checkoutUrl = escapeHtml(resume.url);
   const cancelUrl = escapeHtml(submissionCancelUrl(cancelToken, base));
-  const contact = ctx.helpEmail;
   const gname = `${submission.guardian.firstName} ${submission.guardian.lastName}`.trim();
   const season = escapeHtml(ctx.eventName);
   const code = escapeHtml(submission.registrationCode);
@@ -1014,9 +1021,9 @@ export async function sendCheckoutReminderEmail(formSubmissionId: string): Promi
       <a href="${cancelUrl}" style="color:#b45309;font-weight:600;">cancel this registration</a>
       and we will mark it withdrawn.
     </p>
-    <p style="margin:0;font-size:14px;color:#475569;">
-      Questions? Email <a href="mailto:${escapeHtml(contact)}" style="color:#2563eb;">${escapeHtml(contact)}</a>.
-    </p>
+    ${registrationContactFooterHtml(registrationContactFooterInput(ctx), {
+      style: "margin:0;font-size:14px;color:#475569;",
+    })}
   `;
 
   const { result, error } = await sendHtml(
@@ -1024,6 +1031,7 @@ export async function sendCheckoutReminderEmail(formSubmissionId: string): Promi
     gname,
     `${ctx.brandName} — Complete your ${ctx.eventName} payment`,
     emailShell(inner, ctx),
+    { fromName: registrationEmailFromName(ctx) },
   );
 
   if (result === "failed") console.error("[registration email checkout reminder]", error);
@@ -1053,18 +1061,16 @@ export async function sendPaymentReminderEmail(registrationId: string): Promise<
   const gname = `${guardian.firstName} ${guardian.lastName}`.trim();
   const num = escapeHtml(reg.registrationNumber ?? "Pending approval");
   const season = escapeHtml(ctx.eventName);
-  const contact = ctx.helpEmail;
+  const contactFooter = registrationContactFooterHtml(registrationContactFooterInput(ctx), {
+    style: "margin:0;font-size:14px;color:#475569;",
+  });
 
   const inner = `
     <p style="margin:0 0 16px;">Hi ${escapeHtml(gname)},</p>
     <p style="margin:0 0 16px;">This is a friendly reminder about the program fee for <strong>${escapeHtml(childName)}</strong>’s registration <strong>${num}</strong> for <strong>${season}</strong>.</p>
     <div style="margin:0 0 16px;">${paymentDeadlineNoticeHtml(ctx)}</div>
     <p style="margin:0 0 16px;">If you’ve already paid, thank you — you can disregard this message.</p>
-    ${
-      contact
-        ? `<p style="margin:0;font-size:14px;color:#475569;">Questions? Please email <a href="mailto:${escapeHtml(contact)}" style="color:#2563eb;">${escapeHtml(contact)}</a>.</p>`
-        : `<p style="margin:0;font-size:14px;color:#475568;">Questions? Contact the church office.</p>`
-    }
+    ${contactFooter}
   `;
 
   const { result, error } = await sendHtml(
@@ -1072,6 +1078,7 @@ export async function sendPaymentReminderEmail(registrationId: string): Promise<
     gname,
     `${ctx.brandName} — Payment reminder (${ctx.eventName})`,
     emailShell(inner, ctx),
+    { fromName: registrationEmailFromName(ctx) },
   );
 
   if (result === "failed") console.error("[registration email]", error);

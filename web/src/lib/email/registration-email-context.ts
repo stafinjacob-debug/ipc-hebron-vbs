@@ -10,6 +10,10 @@ export type RegistrationEmailContext = {
   eventName: string;
   brandName: string;
   helpEmail: string;
+  helpPhone: string;
+  churchDisplayName: string;
+  /** Custom “Questions?” footer from public registration settings. */
+  contactFooterText: string | null;
   participantSingularLabel: string;
   participantPluralLabel: string;
   teamPhrase: string;
@@ -60,6 +64,9 @@ export async function loadRegistrationEmailContext(
     eventName,
     brandName: branding.headerLabel.trim() || eventName,
     helpEmail,
+    helpPhone: branding.contactPhone.trim(),
+    churchDisplayName: branding.churchDisplayName.trim() || "IPC Hebron",
+    contactFooterText: branding.contactFooterText,
     participantSingularLabel: branding.participantSingularLabel,
     participantPluralLabel: pluralizeParticipantLabel(branding.participantSingularLabel),
     teamPhrase: `the ${eventName} team`,
@@ -84,4 +91,25 @@ export async function loadRegistrationEmailContext(
 
 export function paymentDeadlineNoticeText(ctx: RegistrationEmailContext): string {
   return ctx.paymentDeadlineNotice;
+}
+
+/** Sender display name for registration-related Graph mail. */
+export function registrationEmailFromName(
+  ctx: Pick<RegistrationEmailContext, "eventName" | "brandName">,
+): string {
+  return ctx.eventName.trim() || ctx.brandName.trim();
+}
+
+export function registrationContactFooterInput(
+  ctx: Pick<
+    RegistrationEmailContext,
+    "contactFooterText" | "helpEmail" | "helpPhone" | "churchDisplayName"
+  >,
+) {
+  return {
+    contactFooterText: ctx.contactFooterText,
+    contactEmail: ctx.helpEmail,
+    contactPhone: ctx.helpPhone,
+    churchDisplayName: ctx.churchDisplayName,
+  };
 }

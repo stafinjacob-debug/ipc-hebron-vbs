@@ -10,6 +10,10 @@ import { persistSingleRegistrationFormEntries, persistSubmissionFormEntries } fr
 import { parseRegistrantEditForm } from "@/lib/registrant-edit-form";
 import { createDefaultFormDefinition } from "@/lib/registration-form-definition";
 import { sendRegistrantLookupOtpEmail } from "@/lib/email/send-registrant-lookup-otp-email";
+import {
+  loadRegistrationEmailContext,
+  registrationContactFooterInput,
+} from "@/lib/email/registration-email-context";
 import { isMicrosoftGraphEmailConfigured } from "@/lib/email/microsoft-graph";
 import {
   clearRegistrantLookupSessionCookie,
@@ -82,6 +86,8 @@ function parseLookupMethod(raw: string): RegistrantLookupMethod {
 async function sendOtpToEmail(args: {
   emailNormalized: string;
   registrationCode?: string;
+  eventName?: string | null;
+  contactFooter?: ReturnType<typeof registrationContactFooterInput> | null;
 }): Promise<
   | { ok: true; otpSentTo: string }
   | { ok: false; message: string }
@@ -117,6 +123,8 @@ async function sendOtpToEmail(args: {
     toName: args.emailNormalized.split("@")[0] || "there",
     code,
     minutesValid: OTP_TTL_MIN,
+    eventName: args.eventName,
+    contactFooter: args.contactFooter,
   });
 
   if (send.mode !== "sent") {
@@ -315,9 +323,21 @@ export async function requestRegistrantLookupOtpAction(
     return { ok: true, message: neutralMessage(), lookupMethod };
   }
 
+  let eventName: string | null = null;
+  let contactFooter: ReturnType<typeof registrationContactFooterInput> | null = null;
+  if (portalSeasonId) {
+    const emailCtx = await loadRegistrationEmailContext(portalSeasonId);
+    if (emailCtx) {
+      eventName = emailCtx.eventName;
+      contactFooter = registrationContactFooterInput(emailCtx);
+    }
+  }
+
   const sendResult = await sendOtpToEmail({
     emailNormalized: targetEmail,
     registrationCode,
+    eventName,
+    contactFooter,
   });
 
   if (!sendResult.ok) {

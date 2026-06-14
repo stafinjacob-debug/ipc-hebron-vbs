@@ -1,6 +1,8 @@
 import type { GraphMailAttachment } from "@/lib/email/microsoft-graph";
 import { sendMailViaMicrosoftGraph } from "@/lib/email/microsoft-graph";
 import { compactTicketBlock, emailShell } from "@/lib/email/registration-emails";
+import type { RegistrationContactFooterInput } from "@/lib/email/registration-contact-footer-html";
+import { registrationContactFooterHtml } from "@/lib/email/registration-contact-footer-html";
 import type { CheckInPacketRecipient } from "@/lib/compose-registrant-audience";
 import { getPublicAppBaseUrl } from "@/lib/public-app-url";
 import { qrPngBase64ForTicketUrl, registrationTicketUrl } from "@/lib/registration-identity";
@@ -21,8 +23,10 @@ function brandName(): string {
   );
 }
 
-function helpEmailAddress(): string {
-  return process.env.VBS_HELP_EMAIL?.trim() || "vbs@ipchouston.com";
+function defaultContactFooter(): RegistrationContactFooterInput {
+  return {
+    contactEmail: process.env.VBS_HELP_EMAIL?.trim() || "vbs@ipchouston.com",
+  };
 }
 
 export type CheckInPacketAttachment = {
@@ -41,6 +45,9 @@ export async function sendCheckInPacketEmail(args: {
   introHtml: string;
   attachment?: CheckInPacketAttachment | null;
   portal?: { publicRegistrationSlug: string | null | undefined };
+  /** Graph sender display name (e.g. season / event name). */
+  fromName?: string | null;
+  contactFooter?: RegistrationContactFooterInput | null;
 }): Promise<CheckInPacketSendResult> {
   const base = getPublicAppBaseUrl();
   const portal = args.portal ?? { publicRegistrationSlug: null };
@@ -98,7 +105,7 @@ export async function sendCheckInPacketEmail(args: {
     ${attachmentNote}
     <table role="presentation" width="100%" cellspacing="0" cellpadding="0">${blocks}</table>
     <p style="margin:10px 0 0;font-size:13px;color:#64748b;">Show each child&apos;s digital card (QR code) at check-in. Screenshot for offline use if helpful.</p>
-    <p style="margin:8px 0 0;font-size:13px;color:#475569;">Questions? Email <a href="mailto:${escapeHtml(helpEmailAddress())}" style="color:#2563eb;">${escapeHtml(helpEmailAddress())}</a>.</p>
+    ${registrationContactFooterHtml(args.contactFooter ?? defaultContactFooter())}
   `;
 
   const result = await sendMailViaMicrosoftGraph({
@@ -107,6 +114,7 @@ export async function sendCheckInPacketEmail(args: {
     subject: args.subject,
     htmlBody: emailShell(inner),
     attachments,
+    fromName: args.fromName,
   });
 
   if (!result.ok) return { ok: false, error: result.error };

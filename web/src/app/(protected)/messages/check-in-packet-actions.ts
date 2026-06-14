@@ -11,6 +11,10 @@ import {
   sendCheckInPacketEmail,
   type CheckInPacketAttachment,
 } from "@/lib/email/check-in-packet-email";
+import {
+  loadRegistrationEmailContext,
+  registrationContactFooterInput,
+} from "@/lib/email/registration-email-context";
 import { isMicrosoftGraphEmailConfigured } from "@/lib/email/microsoft-graph";
 import { prisma } from "@/lib/prisma";
 import { canManageDirectory } from "@/lib/roles";
@@ -144,11 +148,14 @@ export async function sendCheckInPacketAction(
   if (!attachmentResult.ok) return { ok: false, error: attachmentResult.error };
 
   const { recipients, stats } = await recipientsForCheckInPacketAudience(seasonId, audience);
+  const emailCtx = await loadRegistrationEmailContext(seasonId);
   const season = await prisma.vbsSeason.findUnique({
     where: { id: seasonId },
-    select: { publicRegistrationSlug: true },
+    select: { publicRegistrationSlug: true, name: true },
   });
   const portal = { publicRegistrationSlug: season?.publicRegistrationSlug ?? null };
+  const fromName = season?.name?.trim() || null;
+  const contactFooter = emailCtx ? registrationContactFooterInput(emailCtx) : null;
   if (recipients.length === 0) {
     return {
       ok: false,
@@ -175,6 +182,8 @@ export async function sendCheckInPacketAction(
       introHtml,
       attachment: attachmentResult.attachment,
       portal,
+      fromName,
+      contactFooter,
     });
     if (result.ok) {
       sent += 1;

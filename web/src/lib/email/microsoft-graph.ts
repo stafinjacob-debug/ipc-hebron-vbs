@@ -86,7 +86,14 @@ export type SendGraphMailInput = {
   subject: string;
   htmlBody: string;
   attachments?: GraphMailAttachment[];
+  /** Inbox sender display name (Graph `from.emailAddress.name`). Falls back to EMAIL_FROM_DISPLAY_NAME. */
+  fromName?: string | null;
 };
+
+function resolveGraphFromDisplayName(explicit?: string | null): string | undefined {
+  const name = explicit?.trim() || process.env.EMAIL_FROM_DISPLAY_NAME?.trim();
+  return name || undefined;
+}
 
 export async function sendMailViaMicrosoftGraph(
   input: SendGraphMailInput,
@@ -133,6 +140,16 @@ export async function sendMailViaMicrosoftGraph(
     });
   }
 
+  const fromDisplayName = resolveGraphFromDisplayName(input.fromName);
+  const fromRecipient = fromDisplayName
+    ? {
+        emailAddress: {
+          address: mailbox,
+          name: fromDisplayName,
+        },
+      }
+    : undefined;
+
   const res = await fetch(url, {
     method: "POST",
     headers: {
@@ -146,6 +163,7 @@ export async function sendMailViaMicrosoftGraph(
           contentType: "HTML",
           content: input.htmlBody,
         },
+        ...(fromRecipient ? { from: fromRecipient, sender: fromRecipient } : {}),
         toRecipients,
         ...(attachments.length ? { attachments } : {}),
       },
