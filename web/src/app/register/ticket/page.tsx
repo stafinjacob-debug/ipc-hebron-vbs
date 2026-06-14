@@ -67,24 +67,56 @@ export default async function PublicRegistrationTicketPage({
     reg.season.publicRegistrationSettings,
   );
 
+  const headerHasBackground =
+    display.heroStyle === "background-cover" && display.heroSrc != null;
+
   return (
     <div className="min-h-full bg-gradient-to-b from-sky-50 to-slate-100 px-4 py-10">
       <div className="mx-auto max-w-md">
         <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-xl shadow-slate-200/60">
-          <div className="bg-gradient-to-r from-blue-600 to-sky-500 px-6 py-5 text-center text-white">
-            {display.logoSrc ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={display.logoSrc}
-                alt={display.logoAlt}
-                className={`mx-auto mb-3 h-auto w-full ${display.isLegacyVbs ? "max-w-[22rem]" : "max-h-28 max-w-[16rem] object-contain"}`}
-              />
+          <div
+            className={`relative overflow-hidden px-6 py-5 text-center text-white ${
+              headerHasBackground ? "min-h-[11rem]" : "bg-gradient-to-r from-blue-600 to-sky-500"
+            }`}
+          >
+            {display.heroStyle === "background-cover" && display.heroSrc ? (
+              <>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={display.heroSrc}
+                  alt=""
+                  aria-hidden
+                  className="absolute inset-0 h-full w-full object-cover"
+                />
+                <div
+                  className="absolute inset-0 bg-slate-900"
+                  style={{ opacity: display.heroScrimOpacity }}
+                />
+              </>
             ) : null}
-            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/80">
-              {display.ticketLabel}
-            </p>
-            <h1 className="mt-1 text-xl font-bold">{display.eventName}</h1>
-            <p className="mt-1 text-sm text-white/90">{range}</p>
+            <div className="relative z-10">
+              {display.heroStyle === "legacy-logo" && display.heroSrc ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={display.heroSrc}
+                  alt={display.heroAlt}
+                  className="mx-auto mb-3 h-auto w-full max-w-[22rem]"
+                />
+              ) : null}
+              {display.heroStyle === "logo-contain" && display.heroSrc ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={display.heroSrc}
+                  alt={display.heroAlt}
+                  className="mx-auto mb-3 max-h-28 max-w-[16rem] object-contain"
+                />
+              ) : null}
+              <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/90 drop-shadow-sm">
+                {display.ticketLabel}
+              </p>
+              <h1 className="mt-1 text-xl font-bold drop-shadow-sm">{display.eventName}</h1>
+              <p className="mt-1 text-sm text-white/95 drop-shadow-sm">{range}</p>
+            </div>
           </div>
           <div className="space-y-4 px-6 py-6">
             <div className="rounded-xl bg-sky-50/80 px-4 py-3 ring-1 ring-sky-100">

@@ -4,6 +4,10 @@ import { prisma } from "@/lib/prisma";
 import { resolvePortalBranding } from "@/lib/portal-branding";
 import { getPortalPublicPath } from "@/lib/portal-public-path";
 import { getPublicAppBaseUrl } from "@/lib/public-app-url";
+import {
+  isLegacyVbsPortal,
+  resolveTicketEmailHeroUrl,
+} from "@/lib/registration-ticket-display";
 
 export type RegistrationEmailContext = {
   eventName: string;
@@ -45,16 +49,17 @@ export async function loadRegistrationEmailContext(
   });
   if (!season) return null;
 
-  const isLegacyVbs = !season.publicRegistrationSlug?.trim() && season.programKind === "VBS";
+  const isLegacyVbs = isLegacyVbsPortal(season);
   const branding = resolvePortalBranding(season, season.publicRegistrationSettings, {
     legacyVbsDefaults: isLegacyVbs,
   });
   const helpEmail = branding.contactEmail.trim() || envHelpEmail();
   const eventName = season.name.trim() || "this event";
-  const ticketLogoUrl =
-    branding.logoUrl?.trim() ||
-    season.publicRegistrationSettings?.registrationBackgroundImageUrl?.trim() ||
-    null;
+  const ticketLogoUrl = resolveTicketEmailHeroUrl(
+    season,
+    season.publicRegistrationSettings,
+    branding,
+  );
 
   return {
     eventName,
