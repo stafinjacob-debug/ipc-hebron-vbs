@@ -431,8 +431,6 @@ model RegistrationForm {
   stripePayLaterEnabled       Boolean               @default(false)
   /// Optional override for the pay-later notice on the review step (plain text / light HTML).
   stripePayLaterMessage       String?               @db.Text
-  /// Optional override for the payment deadline warning (thank-you, lookup pay, emails).
-  stripePaymentDeadlineNotice String?               @db.Text
   stripeProcessingFeeMode     StripeProcessingFeeMode @default(OPTIONAL)
   /// Shown on Stripe Checkout line item (e.g. "Summer VBS 2026 registration").
   stripeProductLabel          String?
