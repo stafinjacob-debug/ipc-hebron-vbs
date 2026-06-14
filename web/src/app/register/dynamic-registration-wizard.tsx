@@ -54,6 +54,7 @@ import { isLegacyVbsPortal } from "@/lib/portal-public-path";
 import { formatSeasonDateRange } from "@/lib/season-calendar-date";
 import type { PublicRegistrationClosedDisplay } from "@/lib/public-registration-closed-display";
 import { submitPublicRegistration, type PublicRegisterState } from "./actions";
+import { RegistrationContactFooter } from "@/components/registration-contact-footer";
 
 /** Shown on the thank-you screen when card checkout was skipped by the form’s payment-skip rule. */
 const PAYMENT_SKIP_TEAM_REVIEW_NOTE =
@@ -109,6 +110,8 @@ export type PublicSeasonOption = {
   sessionTimeDescription: string | null;
   /** Optional per-season help email shown in public UI. */
   helpContactEmail: string | null;
+  /** Custom thank-you / form footer; replaces auto Questions? line when set. */
+  contactFooterText: string | null;
   lookupPath: string;
   publicRegistrationSlug: string | null;
   waiverEnabled: boolean;
@@ -715,6 +718,8 @@ export function DynamicRegistrationWizard({
   const def = current?.definition;
   const rules = current?.rules ?? defaultPublicFieldRules;
   const effectiveContactEmail = (current?.helpContactEmail?.trim() || contactEmail?.trim() || "") || "";
+  const effectiveContactFooterText =
+    current?.contactFooterText?.trim() || portalBranding?.contactFooterText?.trim() || null;
   const participantAgeRules = useMemo(() => {
     if (!current) return resolveParticipantAgeRules({});
     return resolveParticipantAgeRules({
@@ -1275,21 +1280,14 @@ export function DynamicRegistrationWizard({
               </Link>
             </div>
           ) : null}
-          <p className="mx-auto mt-6 max-w-md text-xs text-neutral-300/90">
-            Questions?{" "}
-            {contactEmail ? (
-              <a href={`mailto:${contactEmail}`} className="font-medium text-cyan-100 underline">
-                {contactEmail}
-              </a>
-            ) : null}
-            {contactEmail && contactPhone ? " · " : null}
-            {contactPhone ? (
-              <a href={`tel:${phoneDigits(contactPhone)}`} className="font-medium text-cyan-100 underline">
-                {contactPhone}
-              </a>
-            ) : null}
-            {!contactEmail && !contactPhone ? `Contact ${churchDisplayName}.` : null}
-          </p>
+          <RegistrationContactFooter
+            contactFooterText={effectiveContactFooterText}
+            contactEmail={contactEmail}
+            contactPhone={contactPhone}
+            churchDisplayName={churchDisplayName}
+            className="mx-auto mt-6 max-w-md text-xs text-neutral-300/90"
+            linkClassName="font-medium text-cyan-100 underline"
+          />
         </div>
       </div>
     );
@@ -1320,21 +1318,13 @@ export function DynamicRegistrationWizard({
               </p>
             </div>
           ) : null}
-          <p className="mt-6 text-xs text-neutral-500">
-            Questions?{" "}
-            {effectiveContactEmail ? (
-              <a className="font-medium text-brand underline" href={`mailto:${effectiveContactEmail}`}>
-                {effectiveContactEmail}
-              </a>
-            ) : null}
-            {effectiveContactEmail && contactPhone ? " · " : null}
-            {contactPhone ? (
-              <a className="font-medium text-brand underline" href={`tel:${phoneDigits(contactPhone)}`}>
-                {contactPhone}
-              </a>
-            ) : null}
-            {!effectiveContactEmail && !contactPhone ? `Reach out to ${churchDisplayName}.` : null}
-          </p>
+          <RegistrationContactFooter
+            contactFooterText={effectiveContactFooterText}
+            contactEmail={effectiveContactEmail}
+            contactPhone={contactPhone}
+            churchDisplayName={churchDisplayName}
+            className="mt-6 text-xs text-neutral-500"
+          />
         </div>
       </div>
     );
@@ -1773,22 +1763,28 @@ export function DynamicRegistrationWizard({
                     })}
                 </div>
               ))}
-              {(effectiveContactEmail || contactPhone) && (
+              {(effectiveContactFooterText || effectiveContactEmail || contactPhone) && (
                 <div className="mt-5 rounded-xl border border-white/15 bg-white/10 px-4 py-3 text-sm text-neutral-100">
-                  <p className="font-semibold">Questions?</p>
-                  <p className="mt-1 text-neutral-200/90">
-                    {effectiveContactEmail ? (
-                      <a href={`mailto:${effectiveContactEmail}`} className="font-medium text-brand underline">
-                        {effectiveContactEmail}
-                      </a>
-                    ) : null}
-                    {effectiveContactEmail && contactPhone ? " · " : null}
-                    {contactPhone ? (
-                      <a href={`tel:${phoneDigits(contactPhone)}`} className="font-medium text-brand underline">
-                        {contactPhone}
-                      </a>
-                    ) : null}
-                  </p>
+                  {effectiveContactFooterText ? (
+                    <p className="text-neutral-200/90">{effectiveContactFooterText}</p>
+                  ) : (
+                    <>
+                      <p className="font-semibold">Questions?</p>
+                      <p className="mt-1 text-neutral-200/90">
+                        {effectiveContactEmail ? (
+                          <a href={`mailto:${effectiveContactEmail}`} className="font-medium text-brand underline">
+                            {effectiveContactEmail}
+                          </a>
+                        ) : null}
+                        {effectiveContactEmail && contactPhone ? " · " : null}
+                        {contactPhone ? (
+                          <a href={`tel:${phoneDigits(contactPhone)}`} className="font-medium text-brand underline">
+                            {contactPhone}
+                          </a>
+                        ) : null}
+                      </p>
+                    </>
+                  )}
                 </div>
               )}
             </div>

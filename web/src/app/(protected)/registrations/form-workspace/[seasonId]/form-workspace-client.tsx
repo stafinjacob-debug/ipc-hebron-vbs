@@ -259,6 +259,7 @@ export function FormWorkspacePanel({
                   welcomeMessage={publicDisplayInitial.welcomeMessage}
                   sessionTimeDescription={publicDisplayInitial.sessionTimeDescription}
                   helpContactEmail={publicDisplayInitial.helpContactEmail}
+                  publicContactFooterText={publicDisplayInitial.publicContactFooterText}
                 />
                 <p className="text-sm text-foreground/70">
                   The same public fields can be edited from{" "}

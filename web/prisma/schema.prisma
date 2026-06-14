@@ -328,6 +328,8 @@ model PublicRegistrationSettings {
   sessionTimeDescription String? @db.Text
   /// Help email shown on public cards and confirmation screens (e.g. vbs@ipchouston.com).
   helpContactEmail String? @db.Text
+  /// Optional footer on registration / thank-you screens (replaces auto “Questions? …” line when set).
+  publicContactFooterText String? @db.Text
   /// Public URL or site-relative path (e.g. /uploads/...) for /register background when this season is selected.
   registrationBackgroundImageUrl String?
   /// Optional looping background video (MP4/WebP video). When set, takes precedence over the image for display.
@@ -429,6 +431,8 @@ model RegistrationForm {
   stripePayLaterEnabled       Boolean               @default(false)
   /// Optional override for the pay-later notice on the review step (plain text / light HTML).
   stripePayLaterMessage       String?               @db.Text
+  /// Optional override for the payment deadline warning (thank-you, lookup pay, emails).
+  stripePaymentDeadlineNotice String?               @db.Text
   stripeProcessingFeeMode     StripeProcessingFeeMode @default(OPTIONAL)
   /// Shown on Stripe Checkout line item (e.g. "Summer VBS 2026 registration").
   stripeProductLabel          String?

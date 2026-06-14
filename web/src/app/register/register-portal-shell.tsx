@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { PortalBranding } from "@/lib/portal-branding";
+import { RegistrationContactFooter } from "@/components/registration-contact-footer";
 
 export function RegisterPortalShell({
   branding,
@@ -10,7 +11,7 @@ export function RegisterPortalShell({
   children: React.ReactNode;
   dbUnavailable?: boolean;
 }) {
-  const { contactEmail, contactPhone, footerNote, headerLabel } = branding;
+  const { contactEmail, contactPhone, contactFooterText, footerNote, headerLabel, churchDisplayName } = branding;
 
   return (
     <div className="min-h-full bg-background">
@@ -39,24 +40,13 @@ export function RegisterPortalShell({
       <footer className="border-t border-neutral-200/80 bg-white/80 py-6 text-center text-xs text-neutral-500 dark:border-neutral-800 dark:bg-neutral-950/80 dark:text-neutral-400">
         <p className="mx-auto max-w-md px-4">
           {footerNote}{" "}
-          {contactEmail || contactPhone ? (
-            <>
-              Questions?{" "}
-              {contactEmail ? (
-                <a href={`mailto:${contactEmail}`} className="font-medium text-brand underline">
-                  {contactEmail}
-                </a>
-              ) : null}
-              {contactEmail && contactPhone ? " · " : null}
-              {contactPhone ? (
-                <a href={`tel:${contactPhone.replace(/\D/g, "")}`} className="font-medium text-brand underline">
-                  {contactPhone}
-                </a>
-              ) : null}
-            </>
-          ) : (
-            <>Contact the church office for assistance.</>
-          )}
+          <RegistrationContactFooter
+            contactFooterText={contactFooterText}
+            contactEmail={contactEmail}
+            contactPhone={contactPhone}
+            churchDisplayName={churchDisplayName}
+            className="inline"
+          />
         </p>
       </footer>
     </div>

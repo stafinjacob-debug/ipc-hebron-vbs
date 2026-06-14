@@ -82,6 +82,7 @@ async function buildSeasonOption(
     registrantLookupEnabled: formRow.registrantLookupEnabled,
     sessionTimeDescription: settings?.sessionTimeDescription?.trim() || null,
     helpContactEmail: branding.contactEmail || null,
+    contactFooterText: settings?.publicContactFooterText?.trim() || null,
     lookupPath: getPortalLookupPath(s),
     publicRegistrationSlug: s.publicRegistrationSlug,
     waiverEnabled: formRow.waiverEnabled,

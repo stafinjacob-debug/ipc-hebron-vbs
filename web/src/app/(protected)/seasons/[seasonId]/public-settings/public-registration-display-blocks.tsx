@@ -366,6 +366,33 @@ export function PublicRegistrationHelpEmailField({
   );
 }
 
+/** Optional custom footer for “Questions?” on registration and thank-you screens. */
+export function PublicRegistrationContactFooterField({
+  publicContactFooterText,
+}: {
+  publicContactFooterText: string | null;
+}) {
+  return (
+    <div className="rounded-xl border border-foreground/10 p-4">
+      <label htmlFor="publicContactFooterText" className="text-sm font-semibold text-foreground/90">
+        Contact footer (optional)
+      </label>
+      <p className="mt-1 text-sm text-foreground/60">
+        Shown at the bottom of the registration form and on the thank-you screen after submission. When blank, the
+        page uses the help email and phone above, or &ldquo;Reach out to IPC Hebron.&rdquo;
+      </p>
+      <textarea
+        id="publicContactFooterText"
+        name="publicContactFooterText"
+        rows={3}
+        defaultValue={publicContactFooterText ?? ""}
+        placeholder="e.g. Questions? Email soccer@ipchouston.com or call the church office."
+        className="mt-2 w-full rounded-md border border-foreground/15 bg-background px-3 py-2 text-sm text-foreground"
+      />
+    </div>
+  );
+}
+
 /** Public `/register` welcome banner (not the staff registration form welcome). */
 export function PublicRegistrationWelcomeField({ welcomeMessage }: { welcomeMessage: string }) {
   return (

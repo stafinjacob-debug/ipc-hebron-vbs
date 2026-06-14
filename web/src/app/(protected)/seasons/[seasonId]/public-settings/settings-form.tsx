@@ -11,6 +11,7 @@ import {
 import {
   PublicRegistrationAccessFields,
   PublicRegistrationHelpEmailField,
+  PublicRegistrationContactFooterField,
   PublicRegistrationSessionTimeField,
   RegistrationBackgroundFields,
 } from "./public-registration-display-blocks";
@@ -26,6 +27,7 @@ type Props = {
   seasonEndDate: Date;
   sessionTimeDescription: string | null;
   helpContactEmail: string | null;
+  publicContactFooterText: string | null;
   registrationBackgroundImageUrl: string | null;
   registrationBackgroundVideoUrl: string | null;
   registrationBackgroundDimmingPercent: number;
@@ -108,6 +110,8 @@ export function PublicRegistrationSettingsForm(p: Props) {
       />
 
       <PublicRegistrationHelpEmailField helpContactEmail={p.helpContactEmail} />
+
+      <PublicRegistrationContactFooterField publicContactFooterText={p.publicContactFooterText} />
 
       <p className="rounded-lg border border-foreground/10 bg-foreground/[0.03] px-4 py-3 text-sm text-foreground/70">
         Required fields on the public form and the public welcome banner are managed in{" "}
