@@ -25,7 +25,7 @@ function extractTicketToken(input: string): string | null {
       const url = new URL(value);
       const t = url.searchParams.get("t")?.trim();
       if (t) return t;
-      if (url.pathname.includes("/register/ticket")) {
+      if (url.pathname.includes("/register/ticket") || /\/register\/[^/]+\/ticket/.test(url.pathname)) {
         const match = /[?&]t=([^&]+)/i.exec(value);
         return match?.[1]?.trim() ?? null;
       }

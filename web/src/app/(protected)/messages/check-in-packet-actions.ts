@@ -12,6 +12,7 @@ import {
   type CheckInPacketAttachment,
 } from "@/lib/email/check-in-packet-email";
 import { isMicrosoftGraphEmailConfigured } from "@/lib/email/microsoft-graph";
+import { prisma } from "@/lib/prisma";
 import { canManageDirectory } from "@/lib/roles";
 
 export type CheckInPacketActionState = {
@@ -143,6 +144,11 @@ export async function sendCheckInPacketAction(
   if (!attachmentResult.ok) return { ok: false, error: attachmentResult.error };
 
   const { recipients, stats } = await recipientsForCheckInPacketAudience(seasonId, audience);
+  const season = await prisma.vbsSeason.findUnique({
+    where: { id: seasonId },
+    select: { publicRegistrationSlug: true },
+  });
+  const portal = { publicRegistrationSlug: season?.publicRegistrationSlug ?? null };
   if (recipients.length === 0) {
     return {
       ok: false,
@@ -168,6 +174,7 @@ export async function sendCheckInPacketAction(
       subject,
       introHtml,
       attachment: attachmentResult.attachment,
+      portal,
     });
     if (result.ok) {
       sent += 1;

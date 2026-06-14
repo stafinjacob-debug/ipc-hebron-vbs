@@ -11,11 +11,7 @@ import {
   type RegistrationFieldValueRow,
 } from "@/lib/registration-export";
 import { getPublicAppBaseUrl } from "@/lib/public-app-url";
-
-function registrationTicketUrl(checkInToken: string, baseUrl?: string): string {
-  const b = (baseUrl ?? getPublicAppBaseUrl()).replace(/\/$/, "");
-  return `${b}/register/ticket?t=${encodeURIComponent(checkInToken)}`;
-}
+import { registrationTicketUrl } from "@/lib/registration-identity";
 
 /** Selected registration form field to include on each badge. */
 export type BadgeFormFieldSelection = {
@@ -462,6 +458,7 @@ type BuildBadgeInput = {
   guardianLastName?: string | null;
   guardianPhone?: string | null;
   checkInToken: string | null;
+  publicRegistrationSlug?: string | null;
   seasonName: string;
   seasonYear: number;
   classroomName: string | null;
@@ -640,7 +637,9 @@ export function buildBadgePrintPayload(input: BuildBadgeInput): BadgePrintPayloa
   const base = getPublicAppBaseUrl();
   const ticketUrl =
     input.checkInToken && input.settings.showQrCode
-      ? registrationTicketUrl(input.checkInToken, base)
+      ? registrationTicketUrl(input.checkInToken, base, {
+          publicRegistrationSlug: input.publicRegistrationSlug ?? null,
+        })
       : null;
 
   const answerLines = lines.filter((l) => l.kind === "formField");

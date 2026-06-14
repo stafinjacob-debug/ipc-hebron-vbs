@@ -436,7 +436,7 @@ export async function sendSubmissionReceivedEmail(submissionId: string): Promise
     if (!r.registrationNumber || !r.checkInToken) continue;
     const cid = `submitqr${ticketIndex}`;
     ticketIndex += 1;
-    const ticketUrl = registrationTicketUrl(r.checkInToken, base);
+    const ticketUrl = registrationTicketUrl(r.checkInToken, base, ctx);
     const qrB64 = await qrPngBase64ForTicketUrl(ticketUrl);
     attachments.push({
       name: `qr-${r.registrationNumber}.png`,
@@ -544,7 +544,7 @@ export async function sendRegistrationApprovedEmail(
   if (!ctx) return "skipped_ineligible";
 
   const base = getPublicAppBaseUrl();
-  const ticketUrl = registrationTicketUrl(reg.checkInToken, base);
+  const ticketUrl = registrationTicketUrl(reg.checkInToken, base, ctx);
   const qrB64 = await qrPngBase64ForTicketUrl(ticketUrl);
   const cid = "vbsregqr";
   const logo = await loadEmailLogoInlineAttachment(ctx);
@@ -672,7 +672,7 @@ export async function sendAllApprovedRegistrationsEmailForSubmission(submissionI
   let blocks = "";
   let i = 0;
   for (const reg of confirmedWithIdentity) {
-    const ticketUrl = registrationTicketUrl(reg.checkInToken!, base);
+    const ticketUrl = registrationTicketUrl(reg.checkInToken!, base, ctx);
     const qrB64 = await qrPngBase64ForTicketUrl(ticketUrl);
     const cid = `vbsqr${i}`;
     attachments.push({

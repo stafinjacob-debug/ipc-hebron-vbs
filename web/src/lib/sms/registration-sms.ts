@@ -100,7 +100,7 @@ export async function sendRegistrationConfirmationSms(registrationId: string): P
 
   const firstName = reg.child.guardian.firstName?.trim() || "Parent";
   const childName = `${reg.child.firstName} ${reg.child.lastName}`.trim();
-  const ticketUrl = registrationTicketUrl(reg.checkInToken, getPublicAppBaseUrl());
+  const ticketUrl = registrationTicketUrl(reg.checkInToken, getPublicAppBaseUrl(), reg.season);
   const body = collapseWs(
     `${smsBrandName()}: Hi ${firstName}, ${childName} is confirmed for ${reg.season.name}. ` +
       `Reg # ${reg.registrationNumber}. Ticket: ${ticketUrl}`,

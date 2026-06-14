@@ -109,7 +109,7 @@ export default async function RegistrationDetailPage({
   });
   const hasTicket = Boolean(reg.checkInToken);
   const base = getPublicAppBaseUrl();
-  const ticketUrl = hasTicket ? registrationTicketUrl(reg.checkInToken!, base) : null;
+  const ticketUrl = hasTicket ? registrationTicketUrl(reg.checkInToken!, base, reg.season) : null;
   const qrDataUrl = hasTicket
     ? await QRCode.toDataURL(ticketUrl!, {
         width: 200,

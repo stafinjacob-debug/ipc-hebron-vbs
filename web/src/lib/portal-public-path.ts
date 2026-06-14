@@ -11,6 +11,12 @@ export function getPortalLookupPath(season: { publicRegistrationSlug: string | n
   return `${base}/lookup`;
 }
 
+export function getPortalTicketPath(season: { publicRegistrationSlug: string | null | undefined }): string {
+  const base = getPortalPublicPath(season);
+  if (base === "/register") return "/register/ticket";
+  return `${base}/ticket`;
+}
+
 /** Absolute public signup URL for QR codes and share links. */
 export function buildPublicSignupUrl(
   publicBase: string,
@@ -26,6 +32,16 @@ export function buildPublicLookupUrl(
 ): string {
   const base = publicBase.replace(/\/$/, "");
   return `${base}${getPortalLookupPath(season)}`;
+}
+
+export function buildPublicTicketUrl(
+  publicBase: string,
+  season: { publicRegistrationSlug: string | null | undefined },
+  checkInToken: string,
+): string {
+  const base = publicBase.replace(/\/$/, "");
+  const token = checkInToken.trim();
+  return `${base}${getPortalTicketPath(season)}?t=${encodeURIComponent(token)}`;
 }
 
 const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;

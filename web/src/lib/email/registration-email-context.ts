@@ -23,6 +23,7 @@ export type RegistrationEmailContext = {
   paymentDeadlineNotice: string;
   /** Event logo or registration hero image for ticket emails (non-VBS). */
   ticketLogoUrl: string | null;
+  publicRegistrationSlug: string | null;
 };
 
 function envHelpEmail(): string {
@@ -72,6 +73,7 @@ export async function loadRegistrationEmailContext(
     isLegacyVbs,
     programKind: season.programKind,
     ticketLogoUrl,
+    publicRegistrationSlug: season.publicRegistrationSlug,
     teamReviewNote: isLegacyVbs
       ? branding.teamReviewNote
       : `Thank you — we have received your registration for ${eventName}. Someone from our team will review your details and confirm your enrollment. If anything else is needed, we will reach out using the contact information you provided.`,

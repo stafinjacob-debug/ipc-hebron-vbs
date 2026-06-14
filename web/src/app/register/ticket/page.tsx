@@ -54,7 +54,7 @@ export default async function PublicRegistrationTicketPage({
   }
 
   const base = getPublicAppBaseUrl();
-  const url = registrationTicketUrl(reg.checkInToken, base);
+  const url = registrationTicketUrl(reg.checkInToken, base, reg.season);
   const qrDataUrl = await QRCode.toDataURL(url, {
     width: 240,
     margin: 2,

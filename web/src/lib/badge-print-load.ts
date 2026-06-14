@@ -66,7 +66,7 @@ export async function loadBadgePrintPayloadForRegistration(
 
   let qrDataUrl: string | null = null;
   if (settings.showQrCode && reg.checkInToken) {
-    const ticketUrl = registrationTicketUrl(reg.checkInToken, baseUrl);
+    const ticketUrl = registrationTicketUrl(reg.checkInToken, baseUrl, reg.season);
     qrDataUrl = await QRCode.toDataURL(ticketUrl, {
       width: 240,
       margin: 1,
@@ -91,6 +91,7 @@ export async function loadBadgePrintPayloadForRegistration(
     guardianLastName: reg.child.guardian.lastName,
     guardianPhone: reg.child.guardian.phone,
     checkInToken: reg.checkInToken,
+    publicRegistrationSlug: reg.season.publicRegistrationSlug,
     seasonName: reg.season.name,
     seasonYear: reg.season.year,
     classroomName: reg.classroom?.name ?? null,

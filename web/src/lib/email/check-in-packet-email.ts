@@ -40,8 +40,10 @@ export async function sendCheckInPacketEmail(args: {
   subject: string;
   introHtml: string;
   attachment?: CheckInPacketAttachment | null;
+  portal?: { publicRegistrationSlug: string | null | undefined };
 }): Promise<CheckInPacketSendResult> {
   const base = getPublicAppBaseUrl();
+  const portal = args.portal ?? { publicRegistrationSlug: null };
   const attachments: GraphMailAttachment[] = [];
   let blocks = "";
   let ticketIndex = 0;
@@ -49,7 +51,7 @@ export async function sendCheckInPacketEmail(args: {
   for (const child of args.recipient.children) {
     const cid = `packetqr${ticketIndex}`;
     ticketIndex += 1;
-    const ticketUrl = registrationTicketUrl(child.checkInToken, base);
+    const ticketUrl = registrationTicketUrl(child.checkInToken, base, portal);
     const qrB64 = await qrPngBase64ForTicketUrl(ticketUrl);
     attachments.push({
       name: `qr-${child.registrationNumber}.png`,
