@@ -59,7 +59,12 @@ export async function loadRegistrationEmailContext(
   const branding = resolvePortalBranding(season, season.publicRegistrationSettings, {
     legacyVbsDefaults: isLegacyVbs,
   });
-  const helpEmail = branding.contactEmail.trim() || envHelpEmail();
+  const contactFooterText =
+    season.publicRegistrationSettings?.publicContactFooterText?.trim() ||
+    branding.contactFooterText?.trim() ||
+    null;
+  const helpEmail =
+    branding.contactEmail.trim() || (isLegacyVbs ? envHelpEmail() : "");
   const eventName = season.name.trim() || "this event";
   const ticketLogoUrl = resolveTicketEmailHeroUrl(
     season,
@@ -73,7 +78,7 @@ export async function loadRegistrationEmailContext(
     helpEmail,
     helpPhone: branding.contactPhone.trim(),
     churchDisplayName: branding.churchDisplayName.trim() || "IPC Hebron",
-    contactFooterText: branding.contactFooterText,
+    contactFooterText,
     participantSingularLabel: branding.participantSingularLabel,
     participantPluralLabel: pluralizeParticipantLabel(branding.participantSingularLabel),
     teamPhrase: `the ${eventName} team`,
