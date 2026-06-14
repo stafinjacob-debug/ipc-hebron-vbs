@@ -1,4 +1,5 @@
 import type { ProgramKind } from "@/generated/prisma";
+import { ensureRegistrationFormForSeason } from "@/lib/ensure-registration-form";
 import { resolvePaymentDeadlineNotice } from "@/lib/pay-later";
 import { prisma } from "@/lib/prisma";
 import { resolvePortalBranding } from "@/lib/portal-branding";
@@ -22,6 +23,8 @@ export type RegistrationEmailContext = {
   programKind: ProgramKind;
   teamReviewNote: string;
   paymentDeadlineNotice: string;
+  /** Admin override from form settings; when set, payment deadline copy is shown in emails. */
+  customPaymentDeadlineNotice: string | null;
   /** Event logo or registration hero image for ticket emails (non-VBS). */
   ticketLogoUrl: string | null;
   publicRegistrationSlug: string | null;
@@ -44,9 +47,13 @@ export async function loadRegistrationEmailContext(
 ): Promise<RegistrationEmailContext | null> {
   const season = await prisma.vbsSeason.findUnique({
     where: { id: seasonId },
-    include: { publicRegistrationSettings: true },
+    include: { publicRegistrationSettings: true, registrationForm: true },
   });
   if (!season) return null;
+
+  const form =
+    season.registrationForm ?? (await ensureRegistrationFormForSeason(season.id, season.name));
+  const customPaymentDeadlineNotice = form.stripePaymentDeadlineNotice?.trim() || null;
 
   const isLegacyVbs = isLegacyVbsPortal(season);
   const branding = resolvePortalBranding(season, season.publicRegistrationSettings, {
@@ -84,8 +91,9 @@ export async function loadRegistrationEmailContext(
         participantSingularLabel: branding.participantSingularLabel,
         isLegacyVbs,
       },
-      undefined,
+      customPaymentDeadlineNotice,
     ),
+    customPaymentDeadlineNotice,
   };
 }
 

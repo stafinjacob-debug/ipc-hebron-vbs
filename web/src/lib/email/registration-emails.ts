@@ -11,7 +11,7 @@ import {
   submissionCancelUrl,
   submissionPayUrl,
 } from "@/lib/registration-public-token";
-import { formatVbsFirstDayLabel } from "@/lib/pay-later";
+import { formatVbsFirstDayLabel, payLaterNoticeParagraphs } from "@/lib/pay-later";
 import { formatSeasonDateRange } from "@/lib/season-calendar-date";
 import { isCheckoutPendingRegistration } from "@/lib/registration-list-payment";
 import { resolveCheckoutResumeUrlForSubmission } from "@/lib/stripe-registration-payment";
@@ -378,7 +378,20 @@ async function ensureRegistrationIdentitiesForSubmission(submissionId: string): 
 }
 
 function paymentDeadlineNoticeHtml(ctx: RegistrationEmailContext): string {
-  return `<p style="margin:0;padding:12px 14px;border-radius:12px;background:#fffbeb;border:1px solid #fde68a;color:#92400e;font-size:14px;line-height:1.55;">${escapeHtml(paymentDeadlineNoticeText(ctx))}</p>`;
+  const paras = payLaterNoticeParagraphs(paymentDeadlineNoticeText(ctx));
+  const inner = paras
+    .map(
+      (p, i) =>
+        `<p style="margin:0${i < paras.length - 1 ? " 0 10px" : ""};">${escapeHtml(p)}</p>`,
+    )
+    .join("");
+  return `<div style="margin:0;padding:12px 14px;border-radius:12px;background:#fffbeb;border:1px solid #fde68a;color:#92400e;font-size:14px;line-height:1.55;">${inner}</div>`;
+}
+
+/** Yellow payment-deadline box for emails — skip generic/VBS defaults on non-legacy events unless admin set custom copy. */
+function paymentDeadlineNoticeEmailBlock(ctx: RegistrationEmailContext): string {
+  if (!ctx.isLegacyVbs && !ctx.customPaymentDeadlineNotice) return "";
+  return paymentDeadlineNoticeHtml(ctx);
 }
 
 function buildPayLaterPaymentInstructionsHtml(args: {
@@ -407,7 +420,7 @@ function buildPayLaterPaymentInstructionsHtml(args: {
         <li style="margin:0 0 6px;"><strong>Zelle</strong> or <strong>card</strong></li>
         <li style="margin:0;">Cash and checks are <strong>not</strong> accepted on site.</li>
       </ul>
-      <div style="margin-top:12px;">${args.ctx.isLegacyVbs ? paymentDeadlineNoticeHtml(args.ctx) : ""}</div>
+      <div style="margin-top:12px;">${paymentDeadlineNoticeEmailBlock(args.ctx)}</div>
     </div>`;
 }
 
@@ -1004,7 +1017,7 @@ export async function sendCheckoutReminderEmail(formSubmissionId: string): Promi
       Your registration for <strong>${season}</strong> (reference <strong>${code}</strong>) is saved, but
       <strong>card payment is not finished yet</strong>. Use the button below to return to secure checkout and pay where you left off.
     </p>
-    <div style="margin:0 0 16px;">${paymentDeadlineNoticeHtml(ctx)}</div>
+    <div style="margin:0 0 16px;">${paymentDeadlineNoticeEmailBlock(ctx)}</div>
     <p style="margin:0 0 8px;font-size:14px;font-weight:600;color:#0f172a;">${escapeHtml(ctx.participantPluralLabel.charAt(0).toUpperCase() + ctx.participantPluralLabel.slice(1))} on this registration</p>
     <ul style="margin:0 0 16px;padding-left:20px;color:#334155;font-size:15px;line-height:1.5;">
       ${childLines || `<li>Your registered ${escapeHtml(ctx.participantPluralLabel)}</li>`}
@@ -1068,7 +1081,7 @@ export async function sendPaymentReminderEmail(registrationId: string): Promise<
   const inner = `
     <p style="margin:0 0 16px;">Hi ${escapeHtml(gname)},</p>
     <p style="margin:0 0 16px;">This is a friendly reminder about the program fee for <strong>${escapeHtml(childName)}</strong>’s registration <strong>${num}</strong> for <strong>${season}</strong>.</p>
-    <div style="margin:0 0 16px;">${paymentDeadlineNoticeHtml(ctx)}</div>
+    <div style="margin:0 0 16px;">${paymentDeadlineNoticeEmailBlock(ctx)}</div>
     <p style="margin:0 0 16px;">If you’ve already paid, thank you — you can disregard this message.</p>
     ${contactFooter}
   `;

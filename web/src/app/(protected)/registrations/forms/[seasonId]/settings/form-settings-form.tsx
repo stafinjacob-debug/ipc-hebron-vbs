@@ -68,6 +68,7 @@ export function FormSettingsForm({
     stripeCapPaidChildrenAtThree: boolean;
     stripePayLaterEnabled: boolean;
     stripePayLaterMessage: string | null;
+    stripePaymentDeadlineNotice: string | null;
     stripeProcessingFeeMode: "OPTIONAL" | "REQUIRED";
     stripeProductLabel: string | null;
     stripeSkipWhenFieldKey: string | null;
@@ -200,6 +201,8 @@ export function FormSettingsForm({
         const stripeCapPaidChildrenAtThree = fd.get("stripeCapPaidChildrenAtThree") === "on";
         const stripePayLaterEnabled = fd.get("stripePayLaterEnabled") === "on";
         const stripePayLaterMessage = String(fd.get("stripePayLaterMessage") ?? "").trim() || null;
+        const stripePaymentDeadlineNotice =
+          String(fd.get("stripePaymentDeadlineNotice") ?? "").trim() || null;
         const stripeProcessingFeeMode =
           String(fd.get("stripeProcessingFeeMode") ?? "") === "REQUIRED" ? "REQUIRED" : "OPTIONAL";
         const stripeProductLabel = String(fd.get("stripeProductLabel") ?? "").trim() || null;
@@ -265,6 +268,7 @@ export function FormSettingsForm({
             stripeCapPaidChildrenAtThree,
             stripePayLaterEnabled,
             stripePayLaterMessage,
+            stripePaymentDeadlineNotice,
             stripeProcessingFeeMode,
             stripeProductLabel,
             stripeSkipWhenFieldKey,
@@ -655,6 +659,23 @@ export function FormSettingsForm({
           <p className="mt-1 text-xs text-foreground/60">
             Shown when a family selects pay later. The first day of VBS is taken from the season start date in event
             details.
+          </p>
+        </div>
+        <div>
+          <label htmlFor="stripePaymentDeadlineNotice" className="block text-xs font-medium text-foreground/70">
+            Payment deadline notice (optional)
+          </label>
+          <textarea
+            id="stripePaymentDeadlineNotice"
+            name="stripePaymentDeadlineNotice"
+            rows={4}
+            placeholder="Leave blank to use the default message about payment due before the first day of the event."
+            defaultValue={initial.stripePaymentDeadlineNotice ?? ""}
+            className="mt-1 w-full rounded-md border border-foreground/15 bg-background px-3 py-2 text-sm"
+          />
+          <p className="mt-1 text-xs text-foreground/60">
+            Shown in the red box after pay-later registration, on the lookup &amp; pay page, and in payment reminder
+            emails. Use blank lines for multiple paragraphs.
           </p>
         </div>
         <div>
