@@ -20,7 +20,7 @@ export type RegistrationTicketDisplay = {
   isLegacyVbs: boolean;
 };
 
-import { isLegacyVbsPortal } from "@/lib/portal-public-path";
+function absolutizePublicAssetUrl(url: string): string {
   const trimmed = url.trim();
   if (/^https?:\/\//i.test(trimmed) || trimmed.startsWith("data:")) return trimmed;
   const base = getPublicAppBaseUrl().replace(/\/$/, "");
