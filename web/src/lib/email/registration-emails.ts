@@ -131,6 +131,59 @@ async function sendHtml(
   return { result: "failed", error: r.error };
 }
 
+async function loadRemoteLogoInlineAttachment(
+  logoUrl: string | null | undefined,
+): Promise<{
+  cid: string;
+  attachment: NonNullable<Parameters<typeof sendMailViaMicrosoftGraph>[0]["attachments"]>[number];
+} | null> {
+  const url = logoUrl?.trim();
+  if (!url) return null;
+  try {
+    let buffer: Buffer;
+    let contentType = "image/png";
+    if (/^https?:\/\//i.test(url)) {
+      const res = await fetch(url);
+      if (!res.ok) return null;
+      buffer = Buffer.from(await res.arrayBuffer());
+      contentType = res.headers.get("content-type")?.split(";")[0]?.trim() || contentType;
+    } else if (url.startsWith("/")) {
+      const ext = path.extname(url).toLowerCase();
+      if (ext === ".webp") contentType = "image/webp";
+      else if (ext === ".jpg" || ext === ".jpeg") contentType = "image/jpeg";
+      else if (ext === ".gif") contentType = "image/gif";
+      buffer = await fs.readFile(path.join(process.cwd(), "public", url.replace(/^\//, "")));
+    } else {
+      return null;
+    }
+    if (!buffer.length) return null;
+    const cid = "eventlogo";
+    const ext = contentType.includes("webp") ? "webp" : contentType.includes("jpeg") ? "jpg" : "png";
+    return {
+      cid,
+      attachment: {
+        name: `event-logo.${ext}`,
+        contentType,
+        contentBytesBase64: buffer.toString("base64"),
+        isInline: true,
+        contentId: cid,
+      },
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function loadEmailLogoInlineAttachment(
+  ctx: Pick<RegistrationEmailContext, "isLegacyVbs" | "ticketLogoUrl">,
+): Promise<{
+  cid: string;
+  attachment: NonNullable<Parameters<typeof sendMailViaMicrosoftGraph>[0]["attachments"]>[number];
+} | null> {
+  if (ctx.isLegacyVbs) return loadThemeLogoInlineAttachment();
+  return loadRemoteLogoInlineAttachment(ctx.ticketLogoUrl);
+}
+
 async function loadThemeLogoInlineAttachment(): Promise<{
   cid: string;
   attachment: NonNullable<Parameters<typeof sendMailViaMicrosoftGraph>[0]["attachments"]>[number];
@@ -494,7 +547,7 @@ export async function sendRegistrationApprovedEmail(
   const ticketUrl = registrationTicketUrl(reg.checkInToken, base);
   const qrB64 = await qrPngBase64ForTicketUrl(ticketUrl);
   const cid = "vbsregqr";
-  const logo = ctx.isLegacyVbs ? await loadThemeLogoInlineAttachment() : null;
+  const logo = await loadEmailLogoInlineAttachment(ctx);
 
   const childName = `${reg.child.firstName} ${reg.child.lastName}`;
   const gname = `${guardian.firstName} ${guardian.lastName}`.trim();
@@ -539,7 +592,11 @@ export async function sendRegistrationApprovedEmail(
                 <p style="margin:0 0 12px;font-size:24px;font-weight:800;letter-spacing:0.06em;color:#075985;font-family:ui-monospace,Consolas,monospace;">${num}</p>
                 <p style="margin:0 0 16px;font-size:14px;line-height:1.6;color:#334155;"><strong>Dates:</strong> ${escapeHtml(dates)}<br/>
                 <strong>Class:</strong> ${cls}</p>
-                <p style="margin:0 0 6px;font-size:16px;font-weight:700;color:#0f172a;">Scan this at check-in to shine right in!</p>
+                <p style="margin:0 0 6px;font-size:16px;font-weight:700;color:#0f172a;">${
+                  ctx.isLegacyVbs
+                    ? "Scan this at check-in to shine right in!"
+                    : "Scan this QR code at check-in when you arrive."
+                }</p>
                 <p style="margin:0 0 12px;color:#475569;">Show this at the welcome desk or open it on your phone.</p>
                 <p style="margin:0;">
                   <a href="${escapeHtml(ticketUrl)}" style="display:inline-block;background:#0f766e;color:#ffffff;padding:12px 18px;border-radius:999px;text-decoration:none;font-size:14px;line-height:1.1;font-weight:700;border:1px solid #0b5f58;">Open Digital Card</a>
@@ -610,7 +667,7 @@ export async function sendAllApprovedRegistrationsEmailForSubmission(submissionI
 
   const base = getPublicAppBaseUrl();
   const attachments: NonNullable<Parameters<typeof sendMailViaMicrosoftGraph>[0]["attachments"]> = [];
-  const logo = ctx.isLegacyVbs ? await loadThemeLogoInlineAttachment() : null;
+  const logo = await loadEmailLogoInlineAttachment(ctx);
   if (logo) attachments.push(logo.attachment);
   let blocks = "";
   let i = 0;

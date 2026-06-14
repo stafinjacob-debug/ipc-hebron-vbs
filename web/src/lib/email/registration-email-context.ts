@@ -1,4 +1,5 @@
 import type { ProgramKind } from "@/generated/prisma";
+import { resolvePaymentDeadlineNotice } from "@/lib/pay-later";
 import { prisma } from "@/lib/prisma";
 import { resolvePortalBranding } from "@/lib/portal-branding";
 import { getPortalPublicPath } from "@/lib/portal-public-path";
@@ -15,6 +16,9 @@ export type RegistrationEmailContext = {
   isLegacyVbs: boolean;
   programKind: ProgramKind;
   teamReviewNote: string;
+  paymentDeadlineNotice: string;
+  /** Event logo or registration hero image for ticket emails (non-VBS). */
+  ticketLogoUrl: string | null;
 };
 
 function envHelpEmail(): string {
@@ -34,7 +38,10 @@ export async function loadRegistrationEmailContext(
 ): Promise<RegistrationEmailContext | null> {
   const season = await prisma.vbsSeason.findUnique({
     where: { id: seasonId },
-    include: { publicRegistrationSettings: true },
+    include: {
+      publicRegistrationSettings: true,
+      registrationForm: { select: { stripePaymentDeadlineNotice: true } },
+    },
   });
   if (!season) return null;
 
@@ -44,6 +51,10 @@ export async function loadRegistrationEmailContext(
   });
   const helpEmail = branding.contactEmail.trim() || envHelpEmail();
   const eventName = season.name.trim() || "this event";
+  const ticketLogoUrl =
+    branding.logoUrl?.trim() ||
+    season.publicRegistrationSettings?.registrationBackgroundImageUrl?.trim() ||
+    null;
 
   return {
     eventName,
@@ -55,16 +66,21 @@ export async function loadRegistrationEmailContext(
     registerUrl: `${getPublicAppBaseUrl()}${getPortalPublicPath(season)}`,
     isLegacyVbs,
     programKind: season.programKind,
+    ticketLogoUrl,
     teamReviewNote: isLegacyVbs
       ? branding.teamReviewNote
       : `Thank you — we have received your registration for ${eventName}. Someone from our team will review your details and confirm your enrollment. If anything else is needed, we will reach out using the contact information you provided.`,
+    paymentDeadlineNotice: resolvePaymentDeadlineNotice(
+      {
+        eventName,
+        participantSingularLabel: branding.participantSingularLabel,
+        isLegacyVbs,
+      },
+      season.registrationForm?.stripePaymentDeadlineNotice,
+    ),
   };
 }
 
 export function paymentDeadlineNoticeText(ctx: RegistrationEmailContext): string {
-  if (ctx.isLegacyVbs) {
-    return "To finalize your child's VBS registration, payment must be received by the first day of VBS. Unfortunately unpaid registrations will not be eligible to attend VBS or receive a VBS t-shirt.";
-  }
-  const who = ctx.participantSingularLabel.toLowerCase();
-  return `To finalize your registration for ${ctx.eventName}, payment must be received by the first day of the event. Unpaid registrations may not be eligible to attend or participate as a registered ${who}.`;
+  return ctx.paymentDeadlineNotice;
 }
