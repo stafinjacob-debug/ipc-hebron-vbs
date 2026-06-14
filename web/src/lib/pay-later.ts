@@ -30,6 +30,29 @@ export function resolvePayLaterNotice(
   return trimmed && trimmed.length > 0 ? trimmed : buildDefaultPayLaterNotice(season);
 }
 
+export type PaymentDeadlineNoticeContext = {
+  eventName: string;
+  participantSingularLabel: string;
+  isLegacyVbs: boolean;
+};
+
+export function buildDefaultPaymentDeadlineNotice(ctx: PaymentDeadlineNoticeContext): string {
+  if (ctx.isLegacyVbs) {
+    return VBS_PAYMENT_DEADLINE_NOTICE;
+  }
+  const who = ctx.participantSingularLabel.trim().toLowerCase() || "participant";
+  const eventName = ctx.eventName.trim() || "this event";
+  return `To finalize your registration for ${eventName}, payment must be received by the first day of the event. Unpaid registrations may not be eligible to attend or participate as a registered ${who}.`;
+}
+
+export function resolvePaymentDeadlineNotice(
+  ctx: PaymentDeadlineNoticeContext,
+  customMessage: string | null | undefined,
+): string {
+  const trimmed = customMessage?.trim();
+  return trimmed && trimmed.length > 0 ? trimmed : buildDefaultPaymentDeadlineNotice(ctx);
+}
+
 /** Split paragraphs for UI (custom message may use blank lines). */
 export function payLaterNoticeParagraphs(text: string): string[] {
   return text

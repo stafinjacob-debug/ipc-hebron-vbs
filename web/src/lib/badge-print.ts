@@ -11,7 +11,7 @@ import {
   type RegistrationFieldValueRow,
 } from "@/lib/registration-export";
 import { getPublicAppBaseUrl } from "@/lib/public-app-url";
-import { registrationTicketUrl } from "@/lib/registration-identity";
+import { registrationTicketUrl } from "@/lib/registration-ticket-url";
 
 /** Selected registration form field to include on each badge. */
 export type BadgeFormFieldSelection = {

@@ -43,10 +43,7 @@ export async function loadRegistrationEmailContext(
 ): Promise<RegistrationEmailContext | null> {
   const season = await prisma.vbsSeason.findUnique({
     where: { id: seasonId },
-    include: {
-      publicRegistrationSettings: true,
-      registrationForm: { select: { stripePaymentDeadlineNotice: true } },
-    },
+    include: { publicRegistrationSettings: true },
   });
   if (!season) return null;
 
@@ -83,7 +80,7 @@ export async function loadRegistrationEmailContext(
         participantSingularLabel: branding.participantSingularLabel,
         isLegacyVbs,
       },
-      season.registrationForm?.stripePaymentDeadlineNotice,
+      undefined,
     ),
   };
 }
