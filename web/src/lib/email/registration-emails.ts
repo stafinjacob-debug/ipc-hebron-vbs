@@ -402,7 +402,7 @@ function buildPayLaterPaymentInstructionsHtml(args: {
         <li style="margin:0 0 6px;"><strong>Zelle</strong> or <strong>card</strong></li>
         <li style="margin:0;">Cash and checks are <strong>not</strong> accepted on site.</li>
       </ul>
-      <div style="margin-top:12px;">${paymentDeadlineNoticeHtml(args.ctx)}</div>
+      <div style="margin-top:12px;">${args.ctx.isLegacyVbs ? paymentDeadlineNoticeHtml(args.ctx) : ""}</div>
     </div>`;
 }
 

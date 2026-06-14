@@ -49,14 +49,15 @@ import { shouldSkipStripeForSubmission } from "@/lib/stripe-skip-rule";
 import type { PublicRegistrationLayout } from "@/generated/prisma";
 import { RegistrationBackgroundMedia } from "./registration-background-media";
 import { RegistrationHeroBrand } from "./registration-hero-brand";
-import { payLaterNoticeParagraphs, resolvePayLaterNotice, VBS_PAYMENT_DEADLINE_NOTICE } from "@/lib/pay-later";
+import { payLaterNoticeParagraphs, resolvePayLaterNotice } from "@/lib/pay-later";
+import { isLegacyVbsPortal } from "@/lib/registration-ticket-display";
 import { formatSeasonDateRange } from "@/lib/season-calendar-date";
 import type { PublicRegistrationClosedDisplay } from "@/lib/public-registration-closed-display";
 import { submitPublicRegistration, type PublicRegisterState } from "./actions";
 
 /** Shown on the thank-you screen when card checkout was skipped by the form’s payment-skip rule. */
 const PAYMENT_SKIP_TEAM_REVIEW_NOTE =
-  "Thank you — we have received your registration. Someone from our VBS team will review your details and confirm your enrollment. If anything else is needed, we will reach out using the contact information you provided.";
+  "Thank you — we have received your registration. Someone from our team will review your details and confirm your enrollment. If anything else is needed, we will reach out using the contact information you provided.";
 
 /** Compact waiver flags/text per season — passed separately from `seasons` so RSC→client payload cannot drop them behind a large `definition`. */
 export type PublicSeasonWaiverSnapshot = {
@@ -775,6 +776,8 @@ export function DynamicRegistrationWizard({
     );
   }, [current, stripeSkippedByRule]);
 
+  const isLegacyVbs = current ? isLegacyVbsPortal(current) : false;
+
   const payLaterNoticeText = useMemo(() => {
     if (!current || !payLaterAvailable) return "";
     return resolvePayLaterNotice(
@@ -1307,20 +1310,15 @@ export function DynamicRegistrationWizard({
             </p>
           ) : null}
           {state?.payLaterSubmitted && state.payLaterNotice ? (
-            <>
-              <div className="mt-4 space-y-3 rounded-xl border border-amber-500/35 bg-amber-50 px-4 py-3 text-left text-sm leading-relaxed text-amber-950 dark:border-amber-500/25 dark:bg-amber-950/40 dark:text-amber-100">
-                <p className="font-semibold">Pay later — what to know</p>
-                {payLaterNoticeParagraphs(state.payLaterNotice).map((para) => (
-                  <p key={para.slice(0, 48)}>{para}</p>
-                ))}
-                <p className="text-xs text-amber-900/80 dark:text-amber-200/80">
-                  Payment details are also in the confirmation email we sent you.
-                </p>
-              </div>
-              <div className="mt-3 rounded-xl border border-red-300/60 bg-red-50 px-4 py-3 text-left text-sm leading-relaxed text-red-950 dark:border-red-500/30 dark:bg-red-950/40 dark:text-red-100">
-                <p>{VBS_PAYMENT_DEADLINE_NOTICE}</p>
-              </div>
-            </>
+            <div className="mt-4 space-y-3 rounded-xl border border-amber-500/35 bg-amber-50 px-4 py-3 text-left text-sm leading-relaxed text-amber-950 dark:border-amber-500/25 dark:bg-amber-950/40 dark:text-amber-100">
+              <p className="font-semibold">Pay later — what to know</p>
+              {payLaterNoticeParagraphs(state.payLaterNotice).map((para) => (
+                <p key={para.slice(0, 48)}>{para}</p>
+              ))}
+              <p className="text-xs text-amber-900/80 dark:text-amber-200/80">
+                Payment details are also in the confirmation email we sent you.
+              </p>
+            </div>
           ) : null}
           <p className="mt-6 text-xs text-neutral-500">
             Questions?{" "}
@@ -2110,7 +2108,9 @@ export function DynamicRegistrationWizard({
                           <span className="text-sm text-neutral-100">
                             <strong className="font-semibold">Pay later</strong>
                             <span className="mt-1 block text-neutral-300/90">
-                              Register now; pay by card online before VBS, or pay on site on Day 1.
+                              {isLegacyVbs
+                                ? "Register now; pay by card online before VBS, or pay on site on Day 1."
+                                : `Register now; pay by card online before ${current?.name ?? "the event"}, or pay on site on the first day.`}
                             </span>
                           </span>
                         </label>
