@@ -1,5 +1,6 @@
 import type { BadgePrintPayload } from "@/lib/badge-print";
 import { badgeLabelPageCss } from "@/lib/badge-print";
+import { VBS_BADGE_FIELD_LABELS } from "@/lib/badge-vbs-layout";
 
 function escapeHtml(text: string): string {
   return text
@@ -54,6 +55,11 @@ function renderStandardHorizontal(payload: BadgePrintPayload): string {
   return renderVbsHorizontal(payload);
 }
 
+function vbsLabeledLineHtml(label: string, value: string, fontPt: number): string {
+  const labelText = label.endsWith(":") ? label : `${label}:`;
+  return `<div class="vbs-labeled-line" style="font-size:${fontPt}pt"><span class="vbs-label">${escapeHtml(labelText)}</span> <span class="vbs-value">${escapeHtml(value)}</span></div>`;
+}
+
 function renderVbsHorizontal(payload: BadgePrintPayload): string {
   const s = payload.structured;
   const t = payload.settings.typography;
@@ -78,11 +84,13 @@ function renderVbsHorizontal(payload: BadgePrintPayload): string {
   return `<div class="badge horizontal layout-vbs">
     <div class="vbs-left">
       ${s.childNameLine ? `<div class="vbs-child-name" style="font-size:${t.namePt}pt">${escapeHtml(s.childNameLine)}</div>` : ""}
+      <hr class="vbs-divider" />
       ${s.eventLine ? `<div class="vbs-event" style="font-size:${t.seasonPt}pt">${escapeHtml(s.eventLine)}</div>` : ""}
-      ${s.classLine ? `<div class="vbs-class" style="font-size:${t.classPt}pt">${escapeHtml(s.classLine)}</div>` : ""}
-      ${s.tShirtSizeLine ? `<div class="vbs-tshirt" style="font-size:${t.detailPt}pt">${escapeHtml(s.tShirtSizeLine)}</div>` : ""}
-      ${s.guardianLine ? `<div class="vbs-guardian" style="font-size:${t.detailPt}pt">${escapeHtml(s.guardianLine)}</div>` : ""}
-      ${s.guardianPhone ? `<div class="vbs-phone" style="font-size:${t.detailPt}pt">${escapeHtml(s.guardianPhone)}</div>` : ""}
+      ${s.classLine ? vbsLabeledLineHtml(VBS_BADGE_FIELD_LABELS.class, s.classLine, t.classPt) : ""}
+      ${s.tShirtSizeLine ? vbsLabeledLineHtml(s.tShirtSizeLabel, s.tShirtSizeLine, t.detailPt) : ""}
+      ${s.guardianLine ? vbsLabeledLineHtml(VBS_BADGE_FIELD_LABELS.guardianName, s.guardianLine, t.detailPt) : ""}
+      ${s.guardianPhone ? vbsLabeledLineHtml(VBS_BADGE_FIELD_LABELS.guardianNumber, s.guardianPhone, t.detailPt) : ""}
+      ${s.allergiesLine ? vbsLabeledLineHtml(VBS_BADGE_FIELD_LABELS.allergies, s.allergiesLine, t.detailPt) : ""}
     </div>
     <div class="vbs-right">${rightParts.join("")}</div>
   </div>`;
@@ -168,14 +176,15 @@ function layoutCss(horizontal: boolean): string {
 
   const vbs = `
     .layout-vbs { display: flex; flex-direction: row; align-items: stretch; justify-content: space-between; gap: 0.08in; height: 100%; }
-    .vbs-left { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; text-align: left; gap: 0.028in; padding-top: 0.02in; }
-    .vbs-child-name { font-weight: 400; line-height: 1.05; color: #0f172a; }
-    .vbs-event { font-weight: 400; color: #334155; line-height: 1.1; margin-bottom: 0.02in; }
-    .vbs-class { font-weight: 800; line-height: 1.1; color: #0f172a; margin-top: 0.01in; }
-    .vbs-tshirt { font-weight: 800; line-height: 1.1; color: #0f172a; margin-top: 0.01in; }
-    .vbs-guardian { font-weight: 800; line-height: 1.1; color: #0f172a; margin-top: 0.04in; }
-    .vbs-phone { font-weight: 800; line-height: 1.1; color: #0f172a; }
-    .vbs-right { flex-shrink: 0; display: flex; flex-direction: column; align-items: flex-end; justify-content: flex-end; gap: 0.03in; text-align: right; min-width: 0.85in; }
+    .vbs-left { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; text-align: left; padding-top: 0.02in; }
+    .vbs-child-name { font-weight: 800; line-height: 1.05; color: #0f172a; margin-bottom: 0.05in; }
+    .vbs-divider { border: 0; border-top: 1.5px solid #0f172a; width: 100%; margin: 0 0 0.05in 0; }
+    .vbs-event { font-weight: 400; color: #334155; line-height: 1.1; margin-bottom: 0.1in; }
+    .vbs-labeled-line { font-weight: 800; line-height: 1.15; color: #0f172a; margin-bottom: 0.1in; }
+    .vbs-labeled-line.vbs-after-tshirt { margin-bottom: 0.15in; }
+    .vbs-labeled-line.vbs-before-allergies { margin-top: 0.05in; }
+    .vbs-label, .vbs-value { font-weight: 800; }
+    .vbs-right { flex-shrink: 0; display: flex; flex-direction: column; align-items: flex-end; justify-content: flex-end; gap: 0.06in; text-align: right; min-width: 0.85in; }
     .vbs-reg-number { font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: 0.03em; color: #0f172a; }
     .vbs-qr { display: block; }
     .vbs-timestamp { color: #64748b; line-height: 1.15; }

@@ -1,5 +1,6 @@
 import type { BadgePrintPayload, BadgeTypographySettings } from "@/lib/badge-print";
 import { badgeLabelPageCss } from "@/lib/badge-print";
+import { VBS_BADGE_FIELD_LABELS } from "@/lib/badge-vbs-layout";
 
 type Props = {
   payload: BadgePrintPayload;
@@ -107,6 +108,25 @@ function StandardBadgeLines({
   );
 }
 
+function VbsLabeledLine({
+  label,
+  value,
+  style,
+  className,
+}: {
+  label: string;
+  value: string;
+  style?: { fontSize?: string };
+  className?: string;
+}) {
+  const labelText = label.endsWith(":") ? label : `${label}:`;
+  return (
+    <div className={`font-extrabold text-slate-900 ${className ?? ""}`} style={style}>
+      {labelText} {value}
+    </div>
+  );
+}
+
 function VbsHorizontalPreview({
   payload,
   typeStyles,
@@ -119,39 +139,59 @@ function VbsHorizontalPreview({
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 items-stretch justify-between gap-2 text-left">
-      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+      <div className="flex min-w-0 flex-1 flex-col">
         {s.childNameLine ? (
-          <div className="font-normal leading-tight text-slate-900" style={typeStyles?.name}>
+          <div className="mb-1 font-extrabold leading-tight text-slate-900" style={typeStyles?.name}>
             {s.childNameLine}
           </div>
         ) : null}
+        <hr className="mb-1 border-slate-900" />
         {s.eventLine ? (
-          <div className="font-normal text-slate-600" style={typeStyles?.season}>
+          <div className="mb-2 font-normal text-slate-600" style={typeStyles?.season}>
             {s.eventLine}
           </div>
         ) : null}
         {s.classLine ? (
-          <div className="mt-1 font-extrabold leading-tight text-slate-900" style={typeStyles?.class}>
-            {s.classLine}
-          </div>
+          <VbsLabeledLine
+            label={VBS_BADGE_FIELD_LABELS.class}
+            value={s.classLine}
+            style={typeStyles?.class}
+            className="mb-2"
+          />
         ) : null}
         {s.tShirtSizeLine ? (
-          <div className="mt-0.5 font-extrabold text-slate-900" style={typeStyles?.detail}>
-            {s.tShirtSizeLine}
-          </div>
+          <VbsLabeledLine
+            label={s.tShirtSizeLabel}
+            value={s.tShirtSizeLine}
+            style={typeStyles?.detail}
+            className="mb-3"
+          />
         ) : null}
         {s.guardianLine ? (
-          <div className="mt-2 font-extrabold text-slate-900" style={typeStyles?.detail}>
-            {s.guardianLine}
-          </div>
+          <VbsLabeledLine
+            label={VBS_BADGE_FIELD_LABELS.guardianName}
+            value={s.guardianLine}
+            style={typeStyles?.detail}
+            className="mb-0.5"
+          />
         ) : null}
         {s.guardianPhone ? (
-          <div className="font-extrabold text-slate-900" style={typeStyles?.detail}>
-            {s.guardianPhone}
-          </div>
+          <VbsLabeledLine
+            label={VBS_BADGE_FIELD_LABELS.guardianNumber}
+            value={s.guardianPhone}
+            style={typeStyles?.detail}
+            className="mb-2"
+          />
+        ) : null}
+        {s.allergiesLine ? (
+          <VbsLabeledLine
+            label={VBS_BADGE_FIELD_LABELS.allergies}
+            value={s.allergiesLine}
+            style={typeStyles?.detail}
+          />
         ) : null}
       </div>
-      <div className="flex shrink-0 flex-col items-end justify-end gap-1 self-stretch text-right">
+      <div className="flex shrink-0 flex-col items-end justify-end gap-1.5 self-stretch text-right">
         {s.securityCode ? (
           <div className="font-extrabold tabular-nums tracking-wide text-slate-900" style={typeStyles?.code}>
             {s.securityCode}

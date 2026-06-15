@@ -98,7 +98,7 @@ export const DEFAULT_BADGE_TYPOGRAPHY: BadgeTypographySettings = {
   seasonPt: 10,
   codePt: 11,
   timestampPt: 9,
-  lineGapIn: 0.032,
+  lineGapIn: 0.05,
   wrapGapIn: 0.018,
   qrSizeIn: 0.95,
   detailFieldOrder: [...DEFAULT_BADGE_DETAIL_FIELD_ORDER],
@@ -148,8 +148,11 @@ export type BadgePrintStructured = {
   classLine: string | null;
   locationLine: string | null;
   tShirtSizeLine: string | null;
+  tShirtSizeLabel: string;
   guardianLine: string | null;
   guardianPhone: string | null;
+  /** Full allergy notes text for the badge (not just a flag). */
+  allergiesLine: string | null;
   birthdate: string | null;
   medicalLine: string | null;
   notesLine: string | null;
@@ -463,6 +466,12 @@ function isTShirtFormField(fieldKey: string, fieldOptions: ExportFieldOption[]):
   return label.includes("shirt") || key.includes("shirt");
 }
 
+function isAllergyFormField(fieldKey: string, fieldOptions: ExportFieldOption[]): boolean {
+  const label = badgeFormFieldLabel(fieldKey, fieldOptions).toLowerCase();
+  const key = fieldKey.toLowerCase();
+  return label.includes("allerg") || key.includes("allerg");
+}
+
 function resolveTShirtSizeLine(input: BuildBadgeInput): string | null {
   const fieldOptions = input.fieldOptions ?? [];
   for (const field of input.settings.formFields) {
@@ -473,6 +482,16 @@ function resolveTShirtSizeLine(input: BuildBadgeInput): string | null {
     if (text.trim()) return text.trim();
   }
   return null;
+}
+
+function resolveTShirtSizeLabel(input: BuildBadgeInput): string {
+  const fieldOptions = input.fieldOptions ?? [];
+  for (const field of input.settings.formFields) {
+    if (!isTShirtFormField(field.fieldKey, fieldOptions)) continue;
+    const label = badgeFormFieldLabel(field.fieldKey, fieldOptions);
+    if (label.trim()) return label.endsWith(":") ? label : `${label}:`;
+  }
+  return "T-Shirt Size:";
 }
 
 export function formatSampleRegistrationNumber(
@@ -507,7 +526,8 @@ function buildStructuredData(input: BuildBadgeInput, answerLines: BadgePrintLine
     eventLine && classLine ? `${eventLine} — ${classLine}` : locationLine;
 
   const medicalLine =
-    input.settings.showAllergyFlag && input.allergiesNotes?.trim() ? "Allergies on file" : null;
+    input.allergiesNotes?.trim() ||
+    (input.registrationId === "preview" ? "Peanut / tree nut allergy" : null);
 
   const securityCode =
     input.settings.showRegistrationNumber && input.registrationNumber
@@ -525,6 +545,9 @@ function buildStructuredData(input: BuildBadgeInput, answerLines: BadgePrintLine
   const tShirtSizeLine =
     resolveTShirtSizeLine(input) ??
     (input.registrationId === "preview" ? "Youth Large" : null);
+  const tShirtSizeLabel = resolveTShirtSizeLabel(input);
+
+  const allergiesLine = medicalLine;
 
   const timestampSource = input.checkedInAt ?? input.printedAt ?? new Date();
   const printedAt = formatBadgeCheckInTimestamp(timestampSource);
@@ -540,8 +563,10 @@ function buildStructuredData(input: BuildBadgeInput, answerLines: BadgePrintLine
     classLine,
     locationLine,
     tShirtSizeLine,
+    tShirtSizeLabel,
     guardianLine,
     guardianPhone,
+    allergiesLine,
     birthdate: null,
     medicalLine,
     notesLine: null,
@@ -578,6 +603,7 @@ export function buildBadgePrintPayload(input: BuildBadgeInput): BadgePrintPayloa
 
   for (const field of input.settings.formFields) {
     if (isTShirtFormField(field.fieldKey, fieldOptions)) continue;
+    if (isAllergyFormField(field.fieldKey, fieldOptions)) continue;
     const label = badgeFormFieldLabel(field.fieldKey, fieldOptions);
     const text = input.registrationRow
       ? resolveRegistrationExportFieldValue(input.registrationRow, input.seasonName, field.fieldKey)
