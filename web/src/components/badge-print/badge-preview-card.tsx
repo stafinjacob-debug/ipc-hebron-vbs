@@ -199,9 +199,13 @@ function KidCheckPreview({
   typeStyles: ReturnType<typeof typographyStyles>;
 }) {
   const s = payload.structured;
+  const { detailLabelBold, detailValueBold } = payload.settings.typography;
+  const labelClass = detailLabelBold ? "font-bold" : "font-normal";
+  const valueClass = detailValueBold ? "font-semibold" : "font-normal";
   const detailBlock = (label: string, value: string) => (
     <div style={typeStyles?.gap}>
-      <strong>{label}</strong> {value}
+      <span className={labelClass}>{label}</span>{" "}
+      <span className={valueClass}>{value}</span>
     </div>
   );
 
@@ -252,7 +256,8 @@ function KidCheckPreview({
                 key={`${l.label}-${l.text}`}
                 style={{ fontSize: previewPt(l.fontPt ?? payload.settings.typography.detailPt) }}
               >
-                <strong>{l.label ?? "Field"}:</strong> {l.text}
+                <span className={labelClass}>{l.label ?? "Field"}:</span>{" "}
+                <span className={valueClass}>{l.text}</span>
               </div>
             ))}
           </div>

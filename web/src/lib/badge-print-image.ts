@@ -1,5 +1,10 @@
 import type { BadgePrintPayload } from "@/lib/badge-print";
-import { badgeFormFieldFontPt, badgeLabelPageCss, type BadgeDetailFieldId } from "@/lib/badge-print";
+import {
+  badgeFormFieldFontPt,
+  badgeLabelPageCss,
+  type BadgeDetailFieldId,
+  type BadgeTypographySettings,
+} from "@/lib/badge-print";
 import {
   BADGE_PRINT_FONT_FAMILY,
   badgePrintFontDir,
@@ -206,24 +211,30 @@ function renderKidCheck(payload: BadgePrintPayload, canvas: LabelCanvas): string
        <text x="${codeBoxX + codeBoxW / 2}" y="${pad + codePadY + codeSize * 0.82}" text-anchor="middle" font-family="${BADGE_PRINT_FONT_FAMILY}" font-size="${codeSize}" font-weight="800" fill="#ffffff">${codeText}</text>`
     : "";
 
-  type BodyLine = { text: string; kind: "season" | "class" | "detail" };
+  type BodyLine = KidCheckBodyLine;
   const bodyLines: BodyLine[] = kidCheckBodyLines(payload);
+  const typography = payload.settings.typography;
 
   let bodyY = dividerY + inchToPx(0.06, canvas);
   const bodyParts: string[] = [];
   for (const line of bodyLines) {
     const size =
       line.kind === "season" ? seasonSize : line.kind === "class" ? classSize : lineSize;
-    const weight = line.kind === "class" ? 800 : 600;
     const fill = line.kind === "season" ? "#64748b" : "#1e293b";
-    const wrapped = wrapLines(line.text, Math.max(24, Math.floor((w - pad * 2) / (size * 0.55))), 2);
-    for (let j = 0; j < wrapped.length; j++) {
-      bodyY += size + (j === 0 ? 0 : wrapGap);
-      bodyParts.push(
-        `<text x="${pad}" y="${bodyY}" font-family="${BADGE_PRINT_FONT_FAMILY}" font-size="${size}" font-weight="${weight}" fill="${fill}">${wrapped[j]}</text>`,
-      );
-    }
-    bodyY += lineGap;
+    const maxChars = Math.max(24, Math.floor((w - pad * 2) / (size * 0.55)));
+    const block = renderKidCheckBodyLineBlock(
+      line,
+      pad,
+      bodyY,
+      size,
+      fill,
+      typography,
+      maxChars,
+      2,
+      wrapGap,
+    );
+    bodyParts.push(...block.parts);
+    bodyY = block.endY + lineGap;
   }
 
   const qrSize = inchToPx(0.55, canvas);
@@ -251,7 +262,130 @@ function renderKidCheck(payload: BadgePrintPayload, canvas: LabelCanvas): string
   `;
 }
 
-type KidCheckBodyLine = { text: string; kind: "season" | "class" | "detail"; fontPt?: number };
+type KidCheckBodyLine = {
+  kind: "season" | "class" | "detail";
+  label?: string;
+  value: string;
+  fontPt?: number;
+};
+
+function kidCheckDetailFontWeight(typography: BadgeTypographySettings, part: "label" | "value"): number {
+  return part === "label"
+    ? typography.detailLabelBold
+      ? 700
+      : 400
+    : typography.detailValueBold
+      ? 700
+      : 400;
+}
+
+function kidCheckBodyLineCombinedText(line: KidCheckBodyLine): string {
+  if (line.label) return `${line.label} ${line.value}`.trim();
+  return line.value;
+}
+
+function renderKidCheckBodyLineSvg(
+  line: KidCheckBodyLine,
+  x: number,
+  y: number,
+  size: number,
+  fill: string,
+  typography: BadgeTypographySettings,
+  maxChars: number,
+  maxLines: number,
+): string {
+  if (line.kind === "class") {
+    return `<text x="${x}" y="${y}" font-family="${BADGE_PRINT_FONT_FAMILY}" font-size="${size}" font-weight="800" fill="${fill}">${line.value}</text>`;
+  }
+  if (line.kind === "season") {
+    return `<text x="${x}" y="${y}" font-family="${BADGE_PRINT_FONT_FAMILY}" font-size="${size}" font-weight="600" fill="${fill}">${line.value}</text>`;
+  }
+
+  const labelWeight = kidCheckDetailFontWeight(typography, "label");
+  const valueWeight = kidCheckDetailFontWeight(typography, "value");
+  const combined = kidCheckBodyLineCombinedText(line);
+  const wrapped = wrapKidCheckLine(combined, maxChars, maxLines);
+
+  const segment = wrapped[0];
+  if (!line.label) {
+    return `<text x="${x}" y="${y}" font-family="${BADGE_PRINT_FONT_FAMILY}" font-size="${size}" font-weight="${valueWeight}" fill="${fill}">${segment}</text>`;
+  }
+
+  if (segment === line.label) {
+    return `<text x="${x}" y="${y}" font-family="${BADGE_PRINT_FONT_FAMILY}" font-size="${size}" fill="${fill}"><tspan font-weight="${labelWeight}">${line.label}</tspan></text>`;
+  }
+
+  if (segment.startsWith(line.label)) {
+    const rest = segment.slice(line.label.length).trimStart();
+    if (!rest) {
+      return `<text x="${x}" y="${y}" font-family="${BADGE_PRINT_FONT_FAMILY}" font-size="${size}" fill="${fill}"><tspan font-weight="${labelWeight}">${line.label}</tspan></text>`;
+    }
+    return `<text x="${x}" y="${y}" font-family="${BADGE_PRINT_FONT_FAMILY}" font-size="${size}" fill="${fill}"><tspan font-weight="${labelWeight}">${line.label}</tspan><tspan font-weight="${valueWeight}"> ${rest}</tspan></text>`;
+  }
+
+  return `<text x="${x}" y="${y}" font-family="${BADGE_PRINT_FONT_FAMILY}" font-size="${size}" font-weight="${valueWeight}" fill="${fill}">${segment}</text>`;
+}
+
+function renderKidCheckBodyLineBlock(
+  line: KidCheckBodyLine,
+  x: number,
+  startY: number,
+  size: number,
+  fill: string,
+  typography: BadgeTypographySettings,
+  maxChars: number,
+  maxLines: number,
+  wrapGap: number,
+): { parts: string[]; endY: number } {
+  if (line.kind === "class" || line.kind === "season" || !line.label) {
+    const combined = kidCheckBodyLineCombinedText(line);
+    const wrapped =
+      line.kind === "detail" && !line.label
+        ? wrapLines(combined, maxChars, maxLines)
+        : [combined];
+    const parts: string[] = [];
+    let y = startY;
+    for (let j = 0; j < wrapped.length; j++) {
+      y += size + (j === 0 ? 0 : wrapGap);
+      const segmentLine: KidCheckBodyLine =
+        j === 0 ? line : { kind: "detail", value: wrapped[j] };
+      parts.push(
+        renderKidCheckBodyLineSvg(segmentLine, x, y, size, fill, typography, maxChars, maxLines),
+      );
+    }
+    return { parts, endY: y };
+  }
+
+  const combined = kidCheckBodyLineCombinedText(line);
+  const wrapped = wrapKidCheckLine(combined, maxChars, maxLines);
+  const parts: string[] = [];
+  let y = startY;
+  for (let j = 0; j < wrapped.length; j++) {
+    y += size + (j === 0 ? 0 : wrapGap);
+    const segment = wrapped[j];
+    if (j === 0 && segment === line.label) {
+      parts.push(
+        `<text x="${x}" y="${y}" font-family="${BADGE_PRINT_FONT_FAMILY}" font-size="${size}" fill="${fill}"><tspan font-weight="${kidCheckDetailFontWeight(typography, "label")}">${line.label}</tspan></text>`,
+      );
+      continue;
+    }
+    if (j === 0 && segment.startsWith(line.label)) {
+      const rest = segment.slice(line.label.length).trimStart();
+      const labelWeight = kidCheckDetailFontWeight(typography, "label");
+      const valueWeight = kidCheckDetailFontWeight(typography, "value");
+      parts.push(
+        rest
+          ? `<text x="${x}" y="${y}" font-family="${BADGE_PRINT_FONT_FAMILY}" font-size="${size}" fill="${fill}"><tspan font-weight="${labelWeight}">${line.label}</tspan><tspan font-weight="${valueWeight}"> ${rest}</tspan></text>`
+          : `<text x="${x}" y="${y}" font-family="${BADGE_PRINT_FONT_FAMILY}" font-size="${size}" fill="${fill}"><tspan font-weight="${labelWeight}">${line.label}</tspan></text>`,
+      );
+      continue;
+    }
+    parts.push(
+      `<text x="${x}" y="${y}" font-family="${BADGE_PRINT_FONT_FAMILY}" font-size="${size}" font-weight="${kidCheckDetailFontWeight(typography, "value")}" fill="${fill}">${segment}</text>`,
+    );
+  }
+  return { parts, endY: y };
+}
 
 function kidCheckBodyLines(payload: BadgePrintPayload): KidCheckBodyLine[] {
   const s = payload.structured;
@@ -259,17 +393,18 @@ function kidCheckBodyLines(payload: BadgePrintPayload): KidCheckBodyLine[] {
   const detailPt = (fieldKey: string) => badgeFormFieldFontPt(settings, fieldKey);
 
   const blocks: Record<BadgeDetailFieldId, KidCheckBodyLine[]> = {
-    season: s.seasonLine ? [{ text: escapeXml(s.seasonLine), kind: "season" }] : [],
+    season: s.seasonLine ? [{ kind: "season", value: escapeXml(s.seasonLine) }] : [],
     class: s.classLine
-      ? [{ text: escapeXml(s.classLine), kind: "class" }]
+      ? [{ kind: "class", value: escapeXml(s.classLine) }]
       : s.serviceLine
-        ? [{ text: escapeXml(s.serviceLine), kind: "class" }]
+        ? [{ kind: "class", value: escapeXml(s.serviceLine) }]
         : [],
     guardian: s.guardianLine
       ? [
           {
-            text: `Guardian: ${escapeXml(s.guardianLine)}`,
             kind: "detail",
+            label: "Guardian:",
+            value: escapeXml(s.guardianLine),
             fontPt: detailPt("guardian:guardianFirstName"),
           },
         ]
@@ -277,8 +412,9 @@ function kidCheckBodyLines(payload: BadgePrintPayload): KidCheckBodyLine[] {
     emergency: s.guardianPhone
       ? [
           {
-            text: `Emergency contact: ${escapeXml(s.guardianPhone)}`,
             kind: "detail",
+            label: "Emergency contact:",
+            value: escapeXml(s.guardianPhone),
             fontPt: detailPt("guardian:guardianPhone"),
           },
         ]
@@ -286,8 +422,9 @@ function kidCheckBodyLines(payload: BadgePrintPayload): KidCheckBodyLine[] {
     birthdate: s.birthdate
       ? [
           {
-            text: `Birthdate: ${escapeXml(s.birthdate)}`,
             kind: "detail",
+            label: "Birthdate:",
+            value: escapeXml(s.birthdate),
             fontPt: detailPt("child:childDateOfBirth"),
           },
         ]
@@ -295,8 +432,9 @@ function kidCheckBodyLines(payload: BadgePrintPayload): KidCheckBodyLine[] {
     medical: s.medicalLine
       ? [
           {
-            text: `Medical / allergy info: ${escapeXml(s.medicalLine)}`,
             kind: "detail",
+            label: "Medical / allergy info:",
+            value: escapeXml(s.medicalLine),
             fontPt: settings.formFields.some((f) => f.fieldKey === "child:allergiesNotes")
               ? detailPt("child:allergiesNotes")
               : settings.typography.detailPt,
@@ -306,20 +444,22 @@ function kidCheckBodyLines(payload: BadgePrintPayload): KidCheckBodyLine[] {
     notes: s.notesLine
       ? [
           {
-            text: `Note: ${escapeXml(s.notesLine)}`,
             kind: "detail",
+            label: "Note:",
+            value: escapeXml(s.notesLine),
             fontPt: detailPt("staffNotes"),
           },
         ]
       : [],
     formFields: s.answerLines.flatMap((line) => {
       const label = line.label?.trim();
-      const text = label ? `${label}: ${line.text}` : line.text;
-      if (!text.trim()) return [];
+      const text = line.text.trim();
+      if (!text) return [];
       return [
         {
-          text: escapeXml(text),
           kind: "detail" as const,
+          label: label ? `${label}:` : undefined,
+          value: escapeXml(text),
           fontPt:
             line.fontPt ??
             (line.fieldKey ? detailPt(line.fieldKey) : settings.typography.detailPt),
@@ -383,6 +523,7 @@ function renderKidCheckBrotherWide(payload: BadgePrintPayload, canvas: LabelCanv
   const bodyParts: string[] = [];
   const maxChars = Math.max(18, Math.floor((textMaxX - pad) / (lineSize * 0.55)));
   const bodyBottom = h - pad - (s.printedAt ? timestampSize + inchToPx(0.04, canvas) : 0);
+  const typography = payload.settings.typography;
   for (const line of kidCheckBodyLines(payload)) {
     const size =
       line.kind === "season"
@@ -390,17 +531,21 @@ function renderKidCheckBrotherWide(payload: BadgePrintPayload, canvas: LabelCanv
         : line.kind === "class"
           ? classSize
           : ptToPx(line.fontPt ?? t.detailPt, canvas);
-    const weight = line.kind === "class" ? 800 : 600;
     const fill = line.kind === "season" ? "#64748b" : "#1e293b";
-    const wrapped = wrapKidCheckLine(line.text, maxChars, 4);
-    for (let j = 0; j < wrapped.length; j++) {
-      if (bodyY + size > bodyBottom) break;
-      bodyY += size + (j === 0 ? 0 : wrapGap);
-      bodyParts.push(
-        `<text x="${pad}" y="${bodyY}" font-family="${BADGE_PRINT_FONT_FAMILY}" font-size="${size}" font-weight="${weight}" fill="${fill}">${wrapped[j]}</text>`,
-      );
-    }
-    bodyY += lineGap;
+    const block = renderKidCheckBodyLineBlock(
+      line,
+      pad,
+      bodyY,
+      size,
+      fill,
+      typography,
+      maxChars,
+      4,
+      wrapGap,
+    );
+    if (block.endY > bodyBottom) break;
+    bodyParts.push(...block.parts);
+    bodyY = block.endY + lineGap;
     if (bodyY > bodyBottom) break;
   }
 

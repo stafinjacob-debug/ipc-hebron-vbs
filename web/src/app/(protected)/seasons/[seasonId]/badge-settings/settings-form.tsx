@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useMemo, useState } from "react";
+import { useActionState, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import type { BadgeFormFieldSelection, BadgeTypographySettings, ResolvedBadgePrintSettings } from "@/lib/badge-print";
 import {
@@ -151,10 +151,19 @@ export function BadgePrintSettingsForm({
     setTypography((prev) => ({ ...prev, ...patch }));
   }
 
+  useEffect(() => {
+    if (!state?.ok) return;
+    setDraft(settings);
+    setFormFields(settings.formFields);
+    setTypography(settings.typography);
+    setLogoPreview(settings.logoUrl);
+  }, [state?.ok, settings]);
+
   return (
     <form action={action} encType="multipart/form-data" className="max-w-2xl space-y-8">
       <input type="hidden" name="customFieldsJson" value={JSON.stringify(formFields)} readOnly />
       <input type="hidden" name="typographyJson" value={JSON.stringify(typography)} readOnly />
+      <input type="hidden" name="horizontalLayout" value={draft.horizontalLayout} readOnly />
 
       {state?.message ? (
         <div
@@ -262,7 +271,6 @@ export function BadgePrintSettingsForm({
                 >
                   <input
                     type="radio"
-                    name="horizontalLayout"
                     value={opt.value}
                     checked={draft.horizontalLayout === opt.value}
                     onChange={() => patchDraft({ horizontalLayout: opt.value })}
@@ -276,9 +284,7 @@ export function BadgePrintSettingsForm({
               ))}
             </div>
           </div>
-        ) : (
-          <input type="hidden" name="horizontalLayout" value={draft.horizontalLayout} readOnly />
-        )}
+        ) : null}
       </div>
 
       <div className="rounded-xl border border-foreground/10 p-4">
@@ -474,6 +480,32 @@ export function BadgePrintSettingsForm({
               unit="in"
               onChange={(qrSizeIn) => patchTypography({ qrSizeIn })}
             />
+          </div>
+          <div className="mt-4 space-y-2 border-t border-foreground/10 pt-4">
+            <span className="block text-xs font-medium text-foreground/70">Detail line weight</span>
+            <p className="text-[11px] text-muted">
+              Control bold vs regular text on KidCheck-style detail lines (e.g.{" "}
+              <span className="font-semibold text-foreground/80">T-Shirt Size:</span>{" "}
+              <span className="font-normal text-foreground/80">Adult-Small</span>).
+            </p>
+            <label className="flex cursor-pointer items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={typography.detailLabelBold}
+                onChange={(e) => patchTypography({ detailLabelBold: e.target.checked })}
+                className="rounded"
+              />
+              Bold field labels
+            </label>
+            <label className="flex cursor-pointer items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={typography.detailValueBold}
+                onChange={(e) => patchTypography({ detailValueBold: e.target.checked })}
+                className="rounded"
+              />
+              Bold field values
+            </label>
           </div>
           <button
             type="button"

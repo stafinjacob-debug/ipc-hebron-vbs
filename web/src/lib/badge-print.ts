@@ -56,6 +56,10 @@ export type BadgeTypographySettings = {
   qrSizeIn: number;
   /** Print order for KidCheck detail blocks below the divider. */
   detailFieldOrder: BadgeDetailFieldId[];
+  /** Bold field labels on detail lines (e.g. "Guardian:"). */
+  detailLabelBold: boolean;
+  /** Bold values after detail labels (e.g. the guardian name). */
+  detailValueBold: boolean;
 };
 
 /** Reorderable blocks on KidCheck / horizontal badges (below name & security code). */
@@ -118,6 +122,8 @@ export const DEFAULT_BADGE_TYPOGRAPHY: BadgeTypographySettings = {
   wrapGapIn: 0.018,
   qrSizeIn: 0.95,
   detailFieldOrder: [...DEFAULT_BADGE_DETAIL_FIELD_ORDER],
+  detailLabelBold: true,
+  detailValueBold: false,
 };
 
 export const DEFAULT_BADGE_PRINT_SETTINGS: ResolvedBadgePrintSettings = {
@@ -236,6 +242,13 @@ export function parseBadgeHorizontalLayout(raw: string): BadgeHorizontalLayout {
   return "STANDARD";
 }
 
+function parseTypographyBoolean(value: unknown, fallback: boolean): boolean {
+  if (typeof value === "boolean") return value;
+  if (value === "true" || value === "1" || value === "on") return true;
+  if (value === "false" || value === "0" || value === "off") return false;
+  return fallback;
+}
+
 function clampTypographyNumber(
   value: unknown,
   min: number,
@@ -282,6 +295,8 @@ export function parseBadgeTypographyJson(raw: unknown): BadgeTypographySettings 
     wrapGapIn: clampTypographyNumber(o.wrapGapIn, 0, 0.08, d.wrapGapIn),
     qrSizeIn: clampTypographyNumber(o.qrSizeIn, 0.45, 1.2, d.qrSizeIn),
     detailFieldOrder: parseBadgeDetailFieldOrder(o.detailFieldOrder),
+    detailLabelBold: parseTypographyBoolean(o.detailLabelBold, d.detailLabelBold),
+    detailValueBold: parseTypographyBoolean(o.detailValueBold, d.detailValueBold),
   };
 }
 

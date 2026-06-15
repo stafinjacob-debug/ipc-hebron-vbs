@@ -107,8 +107,21 @@ function renderNameCodeHeader(payload: BadgePrintPayload): string {
   </div>`;
 }
 
+function detailLineHtml(
+  label: string,
+  value: string,
+  typography: BadgePrintPayload["settings"]["typography"],
+  fontPt?: number,
+): string {
+  const labelWeight = typography.detailLabelBold ? 700 : 400;
+  const valueWeight = typography.detailValueBold ? 700 : 400;
+  const style = fontPt ? ` style="font-size:${fontPt}pt"` : "";
+  return `<div class="kidcheck-line"${style}><span style="font-weight:${labelWeight}">${escapeHtml(label)}</span> <span style="font-weight:${valueWeight}">${escapeHtml(value)}</span></div>`;
+}
+
 function renderKidCheck(payload: BadgePrintPayload): string {
   const s = payload.structured;
+  const typography = payload.settings.typography;
   const codeHtml = s.securityCode
     ? `<div class="security-code">${escapeHtml(s.securityCode)}</div>`
     : "";
@@ -137,12 +150,12 @@ function renderKidCheck(payload: BadgePrintPayload): string {
       <hr class="divider" />
       ${s.seasonLine ? `<div class="kidcheck-season">${escapeHtml(s.seasonLine)}</div>` : ""}
       ${s.classLine ? `<div class="kidcheck-class">${escapeHtml(s.classLine)}</div>` : s.serviceLine ? `<div class="kidcheck-class">${escapeHtml(s.serviceLine)}</div>` : ""}
-      ${s.guardianLine ? `<div class="kidcheck-line"><strong>Guardian:</strong> ${escapeHtml(s.guardianLine)}</div>` : ""}
-      ${s.guardianPhone ? `<div class="kidcheck-line"><strong>Emergency contact:</strong> ${escapeHtml(s.guardianPhone)}</div>` : ""}
-      ${s.birthdate ? `<div class="kidcheck-line"><strong>Birthdate:</strong> ${escapeHtml(s.birthdate)}</div>` : ""}
-      ${s.medicalLine ? `<div class="kidcheck-line"><strong>Medical / allergy info:</strong> ${escapeHtml(s.medicalLine)}</div>` : ""}
-      ${s.notesLine ? `<div class="kidcheck-line"><strong>Note:</strong> ${escapeHtml(s.notesLine)}</div>` : ""}
-      ${s.answerLines.length ? `<div class="kidcheck-line">${s.answerLines.map((l) => `<div${l.fontPt ? ` style="font-size:${l.fontPt}pt"` : ""}><strong>${escapeHtml(l.label ?? "Answer")}:</strong> ${escapeHtml(l.text)}</div>`).join("")}</div>` : ""}
+      ${s.guardianLine ? detailLineHtml("Guardian:", s.guardianLine, typography) : ""}
+      ${s.guardianPhone ? detailLineHtml("Emergency contact:", s.guardianPhone, typography) : ""}
+      ${s.birthdate ? detailLineHtml("Birthdate:", s.birthdate, typography) : ""}
+      ${s.medicalLine ? detailLineHtml("Medical / allergy info:", s.medicalLine, typography) : ""}
+      ${s.notesLine ? detailLineHtml("Note:", s.notesLine, typography) : ""}
+      ${s.answerLines.length ? `<div class="kidcheck-line">${s.answerLines.map((l) => detailLineHtml(`${l.label ?? "Answer"}:`, l.text, typography, l.fontPt)).join("")}</div>` : ""}
       <div class="kidcheck-footer">${footerParts.join("")}</div>
     </div>
     ${logoHtml}
