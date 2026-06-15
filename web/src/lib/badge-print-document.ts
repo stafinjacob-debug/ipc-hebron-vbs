@@ -88,6 +88,11 @@ function renderNameCodeHeader(payload: BadgePrintPayload): string {
     ? `<div class="detail-block"><span class="detail-label">Medical notes</span><div class="detail-text">${escapeHtml(s.medicalLine)}</div></div>`
     : "";
 
+  const qrHtml =
+    payload.qrDataUrl && payload.settings.showQrCode
+      ? `<img class="header-qr" src="${payload.qrDataUrl}" alt="Check-in QR code" />`
+      : "";
+
   return `<div class="badge horizontal layout-name-code">
     <div class="header-row">
       <div class="name-stack">
@@ -98,7 +103,7 @@ function renderNameCodeHeader(payload: BadgePrintPayload): string {
             : ""
         }
       </div>
-      <div class="header-right">${codeHtml}${checkInHtml}</div>
+      <div class="header-right">${codeHtml}${checkInHtml}${qrHtml}</div>
     </div>
     <hr class="divider" />
     ${s.locationLine ? `<div class="location-line">${escapeHtml(s.locationLine)}</div>` : ""}
@@ -199,6 +204,7 @@ function layoutCss(horizontal: boolean): string {
     .detail-block { margin-top: 0.02in; }
     .detail-label { display: block; font-size: 6.5pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; }
     .detail-text { font-size: 8pt; font-weight: 600; line-height: 1.25; color: #1e293b; }
+    .header-qr { width: 0.55in; height: 0.55in; display: block; margin-top: 0.02in; }
   `;
 
   const kidcheck = `

@@ -115,6 +115,7 @@ function NameCodeHeaderPreview({
   typeStyles: ReturnType<typeof typographyStyles>;
 }) {
   const s = payload.structured;
+  const qrSizePx = typeStyles ? payload.settings.typography.qrSizeIn * 72 * 0.55 : undefined;
   return (
     <div className="flex min-w-0 flex-1 flex-col gap-1 text-left">
       <div className="flex items-start justify-between gap-2">
@@ -132,23 +133,38 @@ function NameCodeHeaderPreview({
             </>
           ) : null}
         </div>
-        {s.securityCode ? (
-          <div className="shrink-0 rounded bg-slate-900 px-2 py-1 text-center text-white">
-            <div className="font-bold uppercase tracking-wider opacity-80" style={typeStyles?.season}>
-              Code
+        <div className="flex shrink-0 flex-col items-end gap-1">
+          {s.securityCode ? (
+            <div className="rounded bg-slate-900 px-2 py-1 text-center text-white">
+              <div className="font-bold uppercase tracking-wider opacity-80" style={typeStyles?.season}>
+                Code
+              </div>
+              <div className="font-extrabold tabular-nums" style={typeStyles?.code}>
+                {s.securityCode}
+              </div>
             </div>
-            <div className="font-extrabold tabular-nums" style={typeStyles?.code}>
-              {s.securityCode}
+          ) : null}
+          {s.guardianLine || s.guardianPhone ? (
+            <div className="text-right text-slate-500" style={typeStyles?.detail}>
+              {s.guardianLine ? <div>Guardian {s.guardianLine}</div> : null}
+              {s.guardianPhone ? <div>{s.guardianPhone}</div> : null}
             </div>
-          </div>
-        ) : null}
-      </div>
-      {s.guardianLine || s.guardianPhone ? (
-        <div className="text-right text-slate-500" style={typeStyles?.detail}>
-          {s.guardianLine ? <div>Guardian {s.guardianLine}</div> : null}
-          {s.guardianPhone ? <div>{s.guardianPhone}</div> : null}
+          ) : null}
+          {payload.qrDataUrl && payload.settings.showQrCode ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={payload.qrDataUrl}
+              alt="QR preview"
+              style={
+                qrSizePx
+                  ? { width: `${qrSizePx}px`, height: `${qrSizePx}px` }
+                  : undefined
+              }
+              className={qrSizePx ? undefined : "size-10"}
+            />
+          ) : null}
         </div>
-      ) : null}
+      </div>
       <hr className="border-slate-900" />
       {s.locationLine ? (
         <div className="font-extrabold leading-tight" style={typeStyles?.class}>
