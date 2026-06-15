@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import type { BadgePrintPayload, BadgeTypographySettings } from "@/lib/badge-print";
 import { badgeLabelPageCss } from "@/lib/badge-print";
 import { VBS_BADGE_FIELD_LABELS } from "@/lib/badge-vbs-layout";
@@ -116,7 +117,7 @@ function VbsLabeledLine({
 }: {
   label: string;
   value: string;
-  style?: { fontSize?: string };
+  style?: CSSProperties;
   className?: string;
 }) {
   const labelText = label.endsWith(":") ? label : `${label}:`;
@@ -136,51 +137,58 @@ function VbsHorizontalPreview({
 }) {
   const s = payload.structured;
   const qrSizePx = typeStyles ? payload.settings.typography.qrSizeIn * 72 * 0.55 : undefined;
+  const lineGap = payload.settings.typography.lineGapIn * 72;
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 items-stretch justify-between gap-2 text-left">
-      <div className="flex min-w-0 flex-1 flex-col">
+    <div className="grid min-h-0 min-w-0 flex-1 grid-cols-[1fr_auto] grid-rows-[1fr_auto] gap-x-2 text-left">
+      <div className="col-start-1 row-start-1 min-w-0 max-w-[58%] self-start">
         {s.childNameLine ? (
-          <div className="mb-1 font-extrabold leading-tight text-slate-900" style={typeStyles?.name}>
+          <div
+            className="font-extrabold leading-tight text-slate-900"
+            style={{ ...typeStyles?.name, marginBottom: "4pt" }}
+          >
             {s.childNameLine}
           </div>
         ) : null}
-        <hr className="mb-1 border-slate-900" />
-        {s.eventLine ? (
-          <div className="mb-2 font-normal text-slate-600" style={typeStyles?.season}>
-            {s.eventLine}
-          </div>
-        ) : null}
+        <hr className="mb-1 border-slate-900" style={{ paddingTop: "6pt", marginBottom: "4pt" }} />
         {s.classLine ? (
           <VbsLabeledLine
             label={VBS_BADGE_FIELD_LABELS.class}
             value={s.classLine}
-            style={typeStyles?.class}
-            className="mb-2"
+            style={{ ...typeStyles?.class, marginBottom: `${lineGap * 2}pt` }}
           />
         ) : null}
         {s.tShirtSizeLine ? (
           <VbsLabeledLine
             label={s.tShirtSizeLabel}
             value={s.tShirtSizeLine}
-            style={typeStyles?.detail}
-            className="mb-3"
+            style={{ ...typeStyles?.detail, marginBottom: `${lineGap * 2}pt` }}
           />
         ) : null}
+      </div>
+      <div className="col-start-2 row-start-1 self-start text-right">
+        {s.eventLine ? (
+          <div
+            className="font-normal text-slate-600"
+            style={{ ...typeStyles?.season, marginBottom: `${lineGap * 2}pt` }}
+          >
+            {s.eventLine}
+          </div>
+        ) : null}
+      </div>
+      <div className="col-start-1 row-start-2 min-w-0 max-w-[58%] self-end">
         {s.guardianLine ? (
           <VbsLabeledLine
             label={VBS_BADGE_FIELD_LABELS.guardianName}
             value={s.guardianLine}
-            style={typeStyles?.detail}
-            className="mb-0.5"
+            style={{ ...typeStyles?.detail, marginBottom: `${lineGap}pt` }}
           />
         ) : null}
         {s.guardianPhone ? (
           <VbsLabeledLine
             label={VBS_BADGE_FIELD_LABELS.guardianNumber}
             value={s.guardianPhone}
-            style={typeStyles?.detail}
-            className="mb-2"
+            style={{ ...typeStyles?.detail, marginBottom: "4pt" }}
           />
         ) : null}
         {s.allergiesLine ? (
@@ -191,7 +199,7 @@ function VbsHorizontalPreview({
           />
         ) : null}
       </div>
-      <div className="flex shrink-0 flex-col items-end justify-end gap-1.5 self-stretch text-right">
+      <div className="col-start-2 row-start-2 flex shrink-0 flex-col items-end justify-end gap-1.5 self-end text-right">
         {s.securityCode ? (
           <div className="font-extrabold tabular-nums tracking-wide text-slate-900" style={typeStyles?.code}>
             {s.securityCode}

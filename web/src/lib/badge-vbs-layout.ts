@@ -8,19 +8,18 @@ export const VBS_BADGE_FIELD_LABELS = {
   allergies: "Allergies:",
 } as const;
 
-/** Extra line spacing multipliers on top of typography lineGapIn. */
-export const VBS_BADGE_SPACING = {
-  afterName: 1,
-  afterDivider: 1,
-  afterEvent: 2,
-  afterClass: 2,
-  afterTShirt: 3,
-  afterGuardianName: 0.5,
-  afterGuardianNumber: 2,
-  afterAllergies: 0,
-  rightRegToQr: 1.2,
-  rightQrToTime: 1,
+/** Fixed vertical gaps in points (pt). Generic "space" uses lineGapIn from typography. */
+export const VBS_BADGE_GAP_PT = {
+  afterName: 4,
+  lineBlock: 6,
+  afterDivider: 4,
+  beforeAllergies: 4,
 } as const;
+
+/** Convert typography lineGapIn (inches) to one or two generic line spaces in pt. */
+export function vbsLineGapPt(lineGapIn: number, spaces = 1): number {
+  return lineGapIn * 72 * spaces;
+}
 
 export function vbsLabeledLine(label: string, value: string): { label: string; value: string } {
   const trimmedLabel = label.endsWith(":") ? label : `${label}:`;

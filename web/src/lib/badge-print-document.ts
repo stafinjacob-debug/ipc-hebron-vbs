@@ -1,6 +1,6 @@
 import type { BadgePrintPayload } from "@/lib/badge-print";
 import { badgeLabelPageCss } from "@/lib/badge-print";
-import { VBS_BADGE_FIELD_LABELS } from "@/lib/badge-vbs-layout";
+import { VBS_BADGE_FIELD_LABELS, VBS_BADGE_GAP_PT, vbsLineGapPt } from "@/lib/badge-vbs-layout";
 
 function escapeHtml(text: string): string {
   return text
@@ -55,14 +55,24 @@ function renderStandardHorizontal(payload: BadgePrintPayload): string {
   return renderVbsHorizontal(payload);
 }
 
-function vbsLabeledLineHtml(label: string, value: string, fontPt: number): string {
+function vbsLabeledLineHtml(
+  label: string,
+  value: string,
+  fontPt: number,
+  extraStyle = "",
+): string {
   const labelText = label.endsWith(":") ? label : `${label}:`;
-  return `<div class="vbs-labeled-line" style="font-size:${fontPt}pt"><span class="vbs-label">${escapeHtml(labelText)}</span> <span class="vbs-value">${escapeHtml(value)}</span></div>`;
+  const style = extraStyle ? ` style="font-size:${fontPt}pt;${extraStyle}"` : ` style="font-size:${fontPt}pt"`;
+  return `<div class="vbs-labeled-line"${style}><span class="vbs-label">${escapeHtml(labelText)}</span> <span class="vbs-value">${escapeHtml(value)}</span></div>`;
 }
 
 function renderVbsHorizontal(payload: BadgePrintPayload): string {
   const s = payload.structured;
   const t = payload.settings.typography;
+  const gap4 = `${VBS_BADGE_GAP_PT.afterName}pt`;
+  const gapLine = `${VBS_BADGE_GAP_PT.lineBlock}pt`;
+  const gapDbl = `${vbsLineGapPt(t.lineGapIn, 2)}pt`;
+  const gap1 = `${vbsLineGapPt(t.lineGapIn)}pt`;
 
   const rightParts: string[] = [];
   if (s.securityCode) {
@@ -82,14 +92,18 @@ function renderVbsHorizontal(payload: BadgePrintPayload): string {
   }
 
   return `<div class="badge horizontal layout-vbs">
-    <div class="vbs-left">
-      ${s.childNameLine ? `<div class="vbs-child-name" style="font-size:${t.namePt}pt">${escapeHtml(s.childNameLine)}</div>` : ""}
-      <hr class="vbs-divider" />
-      ${s.eventLine ? `<div class="vbs-event" style="font-size:${t.seasonPt}pt">${escapeHtml(s.eventLine)}</div>` : ""}
-      ${s.classLine ? vbsLabeledLineHtml(VBS_BADGE_FIELD_LABELS.class, s.classLine, t.classPt) : ""}
-      ${s.tShirtSizeLine ? vbsLabeledLineHtml(s.tShirtSizeLabel, s.tShirtSizeLine, t.detailPt) : ""}
-      ${s.guardianLine ? vbsLabeledLineHtml(VBS_BADGE_FIELD_LABELS.guardianName, s.guardianLine, t.detailPt) : ""}
-      ${s.guardianPhone ? vbsLabeledLineHtml(VBS_BADGE_FIELD_LABELS.guardianNumber, s.guardianPhone, t.detailPt) : ""}
+    <div class="vbs-top-left">
+      ${s.childNameLine ? `<div class="vbs-child-name" style="font-size:${t.namePt}pt;margin-bottom:${gap4}">${escapeHtml(s.childNameLine)}</div>` : ""}
+      <hr class="vbs-divider" style="margin:0 0 ${gap4} 0;padding-top:${gapLine}" />
+      ${s.classLine ? vbsLabeledLineHtml(VBS_BADGE_FIELD_LABELS.class, s.classLine, t.classPt, `margin-bottom:${gapDbl}`) : ""}
+      ${s.tShirtSizeLine ? vbsLabeledLineHtml(s.tShirtSizeLabel, s.tShirtSizeLine, t.detailPt, `margin-bottom:${gapDbl}`) : ""}
+    </div>
+    <div class="vbs-top-right">
+      ${s.eventLine ? `<div class="vbs-event" style="font-size:${t.seasonPt}pt;margin-bottom:${gapDbl}">${escapeHtml(s.eventLine)}</div>` : ""}
+    </div>
+    <div class="vbs-bottom-left">
+      ${s.guardianLine ? vbsLabeledLineHtml(VBS_BADGE_FIELD_LABELS.guardianName, s.guardianLine, t.detailPt, `margin-bottom:${gap1}`) : ""}
+      ${s.guardianPhone ? vbsLabeledLineHtml(VBS_BADGE_FIELD_LABELS.guardianNumber, s.guardianPhone, t.detailPt, `margin-bottom:${VBS_BADGE_GAP_PT.beforeAllergies}pt`) : ""}
       ${s.allergiesLine ? vbsLabeledLineHtml(VBS_BADGE_FIELD_LABELS.allergies, s.allergiesLine, t.detailPt) : ""}
     </div>
     <div class="vbs-right">${rightParts.join("")}</div>
@@ -175,16 +189,16 @@ function layoutCss(horizontal: boolean): string {
   `;
 
   const vbs = `
-    .layout-vbs { display: flex; flex-direction: row; align-items: stretch; justify-content: space-between; gap: 0.08in; height: 100%; }
-    .vbs-left { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; text-align: left; padding-top: 0.02in; }
-    .vbs-child-name { font-weight: 800; line-height: 1.05; color: #0f172a; margin-bottom: 0.05in; }
-    .vbs-divider { border: 0; border-top: 1.5px solid #0f172a; width: 100%; margin: 0 0 0.05in 0; }
-    .vbs-event { font-weight: 400; color: #334155; line-height: 1.1; margin-bottom: 0.1in; }
-    .vbs-labeled-line { font-weight: 800; line-height: 1.15; color: #0f172a; margin-bottom: 0.1in; }
-    .vbs-labeled-line.vbs-after-tshirt { margin-bottom: 0.15in; }
-    .vbs-labeled-line.vbs-before-allergies { margin-top: 0.05in; }
+    .layout-vbs { display: grid; grid-template-columns: 1fr auto; grid-template-rows: 1fr auto; height: 100%; width: 100%; column-gap: 0.08in; }
+    .vbs-top-left { grid-column: 1; grid-row: 1; align-self: start; min-width: 0; max-width: 58%; }
+    .vbs-top-right { grid-column: 2; grid-row: 1; align-self: start; text-align: right; }
+    .vbs-bottom-left { grid-column: 1; grid-row: 2; align-self: end; min-width: 0; max-width: 58%; }
+    .vbs-child-name { font-weight: 800; line-height: 1.05; color: #0f172a; }
+    .vbs-divider { border: 0; border-top: 1.5px solid #0f172a; width: 100%; box-sizing: border-box; }
+    .vbs-event { font-weight: 400; color: #334155; line-height: 1.1; }
+    .vbs-labeled-line { font-weight: 800; line-height: 1.15; color: #0f172a; }
     .vbs-label, .vbs-value { font-weight: 800; }
-    .vbs-right { flex-shrink: 0; display: flex; flex-direction: column; align-items: flex-end; justify-content: flex-end; gap: 0.06in; text-align: right; min-width: 0.85in; }
+    .vbs-right { grid-column: 2; grid-row: 2; align-self: end; display: flex; flex-direction: column; align-items: flex-end; gap: 0.05in; text-align: right; min-width: 0.85in; }
     .vbs-reg-number { font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: 0.03em; color: #0f172a; }
     .vbs-qr { display: block; }
     .vbs-timestamp { color: #64748b; line-height: 1.15; }

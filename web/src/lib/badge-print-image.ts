@@ -5,7 +5,7 @@ import {
   type BadgeDetailFieldId,
   type BadgeTypographySettings,
 } from "@/lib/badge-print";
-import { VBS_BADGE_FIELD_LABELS, VBS_BADGE_SPACING } from "@/lib/badge-vbs-layout";
+import { VBS_BADGE_FIELD_LABELS, VBS_BADGE_GAP_PT } from "@/lib/badge-vbs-layout";
 import {
   BADGE_PRINT_FONT_FAMILY,
   badgePrintFontDir,
@@ -456,7 +456,6 @@ function renderVbsHorizontalBrotherWide(payload: BadgePrintPayload, canvas: Labe
   const { w, h } = canvas;
   const s = payload.structured;
   const t = brotherHorPt(payload);
-  const sp = VBS_BADGE_SPACING;
 
   const pad = inchToPx(0.1, canvas);
   const nameSize = ptToPx(t.namePt, canvas);
@@ -465,62 +464,74 @@ function renderVbsHorizontalBrotherWide(payload: BadgePrintPayload, canvas: Labe
   const detailSize = ptToPx(t.detailPt, canvas);
   const codeSize = ptToPx(t.codePt, canvas);
   const timestampSize = ptToPx(t.timestampPt, canvas);
-  const lineGap = inchToPx(t.lineGapIn, canvas);
+  const gap1 = inchToPx(t.lineGapIn, canvas);
+  const gap2 = gap1 * 2;
+  const gap4 = ptToPx(VBS_BADGE_GAP_PT.afterName, canvas);
+  const gapLine = ptToPx(VBS_BADGE_GAP_PT.lineBlock, canvas);
+  const gapAfterDivider = ptToPx(VBS_BADGE_GAP_PT.afterDivider, canvas);
+  const gapBeforeAllergies = ptToPx(VBS_BADGE_GAP_PT.beforeAllergies, canvas);
   const qrSize = inchToPx(t.qrSizeIn, canvas);
   const stroke = Math.max(2, Math.round(inchToPx(0.012, canvas)));
   const rightColW = Math.max(qrSize, inchToPx(0.85, canvas));
   const rightX = w - pad;
-  const textMaxX = rightX - rightColW - inchToPx(0.08, canvas);
+  const leftMaxX = rightX - rightColW - inchToPx(0.08, canvas);
 
-  const gap = (mult: number) => lineGap * mult;
-  const leftParts: string[] = [];
-  let leftY = pad;
+  const topLeftParts: string[] = [];
+  let topLeftY = pad;
 
   if (s.childNameLine) {
-    leftY += nameSize;
-    leftParts.push(
-      `<text x="${pad}" y="${leftY}" font-family="${BADGE_PRINT_FONT_FAMILY}" font-size="${nameSize}" font-weight="800" fill="#0f172a">${escapeXml(s.childNameLine)}</text>`,
+    topLeftY += nameSize;
+    topLeftParts.push(
+      `<text x="${pad}" y="${topLeftY}" font-family="${BADGE_PRINT_FONT_FAMILY}" font-size="${nameSize}" font-weight="800" fill="#0f172a">${escapeXml(s.childNameLine)}</text>`,
     );
   }
 
-  leftY += gap(sp.afterName);
-  const dividerY = leftY;
-  leftParts.push(
-    `<line x1="${pad}" y1="${dividerY}" x2="${textMaxX}" y2="${dividerY}" stroke="#0f172a" stroke-width="${stroke}" />`,
+  topLeftY += gap4;
+  const dividerY = topLeftY + gapLine / 2;
+  topLeftParts.push(
+    `<line x1="${pad}" y1="${dividerY}" x2="${leftMaxX}" y2="${dividerY}" stroke="#0f172a" stroke-width="${stroke}" />`,
   );
-
-  leftY += gap(sp.afterDivider);
-
-  if (s.eventLine) {
-    leftY += eventSize;
-    leftParts.push(
-      `<text x="${pad}" y="${leftY}" font-family="${BADGE_PRINT_FONT_FAMILY}" font-size="${eventSize}" font-weight="400" fill="#334155">${escapeXml(s.eventLine)}</text>`,
-    );
-  }
+  topLeftY += gapLine + gapAfterDivider;
 
   if (s.classLine) {
-    leftY += gap(sp.afterEvent);
-    leftY += classSize;
-    leftParts.push(
-      vbsBoldLabeledLineSvg(pad, leftY, classSize, VBS_BADGE_FIELD_LABELS.class, s.classLine),
+    topLeftY += classSize;
+    topLeftParts.push(
+      vbsBoldLabeledLineSvg(pad, topLeftY, classSize, VBS_BADGE_FIELD_LABELS.class, s.classLine),
     );
   }
 
   if (s.tShirtSizeLine) {
-    leftY += gap(sp.afterClass);
-    leftY += detailSize;
-    leftParts.push(
-      vbsBoldLabeledLineSvg(pad, leftY, detailSize, s.tShirtSizeLabel, s.tShirtSizeLine),
+    topLeftY += gap2;
+    topLeftY += detailSize;
+    topLeftParts.push(
+      vbsBoldLabeledLineSvg(pad, topLeftY, detailSize, s.tShirtSizeLabel, s.tShirtSizeLine),
     );
   }
 
+  topLeftY += gap2;
+
+  const topRightParts: string[] = [];
+  let topRightEnd = pad;
+  if (s.eventLine) {
+    const eventY = pad + eventSize;
+    topRightEnd = eventY + gap2;
+    topRightParts.push(
+      `<text x="${rightX}" y="${eventY}" text-anchor="end" font-family="${BADGE_PRINT_FONT_FAMILY}" font-size="${eventSize}" font-weight="400" fill="#334155">${escapeXml(s.eventLine)}</text>`,
+    );
+  } else {
+    topRightEnd = pad + gap2;
+  }
+
+  const bottomLeftStartY = Math.max(topLeftY, topRightEnd) + gap2;
+  const bottomLeftParts: string[] = [];
+  let bottomLeftY = bottomLeftStartY;
+
   if (s.guardianLine) {
-    leftY += gap(sp.afterTShirt);
-    leftY += detailSize;
-    leftParts.push(
+    bottomLeftY += detailSize;
+    bottomLeftParts.push(
       vbsBoldLabeledLineSvg(
         pad,
-        leftY,
+        bottomLeftY,
         detailSize,
         VBS_BADGE_FIELD_LABELS.guardianName,
         s.guardianLine,
@@ -529,12 +540,12 @@ function renderVbsHorizontalBrotherWide(payload: BadgePrintPayload, canvas: Labe
   }
 
   if (s.guardianPhone) {
-    leftY += gap(sp.afterGuardianName);
-    leftY += detailSize;
-    leftParts.push(
+    bottomLeftY += gap1;
+    bottomLeftY += detailSize;
+    bottomLeftParts.push(
       vbsBoldLabeledLineSvg(
         pad,
-        leftY,
+        bottomLeftY,
         detailSize,
         VBS_BADGE_FIELD_LABELS.guardianNumber,
         s.guardianPhone,
@@ -543,12 +554,12 @@ function renderVbsHorizontalBrotherWide(payload: BadgePrintPayload, canvas: Labe
   }
 
   if (s.allergiesLine) {
-    leftY += gap(sp.afterGuardianNumber);
-    leftY += detailSize;
-    leftParts.push(
+    bottomLeftY += gapBeforeAllergies;
+    bottomLeftY += detailSize;
+    bottomLeftParts.push(
       vbsBoldLabeledLineSvg(
         pad,
-        leftY,
+        bottomLeftY,
         detailSize,
         VBS_BADGE_FIELD_LABELS.allergies,
         s.allergiesLine,
@@ -564,7 +575,7 @@ function renderVbsHorizontalBrotherWide(payload: BadgePrintPayload, canvas: Labe
     rightParts.unshift(
       `<text x="${rightX}" y="${stackBottom + timestampSize * 0.85}" text-anchor="end" font-family="${BADGE_PRINT_FONT_FAMILY}" font-size="${timestampSize}" fill="#64748b">${escapeXml(s.printedAt)}</text>`,
     );
-    stackBottom -= gap(sp.rightQrToTime);
+    stackBottom -= gap1;
   }
 
   if (payload.qrDataUrl && payload.settings.showQrCode) {
@@ -572,7 +583,7 @@ function renderVbsHorizontalBrotherWide(payload: BadgePrintPayload, canvas: Labe
     rightParts.unshift(
       `<image href="${payload.qrDataUrl}" x="${rightX - qrSize}" y="${stackBottom}" width="${qrSize}" height="${qrSize}" />`,
     );
-    stackBottom -= gap(sp.rightRegToQr);
+    stackBottom -= gap1;
   }
 
   if (s.securityCode) {
@@ -582,13 +593,15 @@ function renderVbsHorizontalBrotherWide(payload: BadgePrintPayload, canvas: Labe
     );
   }
 
-  const bodyClip = `<clipPath id="vbs-body-clip"><rect x="0" y="0" width="${textMaxX}" height="${h}" /></clipPath>`;
+  const leftClip = `<clipPath id="vbs-left-clip"><rect x="0" y="0" width="${leftMaxX}" height="${h}" /></clipPath>`;
 
   return `
-    ${bodyClip}
-    <g clip-path="url(#vbs-body-clip)">
-      ${leftParts.join("\n")}
+    ${leftClip}
+    <g clip-path="url(#vbs-left-clip)">
+      ${topLeftParts.join("\n")}
+      ${bottomLeftParts.join("\n")}
     </g>
+    ${topRightParts.join("\n")}
     ${rightParts.join("\n")}
   `;
 }
