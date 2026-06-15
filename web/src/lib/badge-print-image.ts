@@ -5,7 +5,11 @@ import {
   type BadgeDetailFieldId,
   type BadgeTypographySettings,
 } from "@/lib/badge-print";
-import { VBS_BADGE_FIELD_LABELS, VBS_BADGE_GAP_PT } from "@/lib/badge-vbs-layout";
+import {
+  VBS_BADGE_FIELD_LABELS,
+  VBS_BADGE_FONT_PT,
+  VBS_BADGE_GAP_PT,
+} from "@/lib/badge-vbs-layout";
 import {
   BADGE_PRINT_FONT_FAMILY,
   badgePrintFontDir,
@@ -461,7 +465,8 @@ function renderVbsHorizontalBrotherWide(payload: BadgePrintPayload, canvas: Labe
   const nameSize = ptToPx(t.namePt, canvas);
   const eventSize = ptToPx(t.seasonPt, canvas);
   const classSize = ptToPx(t.classPt, canvas);
-  const detailSize = ptToPx(t.detailPt, canvas);
+  const tShirtSize = ptToPx(VBS_BADGE_FONT_PT.tShirt, canvas);
+  const guardianSize = ptToPx(VBS_BADGE_FONT_PT.guardianDetail, canvas);
   const codeSize = ptToPx(t.codePt, canvas);
   const timestampSize = ptToPx(t.timestampPt, canvas);
   const gap1 = inchToPx(t.lineGapIn, canvas);
@@ -502,68 +507,17 @@ function renderVbsHorizontalBrotherWide(payload: BadgePrintPayload, canvas: Labe
 
   if (s.tShirtSizeLine) {
     topLeftY += gap2;
-    topLeftY += detailSize;
+    topLeftY += tShirtSize;
     topLeftParts.push(
-      vbsBoldLabeledLineSvg(pad, topLeftY, detailSize, s.tShirtSizeLabel, s.tShirtSizeLine),
+      vbsBoldLabeledLineSvg(pad, topLeftY, tShirtSize, s.tShirtSizeLabel, s.tShirtSizeLine),
     );
   }
-
-  topLeftY += gap2;
 
   const topRightParts: string[] = [];
-  let topRightEnd = pad;
   if (s.eventLine) {
     const eventY = pad + eventSize;
-    topRightEnd = eventY + gap2;
     topRightParts.push(
       `<text x="${rightX}" y="${eventY}" text-anchor="end" font-family="${BADGE_PRINT_FONT_FAMILY}" font-size="${eventSize}" font-weight="400" fill="#334155">${escapeXml(s.eventLine)}</text>`,
-    );
-  } else {
-    topRightEnd = pad + gap2;
-  }
-
-  const bottomLeftStartY = Math.max(topLeftY, topRightEnd) + gap2;
-  const bottomLeftParts: string[] = [];
-  let bottomLeftY = bottomLeftStartY;
-
-  if (s.guardianLine) {
-    bottomLeftY += detailSize;
-    bottomLeftParts.push(
-      vbsBoldLabeledLineSvg(
-        pad,
-        bottomLeftY,
-        detailSize,
-        VBS_BADGE_FIELD_LABELS.guardianName,
-        s.guardianLine,
-      ),
-    );
-  }
-
-  if (s.guardianPhone) {
-    bottomLeftY += gap1;
-    bottomLeftY += detailSize;
-    bottomLeftParts.push(
-      vbsBoldLabeledLineSvg(
-        pad,
-        bottomLeftY,
-        detailSize,
-        VBS_BADGE_FIELD_LABELS.guardianNumber,
-        s.guardianPhone,
-      ),
-    );
-  }
-
-  if (s.allergiesLine) {
-    bottomLeftY += gapBeforeAllergies;
-    bottomLeftY += detailSize;
-    bottomLeftParts.push(
-      vbsBoldLabeledLineSvg(
-        pad,
-        bottomLeftY,
-        detailSize,
-        VBS_BADGE_FIELD_LABELS.allergies,
-        s.allergiesLine,
-      ),
     );
   }
 
@@ -590,6 +544,50 @@ function renderVbsHorizontalBrotherWide(payload: BadgePrintPayload, canvas: Labe
     stackBottom -= codeSize;
     rightParts.unshift(
       `<text x="${rightX}" y="${stackBottom + codeSize * 0.85}" text-anchor="end" font-family="${BADGE_PRINT_FONT_FAMILY}" font-size="${codeSize}" font-weight="800" fill="#0f172a">${escapeXml(s.securityCode)}</text>`,
+    );
+  }
+
+  const bottomLeftParts: string[] = [];
+  let bottomLeftStack = h - pad;
+
+  if (s.allergiesLine) {
+    bottomLeftStack -= guardianSize;
+    bottomLeftParts.unshift(
+      vbsBoldLabeledLineSvg(
+        pad,
+        bottomLeftStack + guardianSize * 0.85,
+        guardianSize,
+        VBS_BADGE_FIELD_LABELS.allergies,
+        s.allergiesLine,
+      ),
+    );
+  }
+
+  if (s.guardianPhone) {
+    bottomLeftStack -= s.allergiesLine ? gapBeforeAllergies : 0;
+    bottomLeftStack -= guardianSize;
+    bottomLeftParts.unshift(
+      vbsBoldLabeledLineSvg(
+        pad,
+        bottomLeftStack + guardianSize * 0.85,
+        guardianSize,
+        VBS_BADGE_FIELD_LABELS.guardianNumber,
+        s.guardianPhone,
+      ),
+    );
+  }
+
+  if (s.guardianLine) {
+    bottomLeftStack -= !s.guardianPhone && s.allergiesLine ? gapBeforeAllergies : 0;
+    bottomLeftStack -= guardianSize;
+    bottomLeftParts.unshift(
+      vbsBoldLabeledLineSvg(
+        pad,
+        bottomLeftStack + guardianSize * 0.85,
+        guardianSize,
+        VBS_BADGE_FIELD_LABELS.guardianName,
+        s.guardianLine,
+      ),
     );
   }
 

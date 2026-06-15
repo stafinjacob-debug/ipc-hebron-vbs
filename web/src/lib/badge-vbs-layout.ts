@@ -8,6 +8,12 @@ export const VBS_BADGE_FIELD_LABELS = {
   allergies: "Allergies:",
 } as const;
 
+/** Fixed font sizes (pt) for VBS horizontal check-in layout fields. */
+export const VBS_BADGE_FONT_PT = {
+  tShirt: 12,
+  guardianDetail: 8,
+} as const;
+
 /** Fixed vertical gaps in points (pt). Generic "space" uses lineGapIn from typography. */
 export const VBS_BADGE_GAP_PT = {
   afterName: 4,

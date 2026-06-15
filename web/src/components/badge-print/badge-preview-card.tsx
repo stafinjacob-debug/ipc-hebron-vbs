@@ -1,7 +1,7 @@
 import type { CSSProperties } from "react";
 import type { BadgePrintPayload, BadgeTypographySettings } from "@/lib/badge-print";
 import { badgeLabelPageCss } from "@/lib/badge-print";
-import { VBS_BADGE_FIELD_LABELS } from "@/lib/badge-vbs-layout";
+import { VBS_BADGE_FIELD_LABELS, VBS_BADGE_FONT_PT } from "@/lib/badge-vbs-layout";
 
 type Props = {
   payload: BadgePrintPayload;
@@ -138,91 +138,97 @@ function VbsHorizontalPreview({
   const s = payload.structured;
   const qrSizePx = typeStyles ? payload.settings.typography.qrSizeIn * 72 * 0.55 : undefined;
   const lineGap = payload.settings.typography.lineGapIn * 72;
+  const tShirtStyle = { fontSize: previewPt(VBS_BADGE_FONT_PT.tShirt) };
+  const guardianStyle = { fontSize: previewPt(VBS_BADGE_FONT_PT.guardianDetail) };
 
   return (
-    <div className="grid min-h-0 min-w-0 flex-1 grid-cols-[1fr_auto] grid-rows-[1fr_auto] gap-x-2 text-left">
-      <div className="col-start-1 row-start-1 min-w-0 max-w-[58%] self-start">
-        {s.childNameLine ? (
-          <div
-            className="font-extrabold leading-tight text-slate-900"
-            style={{ ...typeStyles?.name, marginBottom: "4pt" }}
-          >
-            {s.childNameLine}
-          </div>
-        ) : null}
-        <hr className="mb-1 border-slate-900" style={{ paddingTop: "6pt", marginBottom: "4pt" }} />
-        {s.classLine ? (
-          <VbsLabeledLine
-            label={VBS_BADGE_FIELD_LABELS.class}
-            value={s.classLine}
-            style={{ ...typeStyles?.class, marginBottom: `${lineGap * 2}pt` }}
-          />
-        ) : null}
-        {s.tShirtSizeLine ? (
-          <VbsLabeledLine
-            label={s.tShirtSizeLabel}
-            value={s.tShirtSizeLine}
-            style={{ ...typeStyles?.detail, marginBottom: `${lineGap * 2}pt` }}
-          />
-        ) : null}
+    <div className="flex min-h-0 min-w-0 flex-1 items-stretch justify-between gap-2 text-left">
+      <div className="flex min-w-0 max-w-[58%] flex-1 flex-col justify-between self-stretch">
+        <div className="min-w-0">
+          {s.childNameLine ? (
+            <div
+              className="font-extrabold leading-tight text-slate-900"
+              style={{ ...typeStyles?.name, marginBottom: "4pt" }}
+            >
+              {s.childNameLine}
+            </div>
+          ) : null}
+          <hr className="border-slate-900" style={{ paddingTop: "6pt", marginBottom: "4pt" }} />
+          {s.classLine ? (
+            <VbsLabeledLine
+              label={VBS_BADGE_FIELD_LABELS.class}
+              value={s.classLine}
+              style={{ ...typeStyles?.class, marginBottom: `${lineGap * 2}pt` }}
+            />
+          ) : null}
+          {s.tShirtSizeLine ? (
+            <VbsLabeledLine
+              label={s.tShirtSizeLabel}
+              value={s.tShirtSizeLine}
+              style={{ ...tShirtStyle, marginBottom: `${lineGap * 2}pt` }}
+            />
+          ) : null}
+        </div>
+        <div className="min-w-0">
+          {s.guardianLine ? (
+            <VbsLabeledLine
+              label={VBS_BADGE_FIELD_LABELS.guardianName}
+              value={s.guardianLine}
+              style={{
+                ...guardianStyle,
+                marginBottom: !s.guardianPhone && s.allergiesLine ? "4pt" : undefined,
+              }}
+            />
+          ) : null}
+          {s.guardianPhone ? (
+            <VbsLabeledLine
+              label={VBS_BADGE_FIELD_LABELS.guardianNumber}
+              value={s.guardianPhone}
+              style={{ ...guardianStyle, marginBottom: s.allergiesLine ? "4pt" : undefined }}
+            />
+          ) : null}
+          {s.allergiesLine ? (
+            <VbsLabeledLine
+              label={VBS_BADGE_FIELD_LABELS.allergies}
+              value={s.allergiesLine}
+              style={guardianStyle}
+            />
+          ) : null}
+        </div>
       </div>
-      <div className="col-start-2 row-start-1 self-start text-right">
-        {s.eventLine ? (
-          <div
-            className="font-normal text-slate-600"
-            style={{ ...typeStyles?.season, marginBottom: `${lineGap * 2}pt` }}
-          >
-            {s.eventLine}
-          </div>
-        ) : null}
-      </div>
-      <div className="col-start-1 row-start-2 min-w-0 max-w-[58%] self-end">
-        {s.guardianLine ? (
-          <VbsLabeledLine
-            label={VBS_BADGE_FIELD_LABELS.guardianName}
-            value={s.guardianLine}
-            style={{ ...typeStyles?.detail, marginBottom: `${lineGap}pt` }}
-          />
-        ) : null}
-        {s.guardianPhone ? (
-          <VbsLabeledLine
-            label={VBS_BADGE_FIELD_LABELS.guardianNumber}
-            value={s.guardianPhone}
-            style={{ ...typeStyles?.detail, marginBottom: "4pt" }}
-          />
-        ) : null}
-        {s.allergiesLine ? (
-          <VbsLabeledLine
-            label={VBS_BADGE_FIELD_LABELS.allergies}
-            value={s.allergiesLine}
-            style={typeStyles?.detail}
-          />
-        ) : null}
-      </div>
-      <div className="col-start-2 row-start-2 flex shrink-0 flex-col items-end justify-end gap-1.5 self-end text-right">
-        {s.securityCode ? (
-          <div className="font-extrabold tabular-nums tracking-wide text-slate-900" style={typeStyles?.code}>
-            {s.securityCode}
-          </div>
-        ) : null}
-        {payload.qrDataUrl && payload.settings.showQrCode ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={payload.qrDataUrl}
-            alt="QR preview"
-            style={
-              qrSizePx
-                ? { width: `${qrSizePx}px`, height: `${qrSizePx}px` }
-                : undefined
-            }
-            className={qrSizePx ? undefined : "size-10"}
-          />
-        ) : null}
-        {s.printedAt ? (
-          <div className="text-slate-400" style={typeStyles?.timestamp}>
-            {s.printedAt}
-          </div>
-        ) : null}
+      <div className="flex shrink-0 flex-col justify-between self-stretch text-right">
+        <div>
+          {s.eventLine ? (
+            <div className="font-normal text-slate-600" style={typeStyles?.season}>
+              {s.eventLine}
+            </div>
+          ) : null}
+        </div>
+        <div className="flex flex-col items-end gap-1.5">
+          {s.securityCode ? (
+            <div className="font-extrabold tabular-nums tracking-wide text-slate-900" style={typeStyles?.code}>
+              {s.securityCode}
+            </div>
+          ) : null}
+          {payload.qrDataUrl && payload.settings.showQrCode ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={payload.qrDataUrl}
+              alt="QR preview"
+              style={
+                qrSizePx
+                  ? { width: `${qrSizePx}px`, height: `${qrSizePx}px` }
+                  : undefined
+              }
+              className={qrSizePx ? undefined : "size-10"}
+            />
+          ) : null}
+          {s.printedAt ? (
+            <div className="text-slate-400" style={typeStyles?.timestamp}>
+              {s.printedAt}
+            </div>
+          ) : null}
+        </div>
       </div>
     </div>
   );
