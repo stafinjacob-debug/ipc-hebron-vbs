@@ -399,55 +399,13 @@ function kidCheckBodyLines(payload: BadgePrintPayload): KidCheckBodyLine[] {
       : s.serviceLine
         ? [{ kind: "class", value: escapeXml(s.serviceLine) }]
         : [],
-    guardian: s.guardianLine
+    allergyFlag: s.medicalLine
       ? [
           {
             kind: "detail",
-            label: "Guardian:",
-            value: escapeXml(s.guardianLine),
-            fontPt: detailPt("guardian:guardianFirstName"),
-          },
-        ]
-      : [],
-    emergency: s.guardianPhone
-      ? [
-          {
-            kind: "detail",
-            label: "Emergency contact:",
-            value: escapeXml(s.guardianPhone),
-            fontPt: detailPt("guardian:guardianPhone"),
-          },
-        ]
-      : [],
-    birthdate: s.birthdate
-      ? [
-          {
-            kind: "detail",
-            label: "Birthdate:",
-            value: escapeXml(s.birthdate),
-            fontPt: detailPt("child:childDateOfBirth"),
-          },
-        ]
-      : [],
-    medical: s.medicalLine
-      ? [
-          {
-            kind: "detail",
-            label: "Medical / allergy info:",
+            label: "Allergies:",
             value: escapeXml(s.medicalLine),
-            fontPt: settings.formFields.some((f) => f.fieldKey === "child:allergiesNotes")
-              ? detailPt("child:allergiesNotes")
-              : settings.typography.detailPt,
-          },
-        ]
-      : [],
-    notes: s.notesLine
-      ? [
-          {
-            kind: "detail",
-            label: "Note:",
-            value: escapeXml(s.notesLine),
-            fontPt: detailPt("staffNotes"),
+            fontPt: settings.typography.detailPt,
           },
         ]
       : [],
@@ -586,6 +544,148 @@ function renderKidCheckBrotherWide(payload: BadgePrintPayload, canvas: LabelCanv
   `;
 }
 
+/** Brother 62 mm: Name + code header — matches admin preview (not KidCheck). */
+function renderNameCodeHeaderBrotherWide(payload: BadgePrintPayload, canvas: LabelCanvas): string {
+  const { w, h } = canvas;
+  const s = payload.structured;
+  const t = brotherHorPt(payload);
+  const typography = t;
+  const pad = inchToPx(0.1, canvas);
+  const nameSize = ptToPx(t.namePt, canvas);
+  const lastNameSize = ptToPx(t.detailPt, canvas);
+  const codeSize = ptToPx(t.codePt, canvas);
+  const classSize = ptToPx(t.classPt, canvas);
+  const detailSize = ptToPx(t.detailPt, canvas);
+  const lineGap = inchToPx(t.lineGapIn, canvas);
+  const wrapGap = inchToPx(t.wrapGapIn, canvas);
+  const stroke = Math.max(2, Math.round(inchToPx(0.018, canvas)));
+  const qrSize = inchToPx(t.qrSizeIn, canvas);
+
+  const rightColW = Math.max(qrSize, inchToPx(0.85, canvas));
+  const rightX = w - pad - rightColW;
+  const textMaxX = rightX - inchToPx(0.08, canvas);
+
+  const codePadY = inchToPx(0.014, canvas);
+  const codeLabelSize = ptToPx(Math.max(6, t.seasonPt), canvas);
+  const codeText = s.securityCode ? escapeXml(s.securityCode) : "";
+  const codeBoxW = rightColW;
+  const codeLabelH = codeText ? codeLabelSize + codePadY : 0;
+  const codeValueH = codeText ? codeSize + codePadY : 0;
+  const codeBoxH = codeText ? codeLabelH + codeValueH : 0;
+
+  let rightY = pad;
+  const codeParts: string[] = [];
+  if (codeText) {
+    codeParts.push(
+      `<rect x="${rightX}" y="${pad}" width="${codeBoxW}" height="${codeBoxH}" fill="#0f172a" rx="2"/>`,
+      `<text x="${rightX + codeBoxW / 2}" y="${pad + codePadY + codeLabelSize * 0.85}" text-anchor="middle" font-family="${BADGE_PRINT_FONT_FAMILY}" font-size="${codeLabelSize}" font-weight="700" fill="#ffffff" opacity="0.85">CODE</text>`,
+      `<text x="${rightX + codeBoxW / 2}" y="${pad + codeLabelH + codeSize * 0.85}" text-anchor="middle" font-family="${BADGE_PRINT_FONT_FAMILY}" font-size="${codeSize}" font-weight="800" fill="#ffffff">${codeText}</text>`,
+    );
+    rightY = pad + codeBoxH + inchToPx(0.04, canvas);
+  }
+
+  const qrY = rightY;
+  const footerQr =
+    payload.qrDataUrl && payload.settings.showQrCode
+      ? `<image href="${payload.qrDataUrl}" x="${rightX + (codeBoxW - qrSize) / 2}" y="${qrY}" width="${qrSize}" height="${qrSize}" />`
+      : "";
+
+  let leftY = pad;
+  const leftParts: string[] = [];
+  if (payload.settings.showChildName && s.firstName) {
+    leftY += nameSize;
+    leftParts.push(
+      `<text x="${pad}" y="${leftY}" font-family="${BADGE_PRINT_FONT_FAMILY}" font-size="${nameSize}" font-weight="800" fill="#0f172a">${escapeXml(s.firstName || payload.childName)}</text>`,
+    );
+  }
+  if (payload.settings.showChildName && s.lastName) {
+    leftY += lastNameSize + lineGap * 0.5;
+    leftParts.push(
+      `<text x="${pad}" y="${leftY}" font-family="${BADGE_PRINT_FONT_FAMILY}" font-size="${lastNameSize}" font-weight="700" fill="#1e293b">${escapeXml(s.lastName)}</text>`,
+    );
+  }
+
+  const dividerY = Math.max(leftY + inchToPx(0.045, canvas), qrY + qrSize + inchToPx(0.02, canvas));
+  leftParts.push(
+    `<line x1="${pad}" y1="${dividerY}" x2="${textMaxX}" y2="${dividerY}" stroke="#0f172a" stroke-width="${stroke}" />`,
+  );
+
+  let bodyY = dividerY + inchToPx(0.055, canvas);
+  const bodyParts: string[] = [];
+  const maxChars = Math.max(16, Math.floor((textMaxX - pad) / (detailSize * 0.55)));
+  const bodyBottom = h - pad;
+
+  if (s.locationLine) {
+    const wrapped = wrapLines(escapeXml(s.locationLine), maxChars, 3);
+    for (let j = 0; j < wrapped.length; j++) {
+      bodyY += classSize + (j === 0 ? 0 : wrapGap);
+      bodyParts.push(
+        `<text x="${pad}" y="${bodyY}" font-family="${BADGE_PRINT_FONT_FAMILY}" font-size="${classSize}" font-weight="800" fill="#0f172a">${wrapped[j]}</text>`,
+      );
+    }
+    bodyY += lineGap;
+  }
+
+  for (const line of s.answerLines) {
+    const label = line.label?.trim();
+    const value = line.text.trim();
+    if (!value) continue;
+    const size = ptToPx(line.fontPt ?? t.detailPt, canvas);
+    const bodyLine: KidCheckBodyLine = {
+      kind: "detail",
+      label: label ? `${label}:` : undefined,
+      value: escapeXml(value),
+      fontPt: line.fontPt,
+    };
+    const block = renderKidCheckBodyLineBlock(
+      bodyLine,
+      pad,
+      bodyY,
+      size,
+      "#1e293b",
+      typography,
+      maxChars,
+      3,
+      wrapGap,
+    );
+    if (block.endY > bodyBottom) break;
+    bodyParts.push(...block.parts);
+    bodyY = block.endY + lineGap;
+  }
+
+  if (s.medicalLine) {
+    const bodyLine: KidCheckBodyLine = {
+      kind: "detail",
+      label: "Allergies:",
+      value: escapeXml(s.medicalLine),
+    };
+    const block = renderKidCheckBodyLineBlock(
+      bodyLine,
+      pad,
+      bodyY,
+      detailSize,
+      "#1e293b",
+      typography,
+      maxChars,
+      2,
+      wrapGap,
+    );
+    bodyParts.push(...block.parts);
+  }
+
+  const bodyClip = `<clipPath id="name-code-body-clip"><rect x="0" y="${dividerY}" width="${textMaxX}" height="${h - dividerY}" /></clipPath>`;
+
+  return `
+    ${bodyClip}
+    ${leftParts.join("\n")}
+    ${codeParts.join("\n")}
+    ${footerQr}
+    <g clip-path="url(#name-code-body-clip)">
+      ${bodyParts.join("\n")}
+    </g>
+  `;
+}
+
 function renderStandardBrotherWide(payload: BadgePrintPayload, canvas: LabelCanvas): string {
   const { w } = canvas;
   const t = brotherHorPt(payload);
@@ -648,16 +748,13 @@ export function buildBadgePrintSvg(
   const { w, h } = canvas;
 
   const layout = payload.settings.horizontalLayout;
-  const inner =
-    options.brotherQl && dims.isHorizontal
-      ? layout === "STANDARD"
-        ? renderStandardBrotherWide(payload, canvas)
+  const inner = dims.isHorizontal
+    ? layout === "STANDARD"
+      ? renderStandardBrotherWide(payload, canvas)
+      : layout === "NAME_CODE_HEADER"
+        ? renderNameCodeHeaderBrotherWide(payload, canvas)
         : renderKidCheckBrotherWide(payload, canvas)
-      : dims.isHorizontal && layout === "KIDCHECK"
-        ? renderKidCheck(payload, canvas)
-        : dims.isHorizontal && layout === "NAME_CODE_HEADER"
-          ? renderKidCheck(payload, canvas)
-          : renderStandardVertical(payload, canvas);
+    : renderStandardVertical(payload, canvas);
 
   if (options.brotherQl && dims.isHorizontal) {
     // Rotate the landscape badge 90° into a portrait PNG (tape width × label length).

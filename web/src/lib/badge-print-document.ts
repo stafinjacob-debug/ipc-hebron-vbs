@@ -67,25 +67,21 @@ function renderStandardHorizontal(payload: BadgePrintPayload): string {
 
 function renderNameCodeHeader(payload: BadgePrintPayload): string {
   const s = payload.structured;
+  const typography = payload.settings.typography;
   const codeHtml = s.securityCode
-    ? `<div class="code-box"><span class="code-label">Code</span><span class="code-value">${escapeHtml(s.securityCode)}</span></div>`
+    ? `<div class="code-box"><span class="code-label">Registration code</span><span class="code-value">${escapeHtml(s.securityCode)}</span></div>`
     : "";
-  const checkInHtml =
-    s.guardianLine || s.guardianPhone
-      ? `<div class="checkin-meta">
-          ${s.guardianLine ? `<div>Guardian ${escapeHtml(s.guardianLine)}</div>` : ""}
-          ${s.guardianPhone ? `<div>${escapeHtml(s.guardianPhone)}</div>` : ""}
-        </div>`
-      : "";
 
   const answersHtml = s.answerLines.length
-    ? `<div class="detail-block"><span class="detail-label">Answers</span><div class="detail-text">${s.answerLines
-        .map((l) => `<div>${l.label ? `<strong>${escapeHtml(l.label)}:</strong> ` : ""}${escapeHtml(l.text)}</div>`)
+    ? `<div class="detail-block"><div class="detail-text">${s.answerLines
+        .map((l) =>
+          detailLineHtml(`${l.label ?? "Field"}:`, l.text, typography, l.fontPt),
+        )
         .join("")}</div></div>`
     : "";
 
   const medicalHtml = s.medicalLine
-    ? `<div class="detail-block"><span class="detail-label">Medical notes</span><div class="detail-text">${escapeHtml(s.medicalLine)}</div></div>`
+    ? detailLineHtml("Allergies:", s.medicalLine, typography)
     : "";
 
   const qrHtml =
@@ -103,7 +99,7 @@ function renderNameCodeHeader(payload: BadgePrintPayload): string {
             : ""
         }
       </div>
-      <div class="header-right">${codeHtml}${checkInHtml}${qrHtml}</div>
+      <div class="header-right">${codeHtml}${qrHtml}</div>
     </div>
     <hr class="divider" />
     ${s.locationLine ? `<div class="location-line">${escapeHtml(s.locationLine)}</div>` : ""}
@@ -155,12 +151,8 @@ function renderKidCheck(payload: BadgePrintPayload): string {
       <hr class="divider" />
       ${s.seasonLine ? `<div class="kidcheck-season">${escapeHtml(s.seasonLine)}</div>` : ""}
       ${s.classLine ? `<div class="kidcheck-class">${escapeHtml(s.classLine)}</div>` : s.serviceLine ? `<div class="kidcheck-class">${escapeHtml(s.serviceLine)}</div>` : ""}
-      ${s.guardianLine ? detailLineHtml("Guardian:", s.guardianLine, typography) : ""}
-      ${s.guardianPhone ? detailLineHtml("Emergency contact:", s.guardianPhone, typography) : ""}
-      ${s.birthdate ? detailLineHtml("Birthdate:", s.birthdate, typography) : ""}
-      ${s.medicalLine ? detailLineHtml("Medical / allergy info:", s.medicalLine, typography) : ""}
-      ${s.notesLine ? detailLineHtml("Note:", s.notesLine, typography) : ""}
-      ${s.answerLines.length ? `<div class="kidcheck-line">${s.answerLines.map((l) => detailLineHtml(`${l.label ?? "Answer"}:`, l.text, typography, l.fontPt)).join("")}</div>` : ""}
+      ${s.answerLines.map((l) => detailLineHtml(`${l.label ?? "Field"}:`, l.text, typography, l.fontPt)).join("")}
+      ${s.medicalLine ? detailLineHtml("Allergies:", s.medicalLine, typography) : ""}
       <div class="kidcheck-footer">${footerParts.join("")}</div>
     </div>
     ${logoHtml}

@@ -178,9 +178,10 @@ export function BadgePrintSettingsForm({
       ) : null}
 
       <div className="rounded-xl border border-foreground/10 p-4">
-        <h2 className="text-sm font-semibold text-foreground/90">General</h2>
+        <h2 className="text-sm font-semibold text-foreground/90">Print preferences</h2>
         <p className="mt-1 text-sm text-muted">
-          Control whether volunteers can print thermal badges from the check-in desk on iPads.
+          Control check-in desk printing on iPads. Save settings to apply at the check-in desk — no app
+          update needed.
         </p>
         <div className="mt-4 space-y-3">
           <FieldCheckbox
@@ -192,7 +193,7 @@ export function BadgePrintSettingsForm({
           <FieldCheckbox
             name="autoPrintOnCheckIn"
             label="Auto-print when checking in"
-            description="Opens the print dialog immediately after staff tap Check in (iPad must be paired to the thermal printer)."
+            description="Prints a badge immediately after staff tap Check in (iPad must be paired to the thermal printer)."
             checked={draft.autoPrintOnCheckIn}
             onChange={(autoPrintOnCheckIn) => patchDraft({ autoPrintOnCheckIn })}
           />
@@ -200,13 +201,13 @@ export function BadgePrintSettingsForm({
       </div>
 
       <div className="rounded-xl border border-foreground/10 p-4">
-        <h2 className="text-sm font-semibold text-foreground/90">Label size & orientation</h2>
+        <h2 className="text-sm font-semibold text-foreground/90">Label stock & layout</h2>
         <p className="mt-1 text-sm text-muted">
-          Match your physical label stock. For iPad check-in with a Brother QL-820 on DK-2205 (62 mm
-          tape), choose <strong className="font-medium text-foreground/80">62 mm continuous roll</strong>
-          , <strong className="font-medium text-foreground/80">Horizontal</strong> orientation, and a
-          horizontal layout below. On the printer, set media to <strong className="font-medium text-foreground/80">62 mm continuous</strong> (not die-cut).
-          The app preview shows the web layout; iPads print a landscape badge on the roll.
+          Match your physical label stock. For Brother QL-820 on DK-2205 (62 mm tape), choose{" "}
+          <strong className="font-medium text-foreground/80">62 mm continuous roll</strong> and{" "}
+          <strong className="font-medium text-foreground/80">Horizontal</strong>. Set the printer media
+          to <strong className="font-medium text-foreground/80">62 mm continuous</strong> (not die-cut).
+          The preview below matches what iPads print.
         </p>
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
           <div>
@@ -288,13 +289,14 @@ export function BadgePrintSettingsForm({
       </div>
 
       <div className="rounded-xl border border-foreground/10 p-4">
-        <h2 className="text-sm font-semibold text-foreground/90">Fields to print</h2>
+        <h2 className="text-sm font-semibold text-foreground/90">Built-in fields</h2>
         <p className="mt-1 text-sm text-muted">
-          Classroom badge and check-in labels are set per class under{" "}
+          Standard check-in data always available for every registration. Class names and check-in labels
+          come from{" "}
           <Link href="/classes" className="font-medium text-brand underline">
             Classes
           </Link>
-          .
+          . Add guardian phone, t-shirt size, and other answers under Registration form fields below.
         </p>
         <div className="mt-4 grid gap-2 sm:grid-cols-2">
           <FieldCheckbox
@@ -311,7 +313,8 @@ export function BadgePrintSettingsForm({
           />
           <FieldCheckbox
             name="showRegistrationNumber"
-            label="Registration number"
+            label="Registration code"
+            description="Printed in the header box on horizontal layouts."
             checked={draft.showRegistrationNumber}
             onChange={(showRegistrationNumber) => patchDraft({ showRegistrationNumber })}
           />
@@ -354,8 +357,8 @@ export function BadgePrintSettingsForm({
       <div className="rounded-xl border border-foreground/10 p-4">
         <h2 className="text-sm font-semibold text-foreground/90">Registration form fields</h2>
         <p className="mt-1 text-sm text-muted">
-          Pull additional answers from your published registration form onto each badge — values come from
-          each child&apos;s submission at print time. Set a font size for each field individually.
+          Each field prints once as <strong className="font-medium text-foreground/80">Label: value</strong>{" "}
+          using the child&apos;s submitted answers. Reorder with ↑↓ — that order is used on the label.
         </p>
         <div className="mt-4">
           <BadgeFormFieldsPicker
@@ -370,10 +373,11 @@ export function BadgePrintSettingsForm({
       {draft.orientation === "HORIZONTAL" &&
       (draft.horizontalLayout === "KIDCHECK" || draft.horizontalLayout === "NAME_CODE_HEADER") ? (
         <div className="rounded-xl border border-foreground/10 p-4">
-          <h2 className="text-sm font-semibold text-foreground/90">Detail field order</h2>
+          <h2 className="text-sm font-semibold text-foreground/90">Line order</h2>
           <p className="mt-1 text-sm text-muted">
-            Reorder lines printed below the name on horizontal badges. Name, security code, QR code, logo
-            strip, and timestamp stay in fixed positions — only the detail block order changes.
+            Reorder the blocks below the name on horizontal badges. The header (name, registration code,
+            QR{draft.horizontalLayout === "KIDCHECK" ? ", logo strip, timestamp" : ""}) stays fixed — only
+            these lines move.
           </p>
           <div className="mt-4">
             <BadgeDetailFieldOrderEditor
@@ -415,7 +419,7 @@ export function BadgePrintSettingsForm({
             />
             <TypographyNumberField
               label="Detail lines"
-              description="Default size for built-in lines (guardian, medical) when not added as form fields above."
+              description="Default size for registration form fields when no per-field size is set."
               value={typography.detailPt}
               min={6}
               max={24}
@@ -433,7 +437,7 @@ export function BadgePrintSettingsForm({
               onChange={(seasonPt) => patchTypography({ seasonPt })}
             />
             <TypographyNumberField
-              label="Security code"
+              label="Registration code"
               value={typography.codePt}
               min={6}
               max={18}
@@ -484,7 +488,7 @@ export function BadgePrintSettingsForm({
           <div className="mt-4 space-y-2 border-t border-foreground/10 pt-4">
             <span className="block text-xs font-medium text-foreground/70">Detail line weight</span>
             <p className="text-[11px] text-muted">
-              Control bold vs regular text on KidCheck-style detail lines (e.g.{" "}
+              Control bold vs regular text on detail lines (e.g.{" "}
               <span className="font-semibold text-foreground/80">T-Shirt Size:</span>{" "}
               <span className="font-normal text-foreground/80">Adult-Small</span>).
             </p>
@@ -550,7 +554,9 @@ export function BadgePrintSettingsForm({
 
       <div className="rounded-xl border border-foreground/10 p-4">
         <h2 className="text-sm font-semibold text-foreground/90">Preview</h2>
-        <p className="mt-1 text-sm text-muted">Live preview of your layout. Save to apply at the check-in desk.</p>
+        <p className="mt-1 text-sm text-muted">
+          Matches iPad Brother printing for your selected layout. Save to apply at the check-in desk.
+        </p>
         <div className="mt-4 flex justify-center rounded-lg bg-foreground/[0.03] p-6">
           <BadgePreviewCard payload={previewPayload} />
         </div>

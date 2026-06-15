@@ -115,7 +115,17 @@ function NameCodeHeaderPreview({
   typeStyles: ReturnType<typeof typographyStyles>;
 }) {
   const s = payload.structured;
+  const { detailLabelBold, detailValueBold } = payload.settings.typography;
+  const labelClass = detailLabelBold ? "font-bold" : "font-normal";
+  const valueClass = detailValueBold ? "font-semibold" : "font-normal";
   const qrSizePx = typeStyles ? payload.settings.typography.qrSizeIn * 72 * 0.55 : undefined;
+  const detailLine = (label: string, value: string, fontPt?: number) => (
+    <div style={fontPt ? { fontSize: previewPt(fontPt) } : typeStyles?.detail}>
+      <span className={labelClass}>{label}</span>{" "}
+      <span className={valueClass}>{value}</span>
+    </div>
+  );
+
   return (
     <div className="flex min-w-0 flex-1 flex-col gap-1 text-left">
       <div className="flex items-start justify-between gap-2">
@@ -137,17 +147,11 @@ function NameCodeHeaderPreview({
           {s.securityCode ? (
             <div className="rounded bg-slate-900 px-2 py-1 text-center text-white">
               <div className="font-bold uppercase tracking-wider opacity-80" style={typeStyles?.season}>
-                Code
+                Registration code
               </div>
               <div className="font-extrabold tabular-nums" style={typeStyles?.code}>
                 {s.securityCode}
               </div>
-            </div>
-          ) : null}
-          {s.guardianLine || s.guardianPhone ? (
-            <div className="text-right text-slate-500" style={typeStyles?.detail}>
-              {s.guardianLine ? <div>Guardian {s.guardianLine}</div> : null}
-              {s.guardianPhone ? <div>{s.guardianPhone}</div> : null}
             </div>
           ) : null}
           {payload.qrDataUrl && payload.settings.showQrCode ? (
@@ -171,38 +175,12 @@ function NameCodeHeaderPreview({
           {s.locationLine}
         </div>
       ) : null}
-      {s.answerLines.length ? (
-        <div style={typeStyles?.gap}>
-          <div className="font-bold uppercase tracking-wide text-slate-400" style={typeStyles?.season}>
-            Registration fields
-          </div>
-          <div className="font-semibold text-slate-700" style={typeStyles?.detail}>
-            {s.answerLines.map((l) => (
-              <div
-                key={`${l.label}-${l.text}`}
-                style={
-                  l.fontPt
-                    ? { fontSize: previewPt(l.fontPt) }
-                    : undefined
-                }
-              >
-                {l.label ? `${l.label}: ` : ""}
-                {l.text}
-              </div>
-            ))}
-          </div>
+      {s.answerLines.map((l) => (
+        <div key={`${l.label}-${l.text}`} style={typeStyles?.gap}>
+          {detailLine(`${l.label ?? "Field"}:`, l.text, l.fontPt)}
         </div>
-      ) : null}
-      {s.medicalLine ? (
-        <div>
-          <div className="font-bold uppercase tracking-wide text-slate-400" style={typeStyles?.season}>
-            Medical notes
-          </div>
-          <div className="font-semibold text-slate-700" style={typeStyles?.detail}>
-            {s.medicalLine}
-          </div>
-        </div>
-      ) : null}
+      ))}
+      {s.medicalLine ? detailLine("Allergies:", s.medicalLine) : null}
     </div>
   );
 }
@@ -260,11 +238,6 @@ function KidCheckPreview({
             {s.serviceLine}
           </div>
         ) : null}
-        {s.guardianLine ? detailBlock("Guardian:", s.guardianLine) : null}
-        {s.guardianPhone ? detailBlock("Emergency contact:", s.guardianPhone) : null}
-        {s.birthdate ? detailBlock("Birthdate:", s.birthdate) : null}
-        {s.medicalLine ? detailBlock("Medical / allergy info:", s.medicalLine) : null}
-        {s.notesLine ? detailBlock("Note:", s.notesLine) : null}
         {s.answerLines.length ? (
           <div style={typeStyles?.gap}>
             {s.answerLines.map((l) => (
@@ -278,6 +251,7 @@ function KidCheckPreview({
             ))}
           </div>
         ) : null}
+        {s.medicalLine ? detailBlock("Allergies:", s.medicalLine) : null}
         <div className="mt-auto flex flex-col items-center gap-0.5 pt-1">
           {s.printedAt ? (
             <div className="text-slate-400" style={typeStyles?.timestamp}>

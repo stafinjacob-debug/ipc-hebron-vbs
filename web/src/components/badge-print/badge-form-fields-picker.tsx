@@ -77,9 +77,9 @@ export function BadgeFormFieldsPicker({
     <div className="space-y-3">
       {fields.length === 0 ? (
         <p className="text-sm text-muted">
-          Add answers from your registration form — guardian phone, custom child questions, and more.
-          In KidCheck or Name + code layouts, guardian and birthdate appear only when you add those
-          fields here.
+          Add registration form answers here — each field prints once on the label as{" "}
+          <span className="font-medium text-foreground/80">Label: value</span>, in the order shown.
+          Use built-in fields above for name, class, registration code, and QR.
         </p>
       ) : (
         <ul className="space-y-2">

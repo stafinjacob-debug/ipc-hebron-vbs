@@ -62,26 +62,14 @@ export type BadgeTypographySettings = {
   detailValueBold: boolean;
 };
 
-/** Reorderable blocks on KidCheck / horizontal badges (below name & security code). */
-export type BadgeDetailFieldId =
-  | "season"
-  | "class"
-  | "guardian"
-  | "emergency"
-  | "birthdate"
-  | "medical"
-  | "notes"
-  | "formFields";
+/** Reorderable blocks on horizontal KidCheck / Name + code badges (below header). */
+export type BadgeDetailFieldId = "season" | "class" | "allergyFlag" | "formFields";
 
 export const DEFAULT_BADGE_DETAIL_FIELD_ORDER: BadgeDetailFieldId[] = [
   "season",
   "class",
-  "guardian",
-  "emergency",
-  "birthdate",
-  "medical",
-  "notes",
   "formFields",
+  "allergyFlag",
 ];
 
 export const BADGE_DETAIL_FIELD_OPTIONS: {
@@ -89,25 +77,17 @@ export const BADGE_DETAIL_FIELD_OPTIONS: {
   label: string;
   description: string;
 }[] = [
-  { id: "season", label: "Season name", description: "When enabled under Fields to print." },
+  { id: "season", label: "Season name", description: "When enabled under Built-in fields." },
   { id: "class", label: "Class / badge name", description: "Classroom or badge display name." },
-  { id: "guardian", label: "Guardian", description: "When guardian name is added as a form field." },
-  {
-    id: "emergency",
-    label: "Emergency contact",
-    description: "When guardian phone is added as a form field.",
-  },
-  { id: "birthdate", label: "Birthdate", description: "When birthdate is added as a form field." },
-  {
-    id: "medical",
-    label: "Medical / allergy info",
-    description: "Allergy flag or allergies form field.",
-  },
-  { id: "notes", label: "Staff notes", description: "When staff notes are added as a form field." },
   {
     id: "formFields",
     label: "Registration form fields",
-    description: "Custom fields you add below — use ↑↓ there to order within this group.",
+    description: "Print in the order listed under Registration form fields below.",
+  },
+  {
+    id: "allergyFlag",
+    label: "Allergy flag",
+    description: 'When enabled under Built-in fields — prints "Allergies on file".',
   },
 ];
 
@@ -203,7 +183,7 @@ export const BADGE_HORIZONTAL_LAYOUT_OPTIONS: {
     value: "KIDCHECK",
     label: "KidCheck-style",
     description:
-      "Security code box, service/class line, guardian and birthdate, medical notes, vertical logo strip, timestamp and barcode.",
+      "Name and registration code header, detail lines below, QR and optional logo strip on the right, timestamp at bottom.",
   },
 ];
 
@@ -424,35 +404,6 @@ function badgeFormFieldLabel(fieldKey: string, fieldOptions: ExportFieldOption[]
   return full.replace(/^(Guardian|Child):\s*/i, "");
 }
 
-const STRUCTURED_LAYOUT_EXCLUDED_FORM_KEYS = new Set([
-  "guardian:guardianFirstName",
-  "guardian:guardianLastName",
-  "guardian:guardianPhone",
-]);
-
-function usesStructuredHorizontalLayout(settings: ResolvedBadgePrintSettings): boolean {
-  return (
-    settings.orientation === "HORIZONTAL" &&
-    (settings.horizontalLayout === "KIDCHECK" || settings.horizontalLayout === "NAME_CODE_HEADER")
-  );
-}
-
-function shouldSkipFormFieldOnBadge(fieldKey: string, settings: ResolvedBadgePrintSettings): boolean {
-  if (!usesStructuredHorizontalLayout(settings)) return false;
-  if (STRUCTURED_LAYOUT_EXCLUDED_FORM_KEYS.has(fieldKey)) return true;
-  if (fieldKey === "staffNotes" && shouldShowStaffNotesOnStructuredBadge(settings)) return true;
-  if (
-    fieldKey === "child:allergiesNotes" &&
-    (settings.showAllergyFlag || shouldShowAllergyDetailsOnStructuredBadge(settings))
-  ) {
-    return true;
-  }
-  if (fieldKey === "child:childDateOfBirth" && shouldShowBirthdateOnStructuredBadge(settings)) {
-    return true;
-  }
-  return false;
-}
-
 function sampleFormFieldValue(fieldKey: string, fieldOptions: ExportFieldOption[]): string {
   if (SAMPLE_FORM_FIELD_VALUES[fieldKey]) return SAMPLE_FORM_FIELD_VALUES[fieldKey]!;
   const label = badgeFormFieldLabel(fieldKey, fieldOptions);
@@ -484,42 +435,6 @@ type BuildBadgeInput = {
   fieldOptions?: ExportFieldOption[];
   printedAt?: Date;
 };
-
-function formatBirthdate(value: Date | string | null | undefined): string | null {
-  if (!value) return null;
-  const d = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(d.getTime())) return null;
-  return d.toLocaleDateString("en-US", { month: "numeric", day: "numeric", year: "numeric" });
-}
-
-function formFieldsInclude(settings: ResolvedBadgePrintSettings, ...keys: string[]): boolean {
-  const wanted = new Set(keys);
-  return settings.formFields.some((f) => wanted.has(f.fieldKey));
-}
-
-function shouldShowGuardianNameOnStructuredBadge(settings: ResolvedBadgePrintSettings): boolean {
-  return formFieldsInclude(
-    settings,
-    "guardian:guardianFirstName",
-    "guardian:guardianLastName",
-  );
-}
-
-function shouldShowGuardianPhoneOnStructuredBadge(settings: ResolvedBadgePrintSettings): boolean {
-  return formFieldsInclude(settings, "guardian:guardianPhone");
-}
-
-function shouldShowBirthdateOnStructuredBadge(settings: ResolvedBadgePrintSettings): boolean {
-  return formFieldsInclude(settings, "child:childDateOfBirth");
-}
-
-function shouldShowStaffNotesOnStructuredBadge(settings: ResolvedBadgePrintSettings): boolean {
-  return formFieldsInclude(settings, "staffNotes");
-}
-
-function shouldShowAllergyDetailsOnStructuredBadge(settings: ResolvedBadgePrintSettings): boolean {
-  return formFieldsInclude(settings, "child:allergiesNotes");
-}
 
 export function formatSampleRegistrationNumber(
   prefix: string | null | undefined,
@@ -553,22 +468,8 @@ function buildStructuredData(input: BuildBadgeInput, answerLines: BadgePrintLine
   const serviceLine =
     seasonLine && classLine ? `${input.seasonName} — ${classLine}` : locationLine;
 
-  const guardianFirst = input.guardianFirstName?.trim() ?? "";
-  const guardianLast = input.guardianLastName?.trim() ?? "";
-  const guardianLine =
-    shouldShowGuardianNameOnStructuredBadge(input.settings) && (guardianLast || guardianFirst)
-      ? `${guardianLast}${guardianLast && guardianFirst ? ", " : ""}${guardianFirst}`.trim()
-      : null;
-
-  let medicalLine: string | null = null;
-  if (input.settings.showAllergyFlag && input.allergiesNotes?.trim()) {
-    medicalLine = "Allergies on file";
-  } else if (
-    shouldShowAllergyDetailsOnStructuredBadge(input.settings) &&
-    input.allergiesNotes?.trim()
-  ) {
-    medicalLine = input.allergiesNotes.trim();
-  }
+  const medicalLine =
+    input.settings.showAllergyFlag && input.allergiesNotes?.trim() ? "Allergies on file" : null;
 
   const securityCode =
     input.settings.showRegistrationNumber && input.registrationNumber
@@ -591,17 +492,11 @@ function buildStructuredData(input: BuildBadgeInput, answerLines: BadgePrintLine
     seasonLine,
     classLine,
     locationLine,
-    guardianLine,
-    guardianPhone: shouldShowGuardianPhoneOnStructuredBadge(input.settings)
-      ? input.guardianPhone?.trim() || null
-      : null,
-    birthdate: shouldShowBirthdateOnStructuredBadge(input.settings)
-      ? formatBirthdate(input.childDateOfBirth)
-      : null,
+    guardianLine: null,
+    guardianPhone: null,
+    birthdate: null,
     medicalLine,
-    notesLine: shouldShowStaffNotesOnStructuredBadge(input.settings)
-      ? input.staffNotes?.trim() || null
-      : null,
+    notesLine: null,
     answerLines,
     printedAt,
   };
@@ -634,7 +529,6 @@ export function buildBadgePrintPayload(input: BuildBadgeInput): BadgePrintPayloa
   }
 
   for (const field of input.settings.formFields) {
-    if (shouldSkipFormFieldOnBadge(field.fieldKey, input.settings)) continue;
     const label = badgeFormFieldLabel(field.fieldKey, fieldOptions);
     const text = input.registrationRow
       ? resolveRegistrationExportFieldValue(input.registrationRow, input.seasonName, field.fieldKey)
@@ -693,20 +587,17 @@ export function sampleBadgePreviewPayload(
 ): BadgePrintPayload {
   const seasonName = options.seasonName ?? "Summer VBS";
   const seasonYear = options.seasonYear ?? 2026;
-  const showBirthdate = shouldShowBirthdateOnStructuredBadge(settings);
-  const showStaffNotes = shouldShowStaffNotesOnStructuredBadge(settings);
-  const showAllergyDetails = shouldShowAllergyDetailsOnStructuredBadge(settings);
-  const showGuardianName = shouldShowGuardianNameOnStructuredBadge(settings);
-  const showGuardianPhone = shouldShowGuardianPhoneOnStructuredBadge(settings);
 
   return buildBadgePrintPayload({
     settings,
     registrationId: "preview",
     childFirstName: "Alex",
     childLastName: "Rivera",
-    childDateOfBirth: showBirthdate ? "2018-06-15" : null,
+    childDateOfBirth: "2018-06-15",
     allergiesNotes:
-      settings.showAllergyFlag || showAllergyDetails ? "Peanut / tree nut allergy" : null,
+      settings.showAllergyFlag || settings.formFields.some((f) => f.fieldKey === "child:allergiesNotes")
+        ? "Peanut / tree nut allergy"
+        : null,
     registrationNumber: settings.showRegistrationNumber
       ? formatSampleRegistrationNumber(
           options.registrationNumberPrefix,
@@ -715,12 +606,12 @@ export function sampleBadgePreviewPayload(
         )
       : null,
     submissionCode: "ABC123",
-    staffNotes: showStaffNotes
+    staffNotes: settings.formFields.some((f) => f.fieldKey === "staffNotes")
       ? "Potty training — please take to bathroom every 30 minutes."
       : null,
-    guardianFirstName: showGuardianName ? "Maria" : null,
-    guardianLastName: showGuardianName ? "Rivera" : null,
-    guardianPhone: showGuardianPhone ? "(555) 123-4567" : null,
+    guardianFirstName: "Maria",
+    guardianLastName: "Rivera",
+    guardianPhone: "(555) 123-4567",
     checkInToken: settings.showQrCode ? "preview-token" : null,
     seasonName,
     seasonYear,
