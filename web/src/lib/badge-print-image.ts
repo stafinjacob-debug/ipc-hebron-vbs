@@ -439,295 +439,124 @@ function brotherHorPt(payload: BadgePrintPayload) {
   return payload.settings.typography;
 }
 
-/** Brother 62 mm media: text block left, QR right — drawn landscape, rotated at output. */
-function renderKidCheckBrotherWide(payload: BadgePrintPayload, canvas: LabelCanvas): string {
+/** VBS check-in horizontal badge — left stack + bottom-right reg / QR / timestamp. */
+function renderVbsHorizontalBrotherWide(payload: BadgePrintPayload, canvas: LabelCanvas): string {
   const { w, h } = canvas;
   const s = payload.structured;
   const t = brotherHorPt(payload);
-  const name = escapeXml(`${s.firstName} ${s.lastName}`.trim() || payload.childName);
 
   const pad = inchToPx(0.1, canvas);
   const nameSize = ptToPx(t.namePt, canvas);
-  const codeSize = ptToPx(t.codePt, canvas);
+  const eventSize = ptToPx(t.seasonPt, canvas);
   const classSize = ptToPx(t.classPt, canvas);
-  const lineSize = ptToPx(t.detailPt, canvas);
-  const seasonSize = ptToPx(t.seasonPt, canvas);
+  const detailSize = ptToPx(t.detailPt, canvas);
+  const codeSize = ptToPx(t.codePt, canvas);
   const timestampSize = ptToPx(t.timestampPt, canvas);
   const lineGap = inchToPx(t.lineGapIn, canvas);
-  const wrapGap = inchToPx(t.wrapGapIn, canvas);
-  const stroke = Math.max(2, Math.round(inchToPx(0.018, canvas)));
   const qrSize = inchToPx(t.qrSizeIn, canvas);
+  const rightColW = Math.max(qrSize, inchToPx(0.85, canvas));
+  const rightX = w - pad;
+  const textMaxX = rightX - rightColW - inchToPx(0.08, canvas);
 
-  const stripW = payload.settings.logoUrl ? inchToPx(0.28, canvas) : 0;
-  const stripX = w - pad - stripW;
-  const qrX = stripX - (stripW ? inchToPx(0.04, canvas) : 0) - qrSize;
-  const textMaxX = qrX - inchToPx(0.06, canvas);
+  const leftParts: string[] = [];
+  let leftY = pad;
 
-  const codePadY = inchToPx(0.016, canvas);
-  const codeText = s.securityCode ? escapeXml(s.securityCode) : "";
-  const codeBoxW = qrSize;
-  const codeBoxH = codeText ? codeSize + codePadY * 2 : 0;
-  const codeBoxX = qrX;
-  const code = codeText
-    ? `<rect x="${codeBoxX}" y="${pad}" width="${codeBoxW}" height="${codeBoxH}" fill="#0f172a" rx="2"/>
-       <text x="${codeBoxX + codeBoxW / 2}" y="${pad + codePadY + codeSize * 0.82}" text-anchor="middle" font-family="${BADGE_PRINT_FONT_FAMILY}" font-size="${codeSize}" font-weight="800" fill="#ffffff">${codeText}</text>`
-    : "";
-
-  const nameY = pad + nameSize;
-  const dividerY = nameY + inchToPx(0.05, canvas);
-  const qrY = codeText ? pad + codeBoxH + inchToPx(0.04, canvas) : dividerY;
-
-  let bodyY = dividerY + inchToPx(0.055, canvas);
-  const bodyParts: string[] = [];
-  const maxChars = Math.max(18, Math.floor((textMaxX - pad) / (lineSize * 0.55)));
-  const bodyBottom = h - pad - (s.printedAt ? timestampSize + inchToPx(0.04, canvas) : 0);
-  const typography = payload.settings.typography;
-  for (const line of kidCheckBodyLines(payload)) {
-    const size =
-      line.kind === "season"
-        ? seasonSize
-        : line.kind === "class"
-          ? classSize
-          : ptToPx(line.fontPt ?? t.detailPt, canvas);
-    const fill = line.kind === "season" ? "#64748b" : "#1e293b";
-    const block = renderKidCheckBodyLineBlock(
-      line,
-      pad,
-      bodyY,
-      size,
-      fill,
-      typography,
-      maxChars,
-      4,
-      wrapGap,
+  if (s.childNameLine) {
+    leftY += nameSize;
+    leftParts.push(
+      `<text x="${pad}" y="${leftY}" font-family="${BADGE_PRINT_FONT_FAMILY}" font-size="${nameSize}" font-weight="400" fill="#0f172a">${escapeXml(s.childNameLine)}</text>`,
     );
-    if (block.endY > bodyBottom) break;
-    bodyParts.push(...block.parts);
-    bodyY = block.endY + lineGap;
-    if (bodyY > bodyBottom) break;
   }
 
-  const timestampY = Math.min(bodyY + timestampSize + inchToPx(0.025, canvas), bodyBottom);
-  const timestamp = s.printedAt
-    ? `<text x="${pad}" y="${timestampY}" font-family="${BADGE_PRINT_FONT_FAMILY}" font-size="${timestampSize}" fill="#64748b">${escapeXml(s.printedAt)}</text>`
-    : "";
+  if (s.eventLine) {
+    leftY += lineGap;
+    leftY += eventSize;
+    leftParts.push(
+      `<text x="${pad}" y="${leftY}" font-family="${BADGE_PRINT_FONT_FAMILY}" font-size="${eventSize}" font-weight="400" fill="#334155">${escapeXml(s.eventLine)}</text>`,
+    );
+  }
 
-  const footerQr =
-    payload.qrDataUrl && payload.settings.showQrCode
-      ? `<image href="${payload.qrDataUrl}" x="${qrX}" y="${qrY}" width="${qrSize}" height="${qrSize}" />`
-      : payload.barcodeDataUrl
-        ? `<image href="${payload.barcodeDataUrl}" x="${qrX}" y="${qrY}" width="${qrSize}" height="${inchToPx(0.2, canvas)}" preserveAspectRatio="xMidYMid meet" />`
-        : "";
+  if (s.classLine) {
+    leftY += lineGap;
+    leftY += classSize;
+    leftParts.push(
+      `<text x="${pad}" y="${leftY}" font-family="${BADGE_PRINT_FONT_FAMILY}" font-size="${classSize}" font-weight="800" fill="#0f172a">${escapeXml(s.classLine)}</text>`,
+    );
+  }
 
-  const logoImgW = inchToPx(0.55, canvas);
-  const logoImgH = stripW ? stripW * 0.82 : 0;
-  const logoStrip = payload.settings.logoUrl
-    ? `<line x1="${stripX}" y1="${pad}" x2="${stripX}" y2="${h - pad}" stroke="#cbd5e1" stroke-width="${Math.max(1, Math.round(inchToPx(0.004, canvas)))}" />
-       <g transform="translate(${stripX + stripW / 2} ${h / 2}) rotate(-90)">
-         <image href="${payload.settings.logoUrl}" x="${-logoImgW / 2}" y="${-logoImgH / 2}" width="${logoImgW}" height="${logoImgH}" preserveAspectRatio="xMidYMid meet" />
-       </g>`
-    : "";
+  if (s.tShirtSizeLine) {
+    leftY += lineGap;
+    leftY += detailSize;
+    leftParts.push(
+      `<text x="${pad}" y="${leftY}" font-family="${BADGE_PRINT_FONT_FAMILY}" font-size="${detailSize}" font-weight="800" fill="#0f172a">${escapeXml(s.tShirtSizeLine)}</text>`,
+    );
+  }
 
-  const bodyClip = `<clipPath id="kidcheck-body-clip"><rect x="0" y="${dividerY}" width="${textMaxX}" height="${h - dividerY}" /></clipPath>`;
+  if (s.guardianLine) {
+    leftY += lineGap * 2;
+    leftY += detailSize;
+    leftParts.push(
+      `<text x="${pad}" y="${leftY}" font-family="${BADGE_PRINT_FONT_FAMILY}" font-size="${detailSize}" font-weight="800" fill="#0f172a">${escapeXml(s.guardianLine)}</text>`,
+    );
+  }
+
+  if (s.guardianPhone) {
+    leftY += lineGap * 0.65;
+    leftY += detailSize;
+    leftParts.push(
+      `<text x="${pad}" y="${leftY}" font-family="${BADGE_PRINT_FONT_FAMILY}" font-size="${detailSize}" font-weight="800" fill="#0f172a">${escapeXml(s.guardianPhone)}</text>`,
+    );
+  }
+
+  const rightParts: string[] = [];
+  let stackBottom = h - pad;
+
+  if (s.printedAt) {
+    stackBottom -= timestampSize;
+    rightParts.unshift(
+      `<text x="${rightX}" y="${stackBottom + timestampSize * 0.85}" text-anchor="end" font-family="${BADGE_PRINT_FONT_FAMILY}" font-size="${timestampSize}" fill="#64748b">${escapeXml(s.printedAt)}</text>`,
+    );
+    stackBottom -= lineGap * 0.5;
+  }
+
+  if (payload.qrDataUrl && payload.settings.showQrCode) {
+    stackBottom -= qrSize;
+    rightParts.unshift(
+      `<image href="${payload.qrDataUrl}" x="${rightX - qrSize}" y="${stackBottom}" width="${qrSize}" height="${qrSize}" />`,
+    );
+    stackBottom -= lineGap * 0.4;
+  }
+
+  if (s.securityCode) {
+    stackBottom -= codeSize;
+    rightParts.unshift(
+      `<text x="${rightX}" y="${stackBottom + codeSize * 0.85}" text-anchor="end" font-family="${BADGE_PRINT_FONT_FAMILY}" font-size="${codeSize}" font-weight="800" fill="#0f172a">${escapeXml(s.securityCode)}</text>`,
+    );
+  }
+
+  const bodyClip = `<clipPath id="vbs-body-clip"><rect x="0" y="0" width="${textMaxX}" height="${h}" /></clipPath>`;
 
   return `
     ${bodyClip}
-    <text x="${pad}" y="${nameY}" font-family="${BADGE_PRINT_FONT_FAMILY}" font-size="${nameSize}" font-weight="800" fill="#0f172a">${name}</text>
-    ${code}
-    <line x1="${pad}" y1="${dividerY}" x2="${textMaxX}" y2="${dividerY}" stroke="#0f172a" stroke-width="${stroke}" />
-    <g clip-path="url(#kidcheck-body-clip)">
-      ${bodyParts.join("\n")}
-      ${timestamp}
+    <g clip-path="url(#vbs-body-clip)">
+      ${leftParts.join("\n")}
     </g>
-    ${footerQr}
-    ${logoStrip}
+    ${rightParts.join("\n")}
   `;
 }
 
-/** Brother 62 mm: Name + code header — matches admin preview (not KidCheck). */
+/** Brother 62 mm media: text block left, QR right — drawn landscape, rotated at output. */
+function renderKidCheckBrotherWide(payload: BadgePrintPayload, canvas: LabelCanvas): string {
+  return renderVbsHorizontalBrotherWide(payload, canvas);
+}
+
+/** Brother 62 mm: Name + code header — VBS check-in layout. */
 function renderNameCodeHeaderBrotherWide(payload: BadgePrintPayload, canvas: LabelCanvas): string {
-  const { w, h } = canvas;
-  const s = payload.structured;
-  const t = brotherHorPt(payload);
-  const typography = t;
-  const pad = inchToPx(0.1, canvas);
-  const nameSize = ptToPx(t.namePt, canvas);
-  const lastNameSize = ptToPx(t.detailPt, canvas);
-  const codeSize = ptToPx(t.codePt, canvas);
-  const classSize = ptToPx(t.classPt, canvas);
-  const detailSize = ptToPx(t.detailPt, canvas);
-  const lineGap = inchToPx(t.lineGapIn, canvas);
-  const wrapGap = inchToPx(t.wrapGapIn, canvas);
-  const stroke = Math.max(2, Math.round(inchToPx(0.018, canvas)));
-  const qrSize = inchToPx(t.qrSizeIn, canvas);
-
-  const rightColW = Math.max(qrSize, inchToPx(0.85, canvas));
-  const rightX = w - pad - rightColW;
-  const textMaxX = rightX - inchToPx(0.08, canvas);
-
-  const codePadY = inchToPx(0.014, canvas);
-  const codeLabelSize = ptToPx(Math.max(6, t.seasonPt), canvas);
-  const codeText = s.securityCode ? escapeXml(s.securityCode) : "";
-  const codeBoxW = rightColW;
-  const codeLabelH = codeText ? codeLabelSize + codePadY : 0;
-  const codeValueH = codeText ? codeSize + codePadY : 0;
-  const codeBoxH = codeText ? codeLabelH + codeValueH : 0;
-
-  let rightY = pad;
-  const codeParts: string[] = [];
-  if (codeText) {
-    codeParts.push(
-      `<rect x="${rightX}" y="${pad}" width="${codeBoxW}" height="${codeBoxH}" fill="#0f172a" rx="2"/>`,
-      `<text x="${rightX + codeBoxW / 2}" y="${pad + codePadY + codeLabelSize * 0.85}" text-anchor="middle" font-family="${BADGE_PRINT_FONT_FAMILY}" font-size="${codeLabelSize}" font-weight="700" fill="#ffffff" opacity="0.85">CODE</text>`,
-      `<text x="${rightX + codeBoxW / 2}" y="${pad + codeLabelH + codeSize * 0.85}" text-anchor="middle" font-family="${BADGE_PRINT_FONT_FAMILY}" font-size="${codeSize}" font-weight="800" fill="#ffffff">${codeText}</text>`,
-    );
-    rightY = pad + codeBoxH + inchToPx(0.04, canvas);
-  }
-
-  const qrY = rightY;
-  const footerQr =
-    payload.qrDataUrl && payload.settings.showQrCode
-      ? `<image href="${payload.qrDataUrl}" x="${rightX + (codeBoxW - qrSize) / 2}" y="${qrY}" width="${qrSize}" height="${qrSize}" />`
-      : "";
-
-  let leftY = pad;
-  const leftParts: string[] = [];
-  if (payload.settings.showChildName && s.firstName) {
-    leftY += nameSize;
-    leftParts.push(
-      `<text x="${pad}" y="${leftY}" font-family="${BADGE_PRINT_FONT_FAMILY}" font-size="${nameSize}" font-weight="800" fill="#0f172a">${escapeXml(s.firstName || payload.childName)}</text>`,
-    );
-  }
-  if (payload.settings.showChildName && s.lastName) {
-    leftY += lastNameSize + lineGap * 0.5;
-    leftParts.push(
-      `<text x="${pad}" y="${leftY}" font-family="${BADGE_PRINT_FONT_FAMILY}" font-size="${lastNameSize}" font-weight="700" fill="#1e293b">${escapeXml(s.lastName)}</text>`,
-    );
-  }
-
-  const dividerY = Math.max(leftY + inchToPx(0.045, canvas), qrY + qrSize + inchToPx(0.02, canvas));
-  leftParts.push(
-    `<line x1="${pad}" y1="${dividerY}" x2="${textMaxX}" y2="${dividerY}" stroke="#0f172a" stroke-width="${stroke}" />`,
-  );
-
-  let bodyY = dividerY + inchToPx(0.055, canvas);
-  const bodyParts: string[] = [];
-  const maxChars = Math.max(16, Math.floor((textMaxX - pad) / (detailSize * 0.55)));
-  const bodyBottom = h - pad;
-
-  if (s.locationLine) {
-    const wrapped = wrapLines(escapeXml(s.locationLine), maxChars, 3);
-    for (let j = 0; j < wrapped.length; j++) {
-      bodyY += classSize + (j === 0 ? 0 : wrapGap);
-      bodyParts.push(
-        `<text x="${pad}" y="${bodyY}" font-family="${BADGE_PRINT_FONT_FAMILY}" font-size="${classSize}" font-weight="800" fill="#0f172a">${wrapped[j]}</text>`,
-      );
-    }
-    bodyY += lineGap;
-  }
-
-  for (const line of s.answerLines) {
-    const label = line.label?.trim();
-    const value = line.text.trim();
-    if (!value) continue;
-    const size = ptToPx(line.fontPt ?? t.detailPt, canvas);
-    const bodyLine: KidCheckBodyLine = {
-      kind: "detail",
-      label: label ? `${label}:` : undefined,
-      value: escapeXml(value),
-      fontPt: line.fontPt,
-    };
-    const block = renderKidCheckBodyLineBlock(
-      bodyLine,
-      pad,
-      bodyY,
-      size,
-      "#1e293b",
-      typography,
-      maxChars,
-      3,
-      wrapGap,
-    );
-    if (block.endY > bodyBottom) break;
-    bodyParts.push(...block.parts);
-    bodyY = block.endY + lineGap;
-  }
-
-  if (s.medicalLine) {
-    const bodyLine: KidCheckBodyLine = {
-      kind: "detail",
-      label: "Allergies:",
-      value: escapeXml(s.medicalLine),
-    };
-    const block = renderKidCheckBodyLineBlock(
-      bodyLine,
-      pad,
-      bodyY,
-      detailSize,
-      "#1e293b",
-      typography,
-      maxChars,
-      2,
-      wrapGap,
-    );
-    bodyParts.push(...block.parts);
-  }
-
-  const bodyClip = `<clipPath id="name-code-body-clip"><rect x="0" y="${dividerY}" width="${textMaxX}" height="${h - dividerY}" /></clipPath>`;
-
-  return `
-    ${bodyClip}
-    ${leftParts.join("\n")}
-    ${codeParts.join("\n")}
-    ${footerQr}
-    <g clip-path="url(#name-code-body-clip)">
-      ${bodyParts.join("\n")}
-    </g>
-  `;
+  return renderVbsHorizontalBrotherWide(payload, canvas);
 }
 
 function renderStandardBrotherWide(payload: BadgePrintPayload, canvas: LabelCanvas): string {
-  const { w } = canvas;
-  const t = brotherHorPt(payload);
-  const pad = inchToPx(0.1, canvas);
-  const qrSize = inchToPx(t.qrSizeIn, canvas);
-  const qrX = w - pad - qrSize;
-  const textMaxX = qrX - inchToPx(0.06, canvas);
-  const lineGap = inchToPx(t.lineGapIn, canvas);
-
-  let y = pad + ptToPx(t.namePt, canvas);
-  const lines = payload.lines
-    .map((line) => {
-      const size =
-        line.kind === "name"
-          ? ptToPx(t.namePt, canvas)
-          : line.kind === "season"
-            ? ptToPx(t.seasonPt, canvas)
-            : line.kind === "number"
-              ? ptToPx(t.codePt, canvas)
-              : line.kind === "class" || line.kind === "badgeName"
-                ? ptToPx(t.classPt, canvas)
-                : line.kind === "allergy"
-                  ? ptToPx(t.seasonPt, canvas)
-                  : line.kind === "formField"
-                    ? ptToPx(line.fontPt ?? t.detailPt, canvas)
-                    : ptToPx(t.detailPt, canvas);
-      const weight = line.kind === "name" || line.kind === "number" ? 700 : 600;
-      const fill = line.kind === "allergy" ? "#b45309" : "#0f172a";
-      const lineY = y + size;
-      y += size + lineGap;
-      return `<text x="${pad}" y="${lineY}" font-family="${BADGE_PRINT_FONT_FAMILY}" font-size="${size}" font-weight="${weight}" fill="${fill}">${escapeXml(line.text)}</text>`;
-    })
-    .join("\n");
-
-  const bodyClip = `<clipPath id="standard-body-clip"><rect x="0" y="0" width="${textMaxX}" height="${canvas.h}" /></clipPath>`;
-  const qrY = pad + ptToPx(t.namePt, canvas) + inchToPx(0.04, canvas);
-  const qr =
-    payload.qrDataUrl && payload.settings.showQrCode
-      ? `<image href="${payload.qrDataUrl}" x="${qrX}" y="${qrY}" width="${qrSize}" height="${qrSize}" />`
-      : "";
-
-  return `${bodyClip}<g clip-path="url(#standard-body-clip)">${lines}</g>${qr}`;
+  return renderVbsHorizontalBrotherWide(payload, canvas);
 }
 
 function resolveBadgeRenderCanvas(

@@ -138,11 +138,16 @@ export type BadgePrintLine = {
 export type BadgePrintStructured = {
   firstName: string;
   lastName: string;
+  /** Full child name for VBS horizontal layout (regular weight). */
+  childNameLine: string | null;
+  /** Event / season title without year suffix. */
+  eventLine: string | null;
   securityCode: string | null;
   serviceLine: string | null;
   seasonLine: string | null;
   classLine: string | null;
   locationLine: string | null;
+  tShirtSizeLine: string | null;
   guardianLine: string | null;
   guardianPhone: string | null;
   birthdate: string | null;
@@ -202,6 +207,8 @@ const SAMPLE_FORM_FIELD_VALUES: Record<string, string> = {
   "child:childLastName": "Rivera",
   "child:childDateOfBirth": "2018-06-15",
   "child:allergiesNotes": "Peanuts",
+  "child:tShirtSize": "Youth Large",
+  "child:shirtSize": "Youth Large",
 };
 
 export function badgeLabelSizeOptions() {
@@ -434,7 +441,39 @@ type BuildBadgeInput = {
   registrationRow?: RegistrationFieldValueRow | null;
   fieldOptions?: ExportFieldOption[];
   printedAt?: Date;
+  checkedInAt?: Date | null;
 };
+
+/** Check-in / print timestamp in Central Time (CST/CDT). */
+export function formatBadgeCheckInTimestamp(date: Date): string {
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Chicago",
+    month: "2-digit",
+    day: "2-digit",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZoneName: "short",
+  }).format(date);
+}
+
+function isTShirtFormField(fieldKey: string, fieldOptions: ExportFieldOption[]): boolean {
+  const label = badgeFormFieldLabel(fieldKey, fieldOptions).toLowerCase();
+  const key = fieldKey.toLowerCase();
+  return label.includes("shirt") || key.includes("shirt");
+}
+
+function resolveTShirtSizeLine(input: BuildBadgeInput): string | null {
+  const fieldOptions = input.fieldOptions ?? [];
+  for (const field of input.settings.formFields) {
+    if (!isTShirtFormField(field.fieldKey, fieldOptions)) continue;
+    const text = input.registrationRow
+      ? resolveRegistrationExportFieldValue(input.registrationRow, input.seasonName, field.fieldKey)
+      : sampleFormFieldValue(field.fieldKey, fieldOptions);
+    if (text.trim()) return text.trim();
+  }
+  return null;
+}
 
 export function formatSampleRegistrationNumber(
   prefix: string | null | undefined,
@@ -455,9 +494,8 @@ function buildStructuredData(input: BuildBadgeInput, answerLines: BadgePrintLine
     (input.settings.showClassroomName ? input.classroomName?.trim() : null) ||
     null;
   const checkIn = input.settings.showCheckInLabel ? input.checkInLabel?.trim() : null;
-  const seasonLine = input.settings.showSeasonName
-    ? `${input.seasonName} (${input.seasonYear})`
-    : null;
+  const eventLine = input.settings.showSeasonName ? input.seasonName.trim() : null;
+  const seasonLine = eventLine ? `${eventLine} (${input.seasonYear})` : null;
 
   const serviceParts: string[] = [];
   if (seasonLine) serviceParts.push(seasonLine);
@@ -466,7 +504,7 @@ function buildStructuredData(input: BuildBadgeInput, answerLines: BadgePrintLine
 
   const locationLine = serviceParts.join(" · ") || null;
   const serviceLine =
-    seasonLine && classLine ? `${input.seasonName} — ${classLine}` : locationLine;
+    eventLine && classLine ? `${eventLine} — ${classLine}` : locationLine;
 
   const medicalLine =
     input.settings.showAllergyFlag && input.allergiesNotes?.trim() ? "Allergies on file" : null;
@@ -476,24 +514,34 @@ function buildStructuredData(input: BuildBadgeInput, answerLines: BadgePrintLine
       ? input.registrationNumber
       : input.submissionCode?.trim() || null;
 
-  const printedAt = (input.printedAt ?? new Date()).toLocaleString("en-US", {
-    month: "2-digit",
-    day: "2-digit",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
+  const childNameLine =
+    input.settings.showChildName
+      ? `${input.childFirstName} ${input.childLastName}`.trim() || null
+      : null;
+
+  const guardianLine =
+    [input.guardianFirstName?.trim(), input.guardianLastName?.trim()].filter(Boolean).join(" ") || null;
+  const guardianPhone = input.guardianPhone?.trim() || null;
+  const tShirtSizeLine =
+    resolveTShirtSizeLine(input) ??
+    (input.registrationId === "preview" ? "Youth Large" : null);
+
+  const timestampSource = input.checkedInAt ?? input.printedAt ?? new Date();
+  const printedAt = formatBadgeCheckInTimestamp(timestampSource);
 
   return {
     firstName: input.settings.showChildName ? input.childFirstName.trim() : "",
     lastName: input.settings.showChildName ? input.childLastName.trim() : "",
+    childNameLine,
+    eventLine,
     securityCode,
     serviceLine,
     seasonLine,
     classLine,
     locationLine,
-    guardianLine: null,
-    guardianPhone: null,
+    tShirtSizeLine,
+    guardianLine,
+    guardianPhone,
     birthdate: null,
     medicalLine,
     notesLine: null,
@@ -529,6 +577,7 @@ export function buildBadgePrintPayload(input: BuildBadgeInput): BadgePrintPayloa
   }
 
   for (const field of input.settings.formFields) {
+    if (isTShirtFormField(field.fieldKey, fieldOptions)) continue;
     const label = badgeFormFieldLabel(field.fieldKey, fieldOptions);
     const text = input.registrationRow
       ? resolveRegistrationExportFieldValue(input.registrationRow, input.seasonName, field.fieldKey)
@@ -622,5 +671,6 @@ export function sampleBadgePreviewPayload(
       ? "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Crect width='120' height='120' fill='%23fff'/%3E%3Ctext x='60' y='64' text-anchor='middle' font-size='12' fill='%2364748b'%3EQR%3C/text%3E%3C/svg%3E"
       : null,
     fieldOptions,
+    printedAt: new Date("2026-06-11T14:30:00.000Z"),
   });
 }

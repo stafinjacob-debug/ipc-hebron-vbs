@@ -11,9 +11,14 @@ import {
   parseFormDefinitionJson,
 } from "@/lib/registration-form-definition";
 import { canManageDirectory, canViewOperations } from "@/lib/roles";
-import type { Prisma, RegistrationStatus } from "@/generated/prisma";
+import type { Prisma } from "@/generated/prisma";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import {
+  hasActiveRegistrationListFilters,
+  parseRegistrationStatusFilter,
+  queryParamString,
+} from "@/lib/registration-list-filters";
 import {
   isCheckoutPendingRegistration,
   mergeRegistrationPaymentStatusFilter,
@@ -21,7 +26,10 @@ import {
 } from "@/lib/registration-list-payment";
 import { ExportRegistrationsModal } from "./export-registrations-modal";
 import { RegistrationListColumnsModal } from "./registration-list-columns-modal";
+import { RegistrationsFiltersForm } from "./registrations-filters-form";
 import { RegistrationsBulkTable, type RegistrationBulkTableRow } from "./registrations-bulk-table";
+
+export const dynamic = "force-dynamic";
 
 type QueryParams = {
   season?: string;
@@ -88,13 +96,6 @@ function buildDynamicFieldOptions(defJson: string | null | undefined): DynamicFi
   return out;
 }
 
-function mergeWhereAnd(where: Prisma.RegistrationWhereInput, clause: Prisma.RegistrationWhereInput) {
-  const prev = where.AND;
-  const arr = Array.isArray(prev) ? [...prev] : prev ? [prev] : [];
-  arr.push(clause);
-  where.AND = arr;
-}
-
 const CLASS_ASSIGNMENT_STATUS_OPTIONS: { value: string; label: string }[] = [
   { value: "", label: "Any" },
   { value: "PENDING", label: "Pending" },
@@ -112,7 +113,6 @@ const PAYMENT_STATUS_FILTER_OPTIONS: { value: string; label: string }[] = [
   { value: "checkout_pending", label: "Checkout pending" },
   { value: "due_plain", label: "Due" },
   { value: "due_canceled", label: "Due (checkout canceled)" },
-  { value: "due", label: "Outstanding (expects payment, not received)" },
 ];
 
 function matchesDynamicFilters(
@@ -135,6 +135,37 @@ function matchesDynamicFilters(
     if (actual !== f.value.toLowerCase()) return false;
   }
   return true;
+}
+
+function buildRegistrationListQueryString(input: {
+  season: string;
+  q: string;
+  status: string;
+  classroom: string;
+  payment: string;
+  df1k: string;
+  df1v: string;
+  df2k: string;
+  df2v: string;
+  df3k: string;
+  df3v: string;
+  extraColumnKeys: string[];
+  page?: number;
+}): string {
+  const qs = new URLSearchParams();
+  if (input.season) qs.set("season", input.season);
+  if (input.q) qs.set("q", input.q);
+  if (input.status) qs.set("status", input.status);
+  if (input.classroom) qs.set("classroom", input.classroom);
+  if (input.payment) qs.set("payment", input.payment);
+  for (const slot of ["df1k", "df1v", "df2k", "df2v", "df3k", "df3v"] as const) {
+    if (input[slot]) qs.set(slot, input[slot]);
+  }
+  for (const key of input.extraColumnKeys) {
+    qs.append("col", key);
+  }
+  if (input.page && input.page > 1) qs.set("page", String(input.page));
+  return qs.toString();
 }
 
 export default async function RegistrationsPage({
@@ -212,42 +243,40 @@ export default async function RegistrationsPage({
       </div>
     );
   }
-  const selectedSeasonId = sp.season?.trim() || "";
-  const selectedSeason =
-    seasons.find((s) => s.id === selectedSeasonId) ??
-    seasons[0] ??
-    null;
+  const seasonParam = queryParamString(sp.season);
+  const filterSeason = seasonParam ? (seasons.find((s) => s.id === seasonParam) ?? null) : null;
+  const uiSeason = filterSeason ?? seasons[0] ?? null;
 
-  const dynamicFieldOptions = selectedSeason
+  const dynamicFieldOptions = uiSeason
     ? buildDynamicFieldOptions(
-        selectedSeason.registrationForm?.publishedDefinitionJson ??
-          selectedSeason.registrationForm?.draftDefinitionJson,
+        uiSeason.registrationForm?.publishedDefinitionJson ??
+          uiSeason.registrationForm?.draftDefinitionJson,
       )
     : [];
   const dynMap = new Map(dynamicFieldOptions.map((d) => [d.key, d]));
 
-  const q = sp.q?.trim() ?? "";
-  const status = sp.status?.trim().toUpperCase() ?? "";
-  const classroom = sp.classroom?.trim() ?? "";
-  const payment = sp.payment?.trim() ?? "";
-  const pageRaw = sp.page?.trim() ?? "1";
+  const q = queryParamString(sp.q);
+  const statusFilter = parseRegistrationStatusFilter(queryParamString(sp.status));
+  const classroom = queryParamString(sp.classroom);
+  const payment = queryParamString(sp.payment);
+  const pageRaw = queryParamString(sp.page);
   const pageParsed = parseInt(pageRaw, 10);
   const page = Number.isFinite(pageParsed) && pageParsed >= 1 ? pageParsed : 1;
   const pageSize = 50;
 
   const rawDynamicFilters: Array<{ key: string; value: string }> = [
-    { key: sp.df1k?.trim() ?? "", value: sp.df1v?.trim() ?? "" },
-    { key: sp.df2k?.trim() ?? "", value: sp.df2v?.trim() ?? "" },
-    { key: sp.df3k?.trim() ?? "", value: sp.df3v?.trim() ?? "" },
+    { key: queryParamString(sp.df1k), value: queryParamString(sp.df1v) },
+    { key: queryParamString(sp.df2k), value: queryParamString(sp.df2v) },
+    { key: queryParamString(sp.df3k), value: queryParamString(sp.df3v) },
   ];
   const dynamicFilters = rawDynamicFilters.filter((f) => f.key && f.value && dynMap.has(f.key));
 
   const rawCols = sp.col;
   const colKeysRaw = Array.isArray(rawCols) ? rawCols : rawCols ? [rawCols] : [];
-  const exportFieldOptions = selectedSeason
+  const exportFieldOptions = uiSeason
     ? buildRegistrationExportFieldOptionsFromJson(
-        selectedSeason.registrationForm?.publishedDefinitionJson ??
-          selectedSeason.registrationForm?.draftDefinitionJson,
+        uiSeason.registrationForm?.publishedDefinitionJson ??
+          uiSeason.registrationForm?.draftDefinitionJson,
       )
     : [];
   const exportOptionMap = new Map(exportFieldOptions.map((o) => [o.key, o]));
@@ -259,13 +288,28 @@ export default async function RegistrationsPage({
     label: exportOptionMap.get(key)?.label ?? key,
   }));
 
-  const duplicateGroupCount = selectedSeason?.id
-    ? await countDuplicateRegistrationGroups(selectedSeason.id)
+  const duplicateGroupCount = filterSeason?.id
+    ? await countDuplicateRegistrationGroups(filterSeason.id)
     : 0;
 
+  const listQueryInput = {
+    season: seasonParam,
+    q,
+    status: statusFilter ?? "",
+    classroom,
+    payment,
+    df1k: queryParamString(sp.df1k),
+    df1v: queryParamString(sp.df1v),
+    df2k: queryParamString(sp.df2k),
+    df2v: queryParamString(sp.df2v),
+    df3k: queryParamString(sp.df3k),
+    df3v: queryParamString(sp.df3v),
+    extraColumnKeys,
+  };
+
   const where: Prisma.RegistrationWhereInput = {};
-  if (selectedSeason?.id) where.seasonId = selectedSeason.id;
-  if (status) where.status = status as RegistrationStatus;
+  if (filterSeason?.id) where.seasonId = filterSeason.id;
+  if (statusFilter) where.status = statusFilter;
   if (classroom === "__unassigned") where.classroomId = null;
   else if (classroom) where.classroomId = classroom;
   mergeRegistrationPaymentStatusFilter(where, payment);
@@ -307,14 +351,7 @@ export default async function RegistrationsPage({
     totalCount = await prisma.registration.count({ where });
     totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
     if (page > totalPages) {
-      const qs = new URLSearchParams();
-      for (const [k, v] of Object.entries(sp)) {
-        if (v == null || v === "") continue;
-        if (k === "page") continue;
-        qs.set(k, String(v));
-      }
-      if (totalPages > 1) qs.set("page", String(totalPages));
-      const s = qs.toString();
+      const s = buildRegistrationListQueryString({ ...listQueryInput, page: totalPages });
       redirect(s ? `/registrations?${s}` : "/registrations");
     }
 
@@ -374,14 +411,7 @@ export default async function RegistrationsPage({
     const startIdx = (page - 1) * pageSize;
     if (startIdx >= neededIds.length) {
       const lastPage = Math.max(1, Math.ceil(neededIds.length / pageSize));
-      const qs = new URLSearchParams();
-      for (const [k, v] of Object.entries(sp)) {
-        if (v == null || v === "") continue;
-        if (k === "page") continue;
-        qs.set(k, String(v));
-      }
-      if (lastPage > 1) qs.set("page", String(lastPage));
-      const s = qs.toString();
+      const s = buildRegistrationListQueryString({ ...listQueryInput, page: lastPage });
       redirect(s ? `/registrations?${s}` : "/registrations");
     }
 
@@ -428,15 +458,7 @@ export default async function RegistrationsPage({
     }
   }
 
-  const qsBase = new URLSearchParams();
-  for (const [k, v] of Object.entries(sp)) {
-    if (v == null || v === "") continue;
-    if (k === "page" || k === "col") continue;
-    qsBase.set(k, String(v));
-  }
-  for (const key of extraColumnKeys) {
-    qsBase.append("col", key);
-  }
+  const qsBase = buildRegistrationListQueryString(listQueryInput);
   const seasonExportConfigs = seasons.map((s) => ({
     id: s.id,
     name: s.name,
@@ -489,13 +511,40 @@ export default async function RegistrationsPage({
 
   const selectionResetKey = [
     page,
-    selectedSeason?.id ?? "",
+    seasonParam,
     q,
-    status,
+    statusFilter ?? "",
     classroom,
     payment,
     dynamicFilters.map((f) => `${f.key}=${f.value}`).join("&"),
     bulkRows.map((r) => r.id).join(","),
+  ].join("|");
+
+  const classroomOptions = filterSeason
+    ? filterSeason.classrooms
+    : seasons.flatMap((s) => s.classrooms);
+
+  const filtersActive = hasActiveRegistrationListFilters({
+    q,
+    seasonId: seasonParam,
+    status: statusFilter,
+    classroom,
+    payment,
+    dynamicFilters,
+  });
+
+  const filterFormKey = [
+    seasonParam,
+    q,
+    statusFilter ?? "",
+    classroom,
+    payment,
+    queryParamString(sp.df1k),
+    queryParamString(sp.df1v),
+    queryParamString(sp.df2k),
+    queryParamString(sp.df2v),
+    queryParamString(sp.df3k),
+    queryParamString(sp.df3v),
   ].join("|");
 
   return (
@@ -509,10 +558,10 @@ export default async function RegistrationsPage({
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {selectedSeason ? (
+          {uiSeason ? (
             <RegistrationListColumnsModal
               seasons={seasonExportConfigs}
-              selectedSeasonId={selectedSeason.id}
+              selectedSeasonId={uiSeason.id}
               activeColumnKeys={extraColumnKeys}
             />
           ) : null}
@@ -528,11 +577,11 @@ export default async function RegistrationsPage({
         </div>
       </div>
 
-      {duplicateGroupCount > 0 && selectedSeason ? (
+      {duplicateGroupCount > 0 && filterSeason ? (
         <div className="rounded-xl border border-amber-500/35 bg-amber-500/10 px-4 py-3 text-sm text-amber-950 dark:text-amber-100">
           <strong>{duplicateGroupCount}</strong> possible duplicate group
-          {duplicateGroupCount === 1 ? "" : "s"} in {selectedSeason.name} (same child name + guardian email).{" "}
-          <Link href={`/registrations/duplicates?season=${selectedSeason.id}`} className="font-medium underline">
+          {duplicateGroupCount === 1 ? "" : "s"} in {filterSeason.name} (same child name + guardian email).{" "}
+          <Link href={`/registrations/duplicates?season=${filterSeason.id}`} className="font-medium underline">
             Review duplicates
           </Link>
         </div>
@@ -572,173 +621,39 @@ export default async function RegistrationsPage({
             Clear all
           </Link>
         </div>
-        <form method="get" className="space-y-3">
-          <input type="hidden" name="page" value="1" />
-          {extraColumnKeys.map((key) => (
-            <input key={key} type="hidden" name="col" value={key} />
-          ))}
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
-            <div className="lg:col-span-2">
-              <label htmlFor="q" className="block text-xs font-medium text-foreground/70">
-                Search
-              </label>
-              <input
-                id="q"
-                name="q"
-                defaultValue={q}
-                placeholder="Name, email, phone, registration #"
-                className="mt-1 w-full rounded-md border border-foreground/15 bg-background px-3 py-2 text-sm"
-              />
-            </div>
-            <div>
-              <label htmlFor="season" className="block text-xs font-medium text-foreground/70">
-                Season
-              </label>
-              <select
-                id="season"
-                name="season"
-                defaultValue={selectedSeason?.id ?? ""}
-                className="mt-1 w-full rounded-md border border-foreground/15 bg-background px-3 py-2 text-sm"
-              >
-                <option value="">All seasons</option>
-                {seasons.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name} ({s.year})
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label htmlFor="status" className="block text-xs font-medium text-foreground/70">
-                Class assignment status
-              </label>
-              <select
-                id="status"
-                name="status"
-                defaultValue={status}
-                className="mt-1 w-full rounded-md border border-foreground/15 bg-background px-3 py-2 text-sm"
-              >
-                {CLASS_ASSIGNMENT_STATUS_OPTIONS.map((o) => (
-                  <option key={o.value || "any"} value={o.value}>
-                    {o.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label htmlFor="classroom" className="block text-xs font-medium text-foreground/70">
-                Classroom
-              </label>
-              <select
-                id="classroom"
-                name="classroom"
-                defaultValue={classroom}
-                className="mt-1 w-full rounded-md border border-foreground/15 bg-background px-3 py-2 text-sm"
-              >
-                <option value="">Any</option>
-                <option value="__unassigned">Unassigned</option>
-                {selectedSeason?.classrooms.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label htmlFor="payment" className="block text-xs font-medium text-foreground/70">
-                Payment status
-              </label>
-              <select
-                id="payment"
-                name="payment"
-                defaultValue={payment}
-                className="mt-1 w-full rounded-md border border-foreground/15 bg-background px-3 py-2 text-sm"
-              >
-                {PAYMENT_STATUS_FILTER_OPTIONS.map((o) => (
-                  <option key={o.value || "any-pay"} value={o.value}>
-                    {o.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <details className="rounded-lg border border-foreground/10 bg-background/40 p-3">
-            <summary className="cursor-pointer text-xs font-medium text-foreground/80">
-              Form field filters (predefined options)
-            </summary>
-            <div className="mt-3 space-y-2">
-              {dynamicFieldOptions.length === 0 ? (
-                <p className="text-xs text-foreground/55">
-                  Select a season with a configured form field options list (select/radio/boolean) to use dynamic
-                  filters.
-                </p>
-              ) : (
-                <div className="grid gap-2 lg:grid-cols-3">
-                  {([
-                    { keyName: "df1k", valName: "df1v" },
-                    { keyName: "df2k", valName: "df2v" },
-                    { keyName: "df3k", valName: "df3v" },
-                  ] as const).map((slot, idx) => {
-                    const { keyName, valName } = slot;
-                    const selectedKey = (sp[keyName] ?? "").trim();
-                    const values = dynMap.get(selectedKey)?.values ?? [];
-                    return (
-                      <div key={keyName} className="rounded-md border border-foreground/10 p-2">
-                        <p className="text-[11px] font-medium uppercase tracking-wide text-foreground/50">
-                          Dynamic filter {idx + 1}
-                        </p>
-                        <select
-                          name={keyName}
-                          defaultValue={selectedKey}
-                          className="mt-1 w-full rounded-md border border-foreground/15 bg-background px-2 py-1.5 text-xs"
-                        >
-                          <option value="">None</option>
-                          {dynamicFieldOptions.map((f) => (
-                            <option key={f.key} value={f.key}>
-                              {f.label}
-                            </option>
-                          ))}
-                        </select>
-                        <select
-                          name={valName}
-                          defaultValue={(sp[valName] ?? "").trim()}
-                          className="mt-1 w-full rounded-md border border-foreground/15 bg-background px-2 py-1.5 text-xs"
-                        >
-                          <option value="">Any value</option>
-                          {values.map((v) => (
-                            <option key={v.value} value={v.value}>
-                              {v.label}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </details>
-
-          <div className="flex items-center gap-2">
-            <button
-              type="submit"
-              className="rounded-md bg-foreground px-3 py-2 text-sm font-medium text-background hover:opacity-90"
-            >
-              Apply filters
-            </button>
-            <span className="text-xs text-foreground/60">
-              Page {page} of {totalPages}
-            </span>
-          </div>
-        </form>
+        <RegistrationsFiltersForm
+          key={filterFormKey}
+          initial={{
+            q,
+            season: seasonParam,
+            status: statusFilter ?? "",
+            classroom,
+            payment,
+            df1k: queryParamString(sp.df1k),
+            df1v: queryParamString(sp.df1v),
+            df2k: queryParamString(sp.df2k),
+            df2v: queryParamString(sp.df2v),
+            df3k: queryParamString(sp.df3k),
+            df3v: queryParamString(sp.df3v),
+          }}
+          extraColumnKeys={extraColumnKeys}
+          seasons={seasons.map((s) => ({ id: s.id, name: s.name, year: s.year }))}
+          classrooms={classroomOptions}
+          classAssignmentStatusOptions={CLASS_ASSIGNMENT_STATUS_OPTIONS}
+          paymentStatusOptions={PAYMENT_STATUS_FILTER_OPTIONS}
+          dynamicFieldOptions={dynamicFieldOptions}
+          page={page}
+          totalPages={totalPages}
+          totalCount={totalCount}
+          filtersActive={filtersActive}
+        />
       </section>
 
       <RegistrationsBulkTable
         rows={bulkRows}
         extraColumns={extraColumns}
         canBulkAct={canAdd}
-        baseQueryString={qsBase.toString()}
+        baseQueryString={qsBase}
         page={page}
         totalPages={totalPages}
         hasNextPage={hasNextPage}

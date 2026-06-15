@@ -78,6 +78,42 @@ export function registrationListPaymentBadge(r: RegistrationPaymentBadgeInput): 
   return { label: "Not required", className: "text-xs text-foreground/55" };
 }
 
+const paidClause: Prisma.RegistrationWhereInput = {
+  OR: [
+    { paymentReceivedAt: { not: null } },
+    {
+      formSubmission: {
+        is: { stripePaymentStatus: { equals: "paid", mode: "insensitive" } },
+      },
+    },
+  ],
+};
+
+const checkoutPendingClause: Prisma.RegistrationWhereInput = {
+  expectsPayment: true,
+  paymentReceivedAt: null,
+  formSubmission: {
+    is: {
+      stripePaymentStatus: { equals: "pending", mode: "insensitive" },
+      stripeCheckoutSessionId: { not: null },
+    },
+  },
+};
+
+const dueCanceledClause: Prisma.RegistrationWhereInput = {
+  expectsPayment: true,
+  paymentReceivedAt: null,
+  formSubmission: {
+    is: { stripePaymentStatus: { equals: "canceled", mode: "insensitive" } },
+  },
+};
+
+/** Matches the plain “Due” badge (not checkout pending / canceled / paid). */
+const duePlainClause: Prisma.RegistrationWhereInput = {
+  expectsPayment: true,
+  AND: [{ NOT: paidClause }, { NOT: checkoutPendingClause }, { NOT: dueCanceledClause }],
+};
+
 /** `payment` query param → Prisma `where` fragment (merged with AND). */
 export function mergeRegistrationPaymentStatusFilter(
   where: Prisma.RegistrationWhereInput,
@@ -86,88 +122,25 @@ export function mergeRegistrationPaymentStatusFilter(
   const p = payment.trim();
   if (!p) return;
 
-  const paidClause: Prisma.RegistrationWhereInput = {
-    OR: [
-      { paymentReceivedAt: { not: null } },
-      {
-        formSubmission: {
-          is: { stripePaymentStatus: { equals: "paid", mode: "insensitive" } },
-        },
-      },
-    ],
-  };
-
   switch (p) {
     case "paid":
       mergeWhereAnd(where, paidClause);
       break;
     case "due":
-      // Legacy + clearest name: still expecting payment, nothing recorded as received.
-      mergeWhereAnd(where, { expectsPayment: true, paymentReceivedAt: null });
+    case "due_plain":
+      mergeWhereAnd(where, duePlainClause);
       break;
     case "not_required":
       mergeWhereAnd(where, {
         expectsPayment: false,
-        paymentReceivedAt: null,
-        NOT: {
-          formSubmission: {
-            is: { stripePaymentStatus: { equals: "paid", mode: "insensitive" } },
-          },
-        },
+        AND: [{ NOT: paidClause }],
       });
       break;
     case "checkout_pending":
-      mergeWhereAnd(where, {
-        expectsPayment: true,
-        paymentReceivedAt: null,
-        formSubmission: {
-          is: {
-            stripePaymentStatus: { equals: "pending", mode: "insensitive" },
-            stripeCheckoutSessionId: { not: null },
-          },
-        },
-      });
+      mergeWhereAnd(where, checkoutPendingClause);
       break;
     case "due_canceled":
-      mergeWhereAnd(where, {
-        expectsPayment: true,
-        paymentReceivedAt: null,
-        formSubmission: {
-          is: { stripePaymentStatus: { equals: "canceled", mode: "insensitive" } },
-        },
-      });
-      break;
-    case "due_plain":
-      mergeWhereAnd(where, {
-        expectsPayment: true,
-        paymentReceivedAt: null,
-        AND: [
-          {
-            NOT: {
-              formSubmission: {
-                is: { stripePaymentStatus: { equals: "paid", mode: "insensitive" } },
-              },
-            },
-          },
-          {
-            NOT: {
-              formSubmission: {
-                is: {
-                  stripePaymentStatus: { equals: "pending", mode: "insensitive" },
-                  stripeCheckoutSessionId: { not: null },
-                },
-              },
-            },
-          },
-          {
-            NOT: {
-              formSubmission: {
-                is: { stripePaymentStatus: { equals: "canceled", mode: "insensitive" } },
-              },
-            },
-          },
-        ],
-      });
+      mergeWhereAnd(where, dueCanceledClause);
       break;
     default:
       break;

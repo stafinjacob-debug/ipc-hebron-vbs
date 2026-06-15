@@ -107,6 +107,79 @@ function StandardBadgeLines({
   );
 }
 
+function VbsHorizontalPreview({
+  payload,
+  typeStyles,
+}: {
+  payload: BadgePrintPayload;
+  typeStyles: ReturnType<typeof typographyStyles>;
+}) {
+  const s = payload.structured;
+  const qrSizePx = typeStyles ? payload.settings.typography.qrSizeIn * 72 * 0.55 : undefined;
+
+  return (
+    <div className="flex min-h-0 min-w-0 flex-1 items-stretch justify-between gap-2 text-left">
+      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+        {s.childNameLine ? (
+          <div className="font-normal leading-tight text-slate-900" style={typeStyles?.name}>
+            {s.childNameLine}
+          </div>
+        ) : null}
+        {s.eventLine ? (
+          <div className="font-normal text-slate-600" style={typeStyles?.season}>
+            {s.eventLine}
+          </div>
+        ) : null}
+        {s.classLine ? (
+          <div className="mt-1 font-extrabold leading-tight text-slate-900" style={typeStyles?.class}>
+            {s.classLine}
+          </div>
+        ) : null}
+        {s.tShirtSizeLine ? (
+          <div className="mt-0.5 font-extrabold text-slate-900" style={typeStyles?.detail}>
+            {s.tShirtSizeLine}
+          </div>
+        ) : null}
+        {s.guardianLine ? (
+          <div className="mt-2 font-extrabold text-slate-900" style={typeStyles?.detail}>
+            {s.guardianLine}
+          </div>
+        ) : null}
+        {s.guardianPhone ? (
+          <div className="font-extrabold text-slate-900" style={typeStyles?.detail}>
+            {s.guardianPhone}
+          </div>
+        ) : null}
+      </div>
+      <div className="flex shrink-0 flex-col items-end justify-end gap-1 self-stretch text-right">
+        {s.securityCode ? (
+          <div className="font-extrabold tabular-nums tracking-wide text-slate-900" style={typeStyles?.code}>
+            {s.securityCode}
+          </div>
+        ) : null}
+        {payload.qrDataUrl && payload.settings.showQrCode ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={payload.qrDataUrl}
+            alt="QR preview"
+            style={
+              qrSizePx
+                ? { width: `${qrSizePx}px`, height: `${qrSizePx}px` }
+                : undefined
+            }
+            className={qrSizePx ? undefined : "size-10"}
+          />
+        ) : null}
+        {s.printedAt ? (
+          <div className="text-slate-400" style={typeStyles?.timestamp}>
+            {s.printedAt}
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 function NameCodeHeaderPreview({
   payload,
   typeStyles,
@@ -292,7 +365,6 @@ function KidCheckPreview({
 export function BadgePreviewCard({ payload }: Props) {
   const dims = badgeLabelPageCss(payload.settings.labelSize, payload.settings.orientation);
   const horizontal = dims.isHorizontal;
-  const layout = horizontal ? payload.settings.horizontalLayout : "STANDARD";
   const typeStyles = typographyStyles(payload.settings.typography, horizontal);
 
   const aspect = horizontal
@@ -313,33 +385,20 @@ export function BadgePreviewCard({ payload }: Props) {
       ? "280px"
       : "220px";
 
-  const layoutLabel =
-    !horizontal || layout === "STANDARD"
-      ? horizontal
-        ? "Horizontal · Standard"
-        : "Vertical"
-      : layout === "NAME_CODE_HEADER"
-        ? "Horizontal · Name + code"
-        : "Horizontal · KidCheck";
+  const layoutLabel = horizontal ? "Horizontal · VBS check-in" : "Vertical";
 
-  const showStandardQr = layout === "STANDARD" && payload.qrDataUrl && payload.settings.showQrCode;
-  const qrPreviewSize = horizontal ? payload.settings.typography.qrSizeIn * 72 * 0.72 : undefined;
+  const showStandardQr = !horizontal && payload.qrDataUrl && payload.settings.showQrCode;
+  const qrPreviewSize = !horizontal ? payload.settings.typography.qrSizeIn * 72 * 0.72 : undefined;
 
   return (
     <div className="flex flex-col items-center gap-2">
       <div
-        className={`mx-auto flex w-full rounded-lg border border-dashed border-foreground/20 bg-white p-3 text-slate-900 shadow-inner ${aspect} ${
-          horizontal && layout === "STANDARD"
-            ? "flex-row items-center justify-between gap-3"
-            : "flex-col items-stretch justify-center"
-        }`}
+        className={`mx-auto flex w-full rounded-lg border border-dashed border-foreground/20 bg-white p-3 text-slate-900 shadow-inner ${aspect} flex-col items-stretch justify-center`}
         style={{ maxWidth }}
         aria-label="Badge preview"
       >
-        {layout === "NAME_CODE_HEADER" ? (
-          <NameCodeHeaderPreview payload={payload} typeStyles={typeStyles} />
-        ) : layout === "KIDCHECK" ? (
-          <KidCheckPreview payload={payload} typeStyles={typeStyles} />
+        {horizontal ? (
+          <VbsHorizontalPreview payload={payload} typeStyles={typeStyles} />
         ) : (
           <>
             <div className={`flex min-w-0 flex-col ${horizontal ? "flex-1 items-start" : "items-center"}`}>

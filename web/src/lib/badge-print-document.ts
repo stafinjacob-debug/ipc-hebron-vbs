@@ -51,61 +51,45 @@ function renderStandardVertical(payload: BadgePrintPayload): string {
 }
 
 function renderStandardHorizontal(payload: BadgePrintPayload): string {
-  const linesHtml = payload.lines.map(renderLine).join("");
-  const logoHtml = payload.settings.logoUrl
-    ? `<img class="logo" src="${escapeHtml(payload.settings.logoUrl)}" alt="" />`
-    : "";
-  const qrHtml =
-    payload.qrDataUrl && payload.settings.showQrCode
-      ? `<div class="qr-wrap"><img class="qr" src="${payload.qrDataUrl}" alt="Check-in QR code" /></div>`
-      : "";
-  return `<div class="badge horizontal standard">
-    <div class="badge-main">${logoHtml}<div class="lines">${linesHtml}</div></div>
-    ${qrHtml ? `<div class="badge-side">${qrHtml}</div>` : ""}
+  return renderVbsHorizontal(payload);
+}
+
+function renderVbsHorizontal(payload: BadgePrintPayload): string {
+  const s = payload.structured;
+  const t = payload.settings.typography;
+
+  const rightParts: string[] = [];
+  if (s.securityCode) {
+    rightParts.push(
+      `<div class="vbs-reg-number" style="font-size:${t.codePt}pt">${escapeHtml(s.securityCode)}</div>`,
+    );
+  }
+  if (payload.qrDataUrl && payload.settings.showQrCode) {
+    rightParts.push(
+      `<img class="vbs-qr" src="${payload.qrDataUrl}" alt="Check-in QR code" style="width:${t.qrSizeIn}in;height:${t.qrSizeIn}in" />`,
+    );
+  }
+  if (s.printedAt) {
+    rightParts.push(
+      `<div class="vbs-timestamp" style="font-size:${t.timestampPt}pt">${escapeHtml(s.printedAt)}</div>`,
+    );
+  }
+
+  return `<div class="badge horizontal layout-vbs">
+    <div class="vbs-left">
+      ${s.childNameLine ? `<div class="vbs-child-name" style="font-size:${t.namePt}pt">${escapeHtml(s.childNameLine)}</div>` : ""}
+      ${s.eventLine ? `<div class="vbs-event" style="font-size:${t.seasonPt}pt">${escapeHtml(s.eventLine)}</div>` : ""}
+      ${s.classLine ? `<div class="vbs-class" style="font-size:${t.classPt}pt">${escapeHtml(s.classLine)}</div>` : ""}
+      ${s.tShirtSizeLine ? `<div class="vbs-tshirt" style="font-size:${t.detailPt}pt">${escapeHtml(s.tShirtSizeLine)}</div>` : ""}
+      ${s.guardianLine ? `<div class="vbs-guardian" style="font-size:${t.detailPt}pt">${escapeHtml(s.guardianLine)}</div>` : ""}
+      ${s.guardianPhone ? `<div class="vbs-phone" style="font-size:${t.detailPt}pt">${escapeHtml(s.guardianPhone)}</div>` : ""}
+    </div>
+    <div class="vbs-right">${rightParts.join("")}</div>
   </div>`;
 }
 
 function renderNameCodeHeader(payload: BadgePrintPayload): string {
-  const s = payload.structured;
-  const typography = payload.settings.typography;
-  const codeHtml = s.securityCode
-    ? `<div class="code-box"><span class="code-label">Registration code</span><span class="code-value">${escapeHtml(s.securityCode)}</span></div>`
-    : "";
-
-  const answersHtml = s.answerLines.length
-    ? `<div class="detail-block"><div class="detail-text">${s.answerLines
-        .map((l) =>
-          detailLineHtml(`${l.label ?? "Field"}:`, l.text, typography, l.fontPt),
-        )
-        .join("")}</div></div>`
-    : "";
-
-  const medicalHtml = s.medicalLine
-    ? detailLineHtml("Allergies:", s.medicalLine, typography)
-    : "";
-
-  const qrHtml =
-    payload.qrDataUrl && payload.settings.showQrCode
-      ? `<img class="header-qr" src="${payload.qrDataUrl}" alt="Check-in QR code" />`
-      : "";
-
-  return `<div class="badge horizontal layout-name-code">
-    <div class="header-row">
-      <div class="name-stack">
-        ${
-          payload.settings.showChildName
-            ? `<div class="first-name">${escapeHtml(s.firstName || payload.childName)}</div>
-        ${s.lastName ? `<div class="last-name">${escapeHtml(s.lastName)}</div>` : ""}`
-            : ""
-        }
-      </div>
-      <div class="header-right">${codeHtml}${qrHtml}</div>
-    </div>
-    <hr class="divider" />
-    ${s.locationLine ? `<div class="location-line">${escapeHtml(s.locationLine)}</div>` : ""}
-    ${answersHtml}
-    ${medicalHtml}
-  </div>`;
+  return renderVbsHorizontal(payload);
 }
 
 function detailLineHtml(
@@ -121,42 +105,7 @@ function detailLineHtml(
 }
 
 function renderKidCheck(payload: BadgePrintPayload): string {
-  const s = payload.structured;
-  const typography = payload.settings.typography;
-  const codeHtml = s.securityCode
-    ? `<div class="security-code">${escapeHtml(s.securityCode)}</div>`
-    : "";
-  const logoHtml = payload.settings.logoUrl
-    ? `<div class="brand-strip"><img class="brand-logo" src="${escapeHtml(payload.settings.logoUrl)}" alt="" /></div>`
-    : "";
-
-  const footerParts: string[] = [];
-  if (s.printedAt) footerParts.push(`<div class="timestamp">${escapeHtml(s.printedAt)}</div>`);
-  if (payload.qrDataUrl && payload.settings.showQrCode) {
-    footerParts.push(`<img class="footer-qr" src="${payload.qrDataUrl}" alt="QR" />`);
-  } else if (payload.barcodeDataUrl) {
-    footerParts.push(`<img class="barcode" src="${payload.barcodeDataUrl}" alt="" />`);
-  }
-
-  return `<div class="badge horizontal layout-kidcheck">
-    <div class="kidcheck-body">
-      <div class="kidcheck-header">
-        ${
-          payload.settings.showChildName
-            ? `<div class="kidcheck-name">${escapeHtml(`${s.firstName} ${s.lastName}`.trim() || payload.childName)}</div>`
-            : `<div class="kidcheck-name" style="flex:1"></div>`
-        }
-        ${codeHtml}
-      </div>
-      <hr class="divider" />
-      ${s.seasonLine ? `<div class="kidcheck-season">${escapeHtml(s.seasonLine)}</div>` : ""}
-      ${s.classLine ? `<div class="kidcheck-class">${escapeHtml(s.classLine)}</div>` : s.serviceLine ? `<div class="kidcheck-class">${escapeHtml(s.serviceLine)}</div>` : ""}
-      ${s.answerLines.map((l) => detailLineHtml(`${l.label ?? "Field"}:`, l.text, typography, l.fontPt)).join("")}
-      ${s.medicalLine ? detailLineHtml("Allergies:", s.medicalLine, typography) : ""}
-      <div class="kidcheck-footer">${footerParts.join("")}</div>
-    </div>
-    ${logoHtml}
-  </div>`;
+  return renderVbsHorizontal(payload);
 }
 
 function layoutCss(horizontal: boolean): string {
@@ -217,7 +166,22 @@ function layoutCss(horizontal: boolean): string {
     .brand-logo { max-height: 100%; max-width: 0.24in; object-fit: contain; transform: rotate(-90deg); }
   `;
 
-  return `${base}\n${nameCode}\n${kidcheck}`;
+  const vbs = `
+    .layout-vbs { display: flex; flex-direction: row; align-items: stretch; justify-content: space-between; gap: 0.08in; height: 100%; }
+    .vbs-left { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; text-align: left; gap: 0.028in; padding-top: 0.02in; }
+    .vbs-child-name { font-weight: 400; line-height: 1.05; color: #0f172a; }
+    .vbs-event { font-weight: 400; color: #334155; line-height: 1.1; margin-bottom: 0.02in; }
+    .vbs-class { font-weight: 800; line-height: 1.1; color: #0f172a; margin-top: 0.01in; }
+    .vbs-tshirt { font-weight: 800; line-height: 1.1; color: #0f172a; margin-top: 0.01in; }
+    .vbs-guardian { font-weight: 800; line-height: 1.1; color: #0f172a; margin-top: 0.04in; }
+    .vbs-phone { font-weight: 800; line-height: 1.1; color: #0f172a; }
+    .vbs-right { flex-shrink: 0; display: flex; flex-direction: column; align-items: flex-end; justify-content: flex-end; gap: 0.03in; text-align: right; min-width: 0.85in; }
+    .vbs-reg-number { font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: 0.03em; color: #0f172a; }
+    .vbs-qr { display: block; }
+    .vbs-timestamp { color: #64748b; line-height: 1.15; }
+  `;
+
+  return `${base}\n${vbs}\n${nameCode}\n${kidcheck}`;
 }
 
 export function buildBadgePrintHtml(payload: BadgePrintPayload): string {

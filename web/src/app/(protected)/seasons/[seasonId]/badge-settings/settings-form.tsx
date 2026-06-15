@@ -555,7 +555,9 @@ export function BadgePrintSettingsForm({
       <div className="rounded-xl border border-foreground/10 p-4">
         <h2 className="text-sm font-semibold text-foreground/90">Preview</h2>
         <p className="mt-1 text-sm text-muted">
-          Matches iPad Brother printing for your selected layout. Save to apply at the check-in desk.
+          Horizontal badges print in the VBS check-in layout: child name, event, class, t-shirt size,
+          guardian name and phone on the left; registration code, QR, and check-in time (Central) on the
+          bottom right. Add a registration form field whose name includes &quot;shirt&quot; for t-shirt size.
         </p>
         <div className="mt-4 flex justify-center rounded-lg bg-foreground/[0.03] p-6">
           <BadgePreviewCard payload={previewPayload} />

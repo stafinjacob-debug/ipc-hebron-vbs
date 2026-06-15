@@ -99,6 +99,7 @@ export async function loadBadgePrintPayloadForRegistration(
     checkInLabel: reg.classroom?.checkInLabel ?? null,
     qrDataUrl,
     fieldOptions,
+    checkedInAt: reg.checkedInAt,
     registrationRow: {
       id: reg.id,
       registrationNumber: reg.registrationNumber,
