@@ -23,6 +23,7 @@ import {
   isCheckoutPendingRegistration,
   mergeRegistrationPaymentStatusFilter,
   registrationListPaymentBadge,
+  registrationPaymentOutstandingWhere,
 } from "@/lib/registration-list-payment";
 import { ExportRegistrationsModal } from "./export-registrations-modal";
 import { RegistrationListColumnsModal } from "./registration-list-columns-modal";
@@ -178,12 +179,6 @@ export default async function RegistrationsPage({
   if (!canViewOperations(session.user.role)) redirect("/dashboard");
   const sp = await searchParams;
 
-  let totalRegistrations = 0;
-  let pendingRegistrations = 0;
-  let confirmedRegistrations = 0;
-  let waitlistRegistrations = 0;
-  let unassignedActive = 0;
-  let needsPaymentCount = 0;
   let seasons: Array<{
     id: string;
     name: string;
@@ -192,32 +187,6 @@ export default async function RegistrationsPage({
     registrationForm: { publishedDefinitionJson: string | null; draftDefinitionJson: string | null } | null;
   }> = [];
   try {
-    [
-      totalRegistrations,
-      pendingRegistrations,
-      confirmedRegistrations,
-      waitlistRegistrations,
-      unassignedActive,
-      needsPaymentCount,
-    ] = await Promise.all([
-      prisma.registration.count(),
-      prisma.registration.count({ where: { status: "PENDING" } }),
-      prisma.registration.count({ where: { status: "CONFIRMED" } }),
-      prisma.registration.count({ where: { status: "WAITLIST" } }),
-      prisma.registration.count({
-        where: {
-          classroomId: null,
-          status: { in: ["PENDING", "CONFIRMED", "WAITLIST"] },
-        },
-      }),
-      prisma.registration.count({
-        where: {
-          expectsPayment: true,
-          paymentReceivedAt: null,
-        },
-      }),
-    ]);
-
     seasons = await prisma.vbsSeason.findMany({
       orderBy: [{ year: "desc" }, { startDate: "desc" }],
       select: {
@@ -243,9 +212,56 @@ export default async function RegistrationsPage({
       </div>
     );
   }
+
   const seasonParam = queryParamString(sp.season);
   const filterSeason = seasonParam ? (seasons.find((s) => s.id === seasonParam) ?? null) : null;
   const uiSeason = filterSeason ?? seasons[0] ?? null;
+  const statsWhere: Prisma.RegistrationWhereInput = filterSeason?.id ? { seasonId: filterSeason.id } : {};
+
+  let totalRegistrations = 0;
+  let pendingRegistrations = 0;
+  let confirmedRegistrations = 0;
+  let waitlistRegistrations = 0;
+  let unassignedActive = 0;
+  let needsPaymentCount = 0;
+  try {
+    [
+      totalRegistrations,
+      pendingRegistrations,
+      confirmedRegistrations,
+      waitlistRegistrations,
+      unassignedActive,
+      needsPaymentCount,
+    ] = await Promise.all([
+      prisma.registration.count({ where: statsWhere }),
+      prisma.registration.count({ where: { ...statsWhere, status: "PENDING" } }),
+      prisma.registration.count({ where: { ...statsWhere, status: "CONFIRMED" } }),
+      prisma.registration.count({ where: { ...statsWhere, status: "WAITLIST" } }),
+      prisma.registration.count({
+        where: {
+          ...statsWhere,
+          classroomId: null,
+          status: { in: ["PENDING", "CONFIRMED", "WAITLIST"] },
+        },
+      }),
+      prisma.registration.count({
+        where: {
+          ...statsWhere,
+          ...registrationPaymentOutstandingWhere(),
+        },
+      }),
+    ]);
+  } catch (error) {
+    console.error("[registrations/page] stats failed", error);
+    return (
+      <div className="space-y-4">
+        <h1 className="text-2xl font-semibold tracking-tight">All Registrations</h1>
+        <div className="rounded-xl border border-amber-300/50 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          Could not load registration stats. Please refresh in a moment.
+        </div>
+      </div>
+    );
+  }
 
   const dynamicFieldOptions = uiSeason
     ? buildDynamicFieldOptions(
@@ -585,6 +601,13 @@ export default async function RegistrationsPage({
             Review duplicates
           </Link>
         </div>
+      ) : null}
+
+      {filterSeason ? (
+        <p className="text-xs text-foreground/60">
+          Summary counts below are for <strong className="font-medium text-foreground/75">{filterSeason.name}</strong>.
+          Choose <strong className="font-medium text-foreground/75">All seasons</strong> in filters for church-wide totals.
+        </p>
       ) : null}
 
       <section className="grid gap-2 sm:grid-cols-2 lg:grid-cols-6">

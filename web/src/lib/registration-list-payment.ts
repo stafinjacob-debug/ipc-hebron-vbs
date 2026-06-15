@@ -78,6 +78,14 @@ export function registrationListPaymentBadge(r: RegistrationPaymentBadgeInput): 
   return { label: "Not required", className: "text-xs text-foreground/55" };
 }
 
+/** Registrations still expecting payment (matches Payment Due summary + list filter). */
+export function registrationPaymentOutstandingWhere(): Prisma.RegistrationWhereInput {
+  return {
+    expectsPayment: true,
+    paymentReceivedAt: null,
+  };
+}
+
 const paidClause: Prisma.RegistrationWhereInput = {
   OR: [
     { paymentReceivedAt: { not: null } },
@@ -108,12 +116,6 @@ const dueCanceledClause: Prisma.RegistrationWhereInput = {
   },
 };
 
-/** Matches the plain “Due” badge (not checkout pending / canceled / paid). */
-const duePlainClause: Prisma.RegistrationWhereInput = {
-  expectsPayment: true,
-  AND: [{ NOT: paidClause }, { NOT: checkoutPendingClause }, { NOT: dueCanceledClause }],
-};
-
 /** `payment` query param → Prisma `where` fragment (merged with AND). */
 export function mergeRegistrationPaymentStatusFilter(
   where: Prisma.RegistrationWhereInput,
@@ -128,7 +130,7 @@ export function mergeRegistrationPaymentStatusFilter(
       break;
     case "due":
     case "due_plain":
-      mergeWhereAnd(where, duePlainClause);
+      mergeWhereAnd(where, registrationPaymentOutstandingWhere());
       break;
     case "not_required":
       mergeWhereAnd(where, {
