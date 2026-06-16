@@ -62,12 +62,19 @@ export function canSeeMainNavLink(role: UserRole | string, href: string): boolea
     );
   }
   if (r === "TEACHER") {
+    if (
+      href.startsWith("/check-in") ||
+      href.startsWith("/content") ||
+      href.startsWith("/registrations/forms") ||
+      href.startsWith("/registrations/form-workspace") ||
+      href === "/registrations/settings"
+    ) {
+      return false;
+    }
     return (
       href === "/dashboard" ||
       href.startsWith("/registrations") ||
       href.startsWith("/classes") ||
-      href.startsWith("/check-in") ||
-      href.startsWith("/content") ||
       href.startsWith("/settings")
     );
   }

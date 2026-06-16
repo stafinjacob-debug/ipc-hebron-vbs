@@ -155,8 +155,42 @@ function formatEmailInline(text: string): string {
   return renderInlineTokens(tokenizeInline(text));
 }
 
+export type EmailTextAlign = "left" | "center" | "right" | "justify";
+
+export const EMAIL_ALIGN_LINE_PREFIX: Record<EmailTextAlign, string> = {
+  left: "",
+  center: "|align:center| ",
+  right: "|align:right| ",
+  justify: "|align:justify| ",
+};
+
+export const EMAIL_ALIGN_LINE_PREFIX_RE = /^\|align:(left|center|right|justify)\|\s*/i;
+
 const EMAIL_BODY_WRAPPER_STYLE =
   "font-family:system-ui,-apple-system,Segoe UI,sans-serif;font-size:15px;line-height:1.55;color:#0f172a";
+
+type ParsedEmailLine = {
+  align: EmailTextAlign;
+  isBullet: boolean;
+  content: string;
+};
+
+function parseEmailLine(line: string): ParsedEmailLine {
+  let align: EmailTextAlign = "left";
+  let rest = line;
+  const alignMatch = rest.match(EMAIL_ALIGN_LINE_PREFIX_RE);
+  if (alignMatch) {
+    align = alignMatch[1]!.toLowerCase() as EmailTextAlign;
+    rest = rest.slice(alignMatch[0].length);
+  }
+
+  const bulletMatch = rest.match(/^[\-*]\s+(.+)$/);
+  if (bulletMatch) {
+    return { align, isBullet: true, content: bulletMatch[1]! };
+  }
+
+  return { align, isBullet: false, content: rest };
+}
 
 /** Turn plain-text paragraphs into HTML with formatting, line breaks, and clickable links. */
 export function plainTextEmailBodyToHtml(body: string): string {
@@ -166,28 +200,69 @@ export function plainTextEmailBodyToHtml(body: string): string {
   const lines = trimmed.split(/\r?\n/);
   const htmlParts: string[] = [];
   let listItems: string[] = [];
+  let listAlign: EmailTextAlign = "left";
+  let paragraphLines: string[] = [];
+  let paragraphAlign: EmailTextAlign = "left";
+
+  function flushParagraph() {
+    if (paragraphLines.length === 0) return;
+    const inner = paragraphLines.map((line) => formatEmailInline(line)).join("<br/>");
+    if (paragraphAlign === "left") {
+      htmlParts.push(inner);
+    } else {
+      htmlParts.push(
+        `<p style="margin:0 0 10px;text-align:${paragraphAlign};">${inner}</p>`,
+      );
+    }
+    paragraphLines = [];
+    paragraphAlign = "left";
+  }
 
   function flushList() {
     if (listItems.length === 0) return;
+    const listStyle =
+      listAlign === "left"
+        ? "margin:0 0 10px;padding-left:20px;"
+        : `margin:0 0 10px;padding-left:20px;text-align:${listAlign};`;
     htmlParts.push(
-      `<ul style="margin:0 0 10px;padding-left:20px;">${listItems
+      `<ul style="${listStyle}">${listItems
         .map((item) => `<li style="margin:0 0 4px;">${item}</li>`)
         .join("")}</ul>`,
     );
     listItems = [];
+    listAlign = "left";
   }
 
   for (const line of lines) {
-    const bulletMatch = line.match(/^[\-*]\s+(.+)$/);
-    if (bulletMatch) {
-      listItems.push(formatEmailInline(bulletMatch[1]!));
+    const parsed = parseEmailLine(line);
+
+    if (parsed.isBullet) {
+      flushParagraph();
+      if (listItems.length > 0 && parsed.align !== listAlign) {
+        flushList();
+      }
+      listAlign = parsed.align;
+      listItems.push(formatEmailInline(parsed.content));
       continue;
     }
 
     flushList();
-    htmlParts.push(formatEmailInline(line));
+
+    if (parsed.content.trim() === "") {
+      flushParagraph();
+      htmlParts.push("<br/>");
+      continue;
+    }
+
+    if (paragraphLines.length > 0 && parsed.align !== paragraphAlign) {
+      flushParagraph();
+    }
+
+    paragraphAlign = parsed.align;
+    paragraphLines.push(parsed.content);
   }
 
+  flushParagraph();
   flushList();
 
   return `<div style="${EMAIL_BODY_WRAPPER_STYLE}">${htmlParts.join("<br/>")}</div>`;

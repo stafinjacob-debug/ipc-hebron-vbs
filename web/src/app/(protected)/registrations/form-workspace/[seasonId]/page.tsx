@@ -19,7 +19,7 @@ import { parsePublicRegistrationLayout } from "@/lib/public-registration-layout"
 import { clampRegistrationBackgroundDimmingPercent } from "@/lib/registration-background-scrim";
 import { rulesFromDb } from "@/lib/public-registration";
 import { parseWaiverMergeFieldKeysFromDb, parseWaiverSupplementalDefsFromDb } from "@/lib/waiver-merge-fields";
-import { canManageDirectory, canViewOperations } from "@/lib/roles";
+import { canManageDirectory, canViewOperations, canSeeMainNavLink } from "@/lib/roles";
 import { notFound, redirect } from "next/navigation";
 import { FormWorkspacePageClient } from "./form-workspace-client";
 
@@ -31,6 +31,9 @@ export default async function RegistrationFormWorkspacePage({
   const session = await auth();
   if (!session?.user?.role) redirect("/login");
   if (!canViewOperations(session.user.role)) redirect("/dashboard");
+  if (!canSeeMainNavLink(session.user.role, "/registrations/form-workspace")) {
+    redirect("/dashboard");
+  }
 
   const { seasonId } = await params;
 

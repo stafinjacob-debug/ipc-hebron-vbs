@@ -110,8 +110,8 @@ export const ROLE_HELP: Record<
     summary: "Classroom-facing access (rosters and attendance).",
     bullets: [
       "Assigned classes and student rosters",
-      "Check-in / attendance for their group",
-      "Class-related announcements",
+      "View registrations and students for their season",
+      "No check-in desk, form builder, or content modules",
     ],
   },
   CONTENT_MANAGER: {

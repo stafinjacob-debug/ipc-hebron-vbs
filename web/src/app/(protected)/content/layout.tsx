@@ -1,6 +1,15 @@
 import { ContentSubNav } from "@/components/layout/content-sub-nav";
+import { auth } from "@/auth";
+import { canSeeMainNavLink } from "@/lib/permissions";
+import { redirect } from "next/navigation";
 
-export default function ContentLayout({ children }: { children: React.ReactNode }) {
+export default async function ContentLayout({ children }: { children: React.ReactNode }) {
+  const session = await auth();
+  if (!session?.user?.role) redirect("/login");
+  if (!canSeeMainNavLink(session.user.role, "/content/announcements")) {
+    redirect("/dashboard");
+  }
+
   return (
     <div className="mx-auto max-w-3xl">
       <header className="mb-2">

@@ -1,7 +1,22 @@
 "use client";
 
-import { Bold, Italic, Link2, List, Underline } from "lucide-react";
+import {
+  AlignCenter,
+  AlignJustify,
+  AlignLeft,
+  AlignRight,
+  Bold,
+  Italic,
+  Link2,
+  List,
+  Underline,
+} from "lucide-react";
 import { useRef, type ReactNode, type RefObject } from "react";
+import {
+  EMAIL_ALIGN_LINE_PREFIX,
+  EMAIL_ALIGN_LINE_PREFIX_RE,
+  type EmailTextAlign,
+} from "@/lib/email/plain-text-email-html";
 
 type Props = {
   id: string;
@@ -53,6 +68,26 @@ function insertAtLineStarts(textarea: HTMLTextAreaElement, prefix: string) {
   textarea.value = next;
   textarea.focus();
   textarea.setSelectionRange(lineStart, lineStart + prefixed.length);
+  textarea.dispatchEvent(new Event("input", { bubbles: true }));
+}
+
+function setLineAlignment(textarea: HTMLTextAreaElement, align: EmailTextAlign) {
+  const start = textarea.selectionStart;
+  const end = textarea.selectionEnd;
+  const value = textarea.value;
+  const lineStart = value.lastIndexOf("\n", start - 1) + 1;
+  const lineEnd = value.indexOf("\n", end);
+  const blockEnd = lineEnd === -1 ? value.length : lineEnd;
+  const block = value.slice(lineStart, blockEnd);
+  const newPrefix = EMAIL_ALIGN_LINE_PREFIX[align];
+  const aligned = block
+    .split("\n")
+    .map((line) => `${newPrefix}${line.replace(EMAIL_ALIGN_LINE_PREFIX_RE, "")}`)
+    .join("\n");
+  const next = `${value.slice(0, lineStart)}${aligned}${value.slice(blockEnd)}`;
+  textarea.value = next;
+  textarea.focus();
+  textarea.setSelectionRange(lineStart, lineStart + aligned.length);
   textarea.dispatchEvent(new Event("input", { bubbles: true }));
 }
 
@@ -144,6 +179,45 @@ function FormatToolbar({ textareaRef }: { textareaRef: RefObject<HTMLTextAreaEle
       >
         <List className="h-4 w-4" aria-hidden />
       </ToolbarButton>
+
+      <span className="mx-1 h-6 w-px bg-foreground/15" aria-hidden />
+
+      <ToolbarButton
+        label="Align left"
+        onClick={() => {
+          const el = textarea();
+          if (el) setLineAlignment(el, "left");
+        }}
+      >
+        <AlignLeft className="h-4 w-4" aria-hidden />
+      </ToolbarButton>
+      <ToolbarButton
+        label="Align center"
+        onClick={() => {
+          const el = textarea();
+          if (el) setLineAlignment(el, "center");
+        }}
+      >
+        <AlignCenter className="h-4 w-4" aria-hidden />
+      </ToolbarButton>
+      <ToolbarButton
+        label="Align right"
+        onClick={() => {
+          const el = textarea();
+          if (el) setLineAlignment(el, "right");
+        }}
+      >
+        <AlignRight className="h-4 w-4" aria-hidden />
+      </ToolbarButton>
+      <ToolbarButton
+        label="Justify"
+        onClick={() => {
+          const el = textarea();
+          if (el) setLineAlignment(el, "justify");
+        }}
+      >
+        <AlignJustify className="h-4 w-4" aria-hidden />
+      </ToolbarButton>
     </div>
   );
 }
@@ -174,7 +248,7 @@ export function FormattedEmailBodyField({
       />
       <p className="mt-1 text-xs text-muted">
         {hint ??
-          "Use the toolbar for bold, italic, underline, links, and bullet lists. Plain https:// links are also clickable."}
+          "Use the toolbar for formatting, alignment, links, and bullet lists. Select lines before choosing left, center, right, or justify. Plain https:// links are also clickable."}
       </p>
     </div>
   );

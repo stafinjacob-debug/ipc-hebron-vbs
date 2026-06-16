@@ -2,7 +2,7 @@ import { auth } from "@/auth";
 import { loadSeasonAttendanceContext, resolveCheckedInMap } from "@/lib/attendance";
 import { resolveBadgePrintSettings } from "@/lib/badge-print";
 import { prisma } from "@/lib/prisma";
-import { canUseCheckInActions } from "@/lib/permissions";
+import { canUseCheckInActions, canSeeMainNavLink } from "@/lib/permissions";
 import { ClipboardCheck } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -15,6 +15,7 @@ export default async function CheckInPage({ searchParams }: Props) {
   const session = await auth();
   if (!session?.user?.role) redirect("/login");
   if (!canUseCheckInActions(session.user.role)) redirect("/dashboard");
+  if (!canSeeMainNavLink(session.user.role, "/check-in")) redirect("/dashboard");
 
   const activeSeason = await prisma.vbsSeason.findFirst({
     where: { isActive: true },

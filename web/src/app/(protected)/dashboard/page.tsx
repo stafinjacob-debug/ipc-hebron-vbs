@@ -1,10 +1,11 @@
 import type { ComponentType, ReactNode } from "react";
 import { auth } from "@/auth";
+import type { UserRole } from "@/generated/prisma";
 import { getDashboardSnapshot } from "@/lib/dashboard-data";
 import type { EventPhase } from "@/lib/event-phase";
 import { getPublicBaseUrl } from "@/lib/public-base-url";
 import { buildPublicSignupUrl, getPortalPublicPath } from "@/lib/portal-public-path";
-import { canManageDirectory, canViewOperations } from "@/lib/roles";
+import { canManageDirectory, canSeeMainNavLink, canViewOperations } from "@/lib/roles";
 import {
   AlertTriangle,
   ArrowRight,
@@ -173,20 +174,21 @@ function headerCtas(
   phase: EventPhase,
   manage: boolean,
   publicSignupUrl: string,
+  role: UserRole,
 ): Array<{ key: string; href: string; label: string; primary?: boolean; external?: boolean }> {
   if (phase === "live") {
     return [
       { key: "in", href: "/check-in", label: "Open check-in", primary: true },
       { key: "badges", href: "/reports", label: "Print badges" },
       { key: "reg", href: "/registrations", label: "Registrations" },
-    ];
+    ].filter((item) => canSeeMainNavLink(role, item.href));
   }
   if (phase === "wrapup") {
     return [
       { key: "rep", href: "/reports", label: "Reports & exports", primary: true },
       { key: "reg", href: "/registrations", label: "View registrations" },
       { key: "set", href: "/settings", label: "Settings" },
-    ];
+    ].filter((item) => canSeeMainNavLink(role, item.href));
   }
   const out = [
     { key: "reg", href: "/registrations", label: "View registrations", primary: true as const },
@@ -201,7 +203,7 @@ function headerCtas(
   if (manage) {
     out.splice(1, 0, { key: "new", href: "/registrations/new", label: "New registration" });
   }
-  return out;
+  return out.filter((item) => item.external || canSeeMainNavLink(role, item.href));
 }
 
 export default async function DashboardPage() {
@@ -210,6 +212,8 @@ export default async function DashboardPage() {
 
   const ops = canViewOperations(session.user.role);
   const manage = canManageDirectory(session.user.role);
+  const showCheckIn = canSeeMainNavLink(session.user.role, "/check-in");
+  const showContent = canSeeMainNavLink(session.user.role, "/content/announcements");
   const data = ops ? await getDashboardSnapshot() : null;
   const publicBase = ops ? await getPublicBaseUrl() : "";
   const publicSignupUrl = data?.activeSeason
@@ -329,7 +333,7 @@ export default async function DashboardPage() {
                 </div>
               </div>
               <div className="flex flex-shrink-0 flex-wrap gap-2 lg:flex-col lg:items-stretch">
-                {headerCtas(data.eventPhase, manage, publicSignupUrl).map((a) =>
+                {headerCtas(data.eventPhase, manage, publicSignupUrl, session.user.role).map((a) =>
                   a.external ? (
                     <a
                       key={a.key}
@@ -363,7 +367,7 @@ export default async function DashboardPage() {
             </div>
           </header>
 
-          {data.eventPhase === "live" && (
+          {data.eventPhase === "live" && showCheckIn && (
             <section aria-labelledby="live-ops-heading" className="space-y-3">
               <SectionTitle id="live-ops-heading">Today&apos;s operations — live board</SectionTitle>
               <div className="grid gap-4 lg:grid-cols-12">
@@ -480,16 +484,18 @@ export default async function DashboardPage() {
                 tone={data.kpis.classesFull > 0 ? "danger" : data.kpis.classesNearFull > 0 ? "warning" : "success"}
                 emphasis={data.kpis.classesFull > 0 || data.kpis.classesNearFull > 0 ? "alert" : "default"}
               />
-              <KpiCard
-                icon={ClipboardCheck}
-                label="Check-in today"
-                value={data.kpis.checkedInToday}
-                sub={`${data.kpis.awaitingCheckIn} awaiting check-in`}
-                href="/check-in"
-                actionLabel="Open attendance"
-                tone="success"
-                emphasis={data.eventPhase === "live" ? "hero" : "default"}
-              />
+              {showCheckIn ? (
+                <KpiCard
+                  icon={ClipboardCheck}
+                  label="Check-in today"
+                  value={data.kpis.checkedInToday}
+                  sub={`${data.kpis.awaitingCheckIn} awaiting check-in`}
+                  href="/check-in"
+                  actionLabel="Open attendance"
+                  tone="success"
+                  emphasis={data.eventPhase === "live" ? "hero" : "default"}
+                />
+              ) : null}
               <KpiCard
                 icon={UserPlus}
                 label="Pending assignments"
@@ -536,12 +542,14 @@ export default async function DashboardPage() {
                   hint="Add a student and guardian in one guided flow."
                 />
               )}
-              <QuickAction
-                href="/check-in"
-                icon={ClipboardCheck}
-                title="Open check-in desk"
-                hint="Record today’s arrivals and line up badges at the door."
-              />
+              {showCheckIn ? (
+                <QuickAction
+                  href="/check-in"
+                  icon={ClipboardCheck}
+                  title="Open check-in desk"
+                  hint="Record today’s arrivals and line up badges at the door."
+                />
+              ) : null}
               <QuickAction
                 href="/reports"
                 icon={Printer}
@@ -554,18 +562,22 @@ export default async function DashboardPage() {
                 title="Manage classes"
                 hint="Review capacity, age bands, and room balance."
               />
-              <QuickAction
-                href="/content/announcements"
-                icon={Megaphone}
-                title="Post an announcement"
-                hint="Share reminders—full composer is on the roadmap."
-              />
-              <QuickAction
-                href="/content/documents"
-                icon={FileStack}
-                title="Upload a schedule"
-                hint="File storage is coming; link handouts from season settings today."
-              />
+              {showContent ? (
+                <>
+                  <QuickAction
+                    href="/content/announcements"
+                    icon={Megaphone}
+                    title="Post an announcement"
+                    hint="Share reminders—full composer is on the roadmap."
+                  />
+                  <QuickAction
+                    href="/content/documents"
+                    icon={FileStack}
+                    title="Upload a schedule"
+                    hint="File storage is coming; link handouts from season settings today."
+                  />
+                </>
+              ) : null}
             </div>
           </section>
 
@@ -595,8 +607,8 @@ export default async function DashboardPage() {
                       icon={ClipboardCheck}
                       title="No check-ins yet today"
                       description="When you start scanning or tapping arrivals, you’ll see which rooms are busiest."
-                      primaryHref="/check-in"
-                      primaryLabel="Open check-in"
+                      primaryHref={showCheckIn ? "/check-in" : "/classes"}
+                      primaryLabel={showCheckIn ? "Open check-in" : "View classes"}
                     />
                   ) : (
                     <ol className="flex-1 space-y-2 p-4 text-sm">
@@ -769,6 +781,7 @@ export default async function DashboardPage() {
             </section>
           )}
 
+          {showContent ? (
           <section aria-labelledby="content-heading" className="space-y-3">
             <SectionTitle id="content-heading">Content &amp; registration</SectionTitle>
             <div className="grid gap-4 lg:grid-cols-3">
@@ -816,6 +829,7 @@ export default async function DashboardPage() {
               </div>
             </div>
           </section>
+          ) : null}
 
           <section aria-labelledby="people-heading" className="space-y-3">
             <SectionTitle id="people-heading">People &amp; assignments</SectionTitle>
