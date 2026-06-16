@@ -559,7 +559,7 @@ export async function markRegistrationPaymentDue(registrationId: string): Promis
     select: {
       expectsPayment: true,
       paymentReceivedAt: true,
-      formSubmission: { select: { stripePaymentStatus: true } },
+      formSubmission: { select: { stripePaymentStatus: true, stripeCheckoutSessionId: true } },
     },
   });
   if (!reg) return { ok: false, message: "Registration not found." };
