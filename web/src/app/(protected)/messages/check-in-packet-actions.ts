@@ -16,6 +16,7 @@ import {
   registrationContactFooterInput,
 } from "@/lib/email/registration-email-context";
 import { isMicrosoftGraphEmailConfigured } from "@/lib/email/microsoft-graph";
+import { plainTextEmailBodyToHtml } from "@/lib/email/plain-text-email-html";
 import { prisma } from "@/lib/prisma";
 import { canManageDirectory } from "@/lib/roles";
 
@@ -36,21 +37,6 @@ const ALLOWED_ATTACHMENT_TYPES = new Set([
   "application/msword",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 ]);
-
-function escapeHtmlEmailBody(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
-
-function introHtmlFromPlainText(body: string): string {
-  const trimmed = body.trim();
-  if (!trimmed) return "";
-  return `<div style="font-family:system-ui,-apple-system,Segoe UI,sans-serif;font-size:15px;line-height:1.55;color:#0f172a">${escapeHtmlEmailBody(trimmed).replace(/\r?\n/g, "<br/>")}</div>`;
-}
 
 function sanitizeAttachmentFileName(raw: string): string {
   const base = raw.split(/[/\\]/).pop()?.trim() || "attachment";
@@ -170,7 +156,7 @@ export async function sendCheckInPacketAction(
     };
   }
 
-  const introHtml = introHtmlFromPlainText(body);
+  const introHtml = plainTextEmailBodyToHtml(body);
   let sent = 0;
   let failed = 0;
   let lastError = "";

@@ -16,6 +16,7 @@ import {
   syncSentMessagesByDelta,
 } from "@/lib/messages/graph-mailbox";
 import { sendMailViaMicrosoftGraph } from "@/lib/email/microsoft-graph";
+import { plainTextEmailBodyToHtml } from "@/lib/email/plain-text-email-html";
 import {
   COMPOSE_TO_EMAIL_RE,
   guardianEmailsForComposeRegistrantAudience,
@@ -371,15 +372,6 @@ export async function bulkUpdateIncomingMessagesAction(
   return { ok: true, message: `Updated ${result.count} message(s).` };
 }
 
-function escapeHtmlEmailBody(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
-
 const COMPOSE_TO_EMAIL_RE_LEGACY = COMPOSE_TO_EMAIL_RE;
 
 const MAX_MANUAL_COMPOSE_RECIPIENTS = 25;
@@ -435,7 +427,7 @@ export async function sendComposedEmailAction(
   if (!subject) return { ok: false, error: "Subject is required." };
   if (!body) return { ok: false, error: "Message body cannot be empty." };
 
-  const htmlBody = `<div style="font-family:system-ui,-apple-system,Segoe UI,sans-serif;font-size:15px;line-height:1.55;color:#0f172a">${escapeHtmlEmailBody(body).replace(/\r?\n/g, "<br/>")}</div>`;
+  const htmlBody = plainTextEmailBodyToHtml(body);
 
   if (recipientMode === "registrants") {
     const audience = parseComposeRegistrantAudience(audienceRaw);

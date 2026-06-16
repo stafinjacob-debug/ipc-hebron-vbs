@@ -7,6 +7,7 @@ import {
   sendCheckInPacketAction,
   type CheckInPacketActionState,
 } from "@/app/(protected)/messages/check-in-packet-actions";
+import { FormattedEmailBodyField } from "@/components/messages/formatted-email-body-field";
 import { COMPOSE_REGISTRANT_AUDIENCE_OPTIONS } from "@/lib/compose-registrant-audience-options";
 
 const INITIAL: CheckInPacketActionState = { ok: false };
@@ -182,13 +183,14 @@ export function CheckInPacketForm({ seasons }: { seasons: SeasonOption[] }) {
         <label htmlFor="body" className="block text-xs font-medium text-foreground/70">
           Message <span className="font-normal text-muted">(optional intro before check-in cards)</span>
         </label>
-        <textarea
-          id="body"
-          name="body"
-          rows={8}
-          placeholder="Add parking directions, drop-off times, or other notes for families…"
-          className="mt-1 w-full rounded-md border border-foreground/15 bg-background px-3 py-2 text-sm outline-none ring-brand/40 placeholder:text-foreground/45 focus:ring-2"
-        />
+        <div className="mt-1">
+          <FormattedEmailBodyField
+            id="body"
+            name="body"
+            rows={8}
+            placeholder="Add parking directions, drop-off times, or other notes for families…"
+          />
+        </div>
       </div>
 
       <div>
