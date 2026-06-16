@@ -13,6 +13,7 @@ import {
   type CheckInLookupMatch,
 } from '@/components/CheckInLookupModal';
 import { CheckInQrScanner } from '@/components/CheckInQrScanner';
+import { PinEntryModal } from '@/components/PinEntryModal';
 import { palette } from '@/constants/theme';
 import { ApiError, apiFetch } from '@/lib/api';
 import {
@@ -40,6 +41,7 @@ export default function CheckInScreen() {
   const [printingId, setPrintingId] = useState<string | null>(null);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [undoPinMatch, setUndoPinMatch] = useState<CheckInLookupMatch | null>(null);
+  const [pinModalOpen, setPinModalOpen] = useState(false);
   const [deskSettings, setDeskSettings] = useState<CheckInDeskSettings>({
     badgePrintingEnabled: false,
     autoPrintOnCheckIn: false,
@@ -210,12 +212,53 @@ export default function CheckInScreen() {
         /security code/i.test(msg)
       ) {
         setUndoPinMatch(match);
+        setPinModalOpen(true);
         return;
       }
       Alert.alert('Could not update', msg);
     } finally {
       setPendingId(null);
     }
+  }
+
+  async function resolveUndoPinRequired(): Promise<boolean> {
+    if (!token || !seasonId) return deskSettings.undoPinRequired;
+    try {
+      const settings = await fetchCheckInDeskSettings(token, seasonId, campDate);
+      setDeskSettings(settings);
+      return settings.undoPinRequired;
+    } catch {
+      return true;
+    }
+  }
+
+  function openUndoPinModal(match: CheckInLookupMatch) {
+    setUndoPinMatch(match);
+    setPinModalOpen(true);
+  }
+
+  async function beginUndoCheckIn(match: CheckInLookupMatch) {
+    Alert.alert(
+      'Undo check-in',
+      `Remove ${match.studentName}'s check-in for today?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Continue',
+          onPress: () => {
+            void (async () => {
+              const pinRequired = await resolveUndoPinRequired();
+              setLookupModalOpen(false);
+              if (pinRequired) {
+                openUndoPinModal(match);
+                return;
+              }
+              await patchAttendance(match, false);
+            })();
+          },
+        },
+      ],
+    );
   }
 
   function handleCheckIn(match: CheckInLookupMatch) {
@@ -240,11 +283,7 @@ export default function CheckInScreen() {
     }
 
     if (match.checkedIn) {
-      if (deskSettings.undoPinRequired) {
-        setUndoPinMatch(match);
-        return;
-      }
-      void patchAttendance(match, false);
+      void beginUndoCheckIn(match);
       return;
     }
 
@@ -260,11 +299,13 @@ export default function CheckInScreen() {
   }
 
   function cancelUndoPinPrompt() {
+    setPinModalOpen(false);
     setUndoPinMatch(null);
   }
 
   function submitUndoPin(pin: string) {
     const match = undoPinMatch;
+    setPinModalOpen(false);
     setUndoPinMatch(null);
     if (!match) return;
     void patchAttendance(match, false, pin);
@@ -430,14 +471,15 @@ export default function CheckInScreen() {
         dismissalMode={dismissal}
         onCheckIn={(match) => handleCheckIn(match)}
         onPrintBadge={(match) => void runPrintBadge(match.id)}
-        undoPinPrompt={
-          undoPinMatch
-            ? {
-                onCancel: cancelUndoPinPrompt,
-                onSubmit: submitUndoPin,
-              }
-            : undefined
-        }
+      />
+
+      <PinEntryModal
+        visible={pinModalOpen}
+        title="Security code required"
+        message="Enter the 4-digit code to undo this check-in."
+        confirmLabel="Confirm undo"
+        onCancel={cancelUndoPinPrompt}
+        onSubmit={submitUndoPin}
       />
     </View>
   );

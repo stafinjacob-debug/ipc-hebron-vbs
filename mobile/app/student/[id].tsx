@@ -184,6 +184,21 @@ export default function StudentDetailScreen() {
     }
   }
 
+  async function resolveUndoPinRequired(): Promise<boolean> {
+    if (!token || !seasonId) return deskSettings.undoPinRequired;
+    try {
+      const settings = await fetchCheckInDeskSettings(
+        token,
+        seasonId,
+        typeof campDate === 'string' ? campDate : null,
+      );
+      setDeskSettings(settings);
+      return settings.undoPinRequired;
+    } catch {
+      return true;
+    }
+  }
+
   function onPrimaryPress() {
     if (!data) return;
     if (dismissal) {
@@ -209,19 +224,6 @@ export default function StudentDetailScreen() {
       return;
     }
     if (data.registration.checkedIn) {
-      if (deskSettings.dismissalTrackingEnabled) {
-        Alert.alert('Already checked in', 'Use Dismissal tab to check out.');
-        return;
-      }
-      const confirmUndo = () => {
-        InteractionManager.runAfterInteractions(() => {
-          if (deskSettings.undoPinRequired) {
-            setPinModalOpen(true);
-            return;
-          }
-          void patchAttendance(false);
-        });
-      };
       Alert.alert(
         'Undo check-in',
         `Remove ${data.student.firstName}'s check-in for today?`,
@@ -230,7 +232,18 @@ export default function StudentDetailScreen() {
           {
             text: 'Undo check-in',
             style: 'destructive',
-            onPress: confirmUndo,
+            onPress: () => {
+              void (async () => {
+                const pinRequired = await resolveUndoPinRequired();
+                InteractionManager.runAfterInteractions(() => {
+                  if (pinRequired) {
+                    setPinModalOpen(true);
+                    return;
+                  }
+                  void patchAttendance(false);
+                });
+              })();
+            },
           },
         ],
       );

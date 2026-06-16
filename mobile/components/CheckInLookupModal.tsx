@@ -311,10 +311,10 @@ const styles = StyleSheet.create({
   actions: { gap: 10, marginTop: 12 },
   pinOverlay: {
     ...StyleSheet.absoluteFillObject,
+    zIndex: 100,
+    elevation: 100,
     backgroundColor: 'rgba(0,0,0,0.55)',
     justifyContent: 'center',
     paddingHorizontal: 20,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
   },
 });

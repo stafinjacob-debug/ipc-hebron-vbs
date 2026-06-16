@@ -28,7 +28,7 @@
       },
       "channel": "production",
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://ipc-hebron-vbs.azurewebsites.net"
+        "EXPO_PUBLIC_API_URL": "https://vbs.ipchouston.com"
       }
     }
   },
