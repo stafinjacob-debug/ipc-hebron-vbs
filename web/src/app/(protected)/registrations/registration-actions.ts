@@ -11,7 +11,11 @@ import {
   sendRegistrationsRemovedEmail,
   type EmailSendResult,
 } from "@/lib/email/registration-emails";
-import { isCheckoutPendingRegistration } from "@/lib/registration-list-payment";
+import {
+  isCheckoutPendingRegistration,
+  registrationListShowsPaid,
+  registrationPaymentIsComplete,
+} from "@/lib/registration-list-payment";
 import { tryAutoAssignRegistration } from "@/lib/class-assignment";
 import { makeCheckInToken, makeUniqueRegistrationNumber } from "@/lib/registration-identity";
 import { prisma } from "@/lib/prisma";
@@ -474,13 +478,22 @@ export async function resendPaymentReminderEmailAction(registrationId: string): 
 
   const reg = await prisma.registration.findUnique({
     where: { id: registrationId },
-    select: { expectsPayment: true, paymentReceivedAt: true },
+    select: {
+      expectsPayment: true,
+      paymentReceivedAt: true,
+      formSubmission: {
+        select: {
+          stripePaymentStatus: true,
+          stripeCheckoutSessionId: true,
+        },
+      },
+    },
   });
   if (!reg) return { ok: false, message: "Registration not found." };
   if (!reg.expectsPayment) {
     return { ok: false, message: "Turn on “expects payment” for this registration first." };
   }
-  if (reg.paymentReceivedAt) {
+  if (registrationPaymentIsComplete(reg)) {
     return { ok: false, message: "Payment is already marked received." };
   }
 
@@ -514,7 +527,7 @@ export async function setRegistrationExpectsPayment(
   return {
     ok: true,
     message: expectsPayment
-      ? "Marked as expecting payment (status will show Due unless paid online)."
+      ? "Marked as expecting payment — status will show Due on the list."
       : "Payment expectation cleared.",
   };
 }
@@ -543,11 +556,21 @@ export async function markRegistrationPaymentDue(registrationId: string): Promis
 
   const reg = await prisma.registration.findUnique({
     where: { id: registrationId },
-    select: { paymentReceivedAt: true },
+    select: {
+      expectsPayment: true,
+      paymentReceivedAt: true,
+      formSubmission: { select: { stripePaymentStatus: true } },
+    },
   });
   if (!reg) return { ok: false, message: "Registration not found." };
-  if (!reg.paymentReceivedAt) {
-    return { ok: false, message: "Payment is not marked as received." };
+
+  const showsPaid = registrationListShowsPaid({
+    expectsPayment: reg.expectsPayment,
+    paymentReceivedAt: reg.paymentReceivedAt,
+    formSubmission: reg.formSubmission,
+  });
+  if (!showsPaid) {
+    return { ok: false, message: "Payment is already marked as due." };
   }
 
   await prisma.registration.update({

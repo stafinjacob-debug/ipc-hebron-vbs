@@ -25,6 +25,8 @@ export function RegistrationAdminPanel({
   guardianHasPhone,
   checkoutPending,
   checkoutReminderSentAt,
+  paymentShowsPaid,
+  paymentOutstanding,
   smsSetupHint,
 }: {
   registrationId: string;
@@ -35,6 +37,8 @@ export function RegistrationAdminPanel({
   guardianHasPhone: boolean;
   checkoutPending: boolean;
   checkoutReminderSentAt: string | null;
+  paymentShowsPaid: boolean;
+  paymentOutstanding: boolean;
   /** Shown when SMS env is incomplete (e.g. Sent.dm key without template ID). */
   smsSetupHint?: string | null;
 }) {
@@ -45,7 +49,6 @@ export function RegistrationAdminPanel({
 
   const isConfirmed = status === "CONFIRMED";
   const canApprove = status === "PENDING" || status === "WAITLIST" || status === "DRAFT";
-  const paymentOutstanding = expectsPayment && !paymentReceivedAt;
 
   return (
     <div className="space-y-4 rounded-xl border border-foreground/10 bg-surface-elevated p-5">
@@ -203,11 +206,15 @@ export function RegistrationAdminPanel({
             />
             Expects payment
           </label>
-          {paymentReceivedAt ? (
+          {paymentShowsPaid ? (
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs text-foreground/60">
-                Paid {new Date(paymentReceivedAt).toLocaleString()}
-              </span>
+              {paymentReceivedAt ? (
+                <span className="text-xs text-foreground/60">
+                  Paid {new Date(paymentReceivedAt).toLocaleString()}
+                </span>
+              ) : (
+                <span className="text-xs text-foreground/60">Paid (online or recorded)</span>
+              )}
               <button
                 type="button"
                 disabled={pending}

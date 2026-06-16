@@ -23,6 +23,7 @@ import {
   isCheckoutPendingRegistration,
   mergeRegistrationPaymentStatusFilter,
   registrationListPaymentBadge,
+  registrationPaymentIsComplete,
   registrationPaymentOutstandingWhere,
 } from "@/lib/registration-list-payment";
 import {
@@ -527,7 +528,7 @@ export default async function RegistrationsPage({
   const bulkRows: RegistrationBulkTableRow[] = rows.map((r) => {
     const badge = registrationListPaymentBadge(r);
     const checkoutPending = isCheckoutPendingRegistration(r);
-    const paymentOutstanding = r.expectsPayment && !r.paymentReceivedAt;
+    const paymentOutstanding = r.expectsPayment && !registrationPaymentIsComplete(r);
     const extraCells: Record<string, string> = {};
     for (const key of extraColumnKeys) {
       extraCells[key] = resolveRegistrationExportFieldValue(

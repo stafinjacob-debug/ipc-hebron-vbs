@@ -17,6 +17,9 @@ export type RegistrationPaymentBadgeInput = {
 };
 
 export function registrationPaymentIsComplete(r: RegistrationPaymentBadgeInput): boolean {
+  if (r.expectsPayment) {
+    return Boolean(r.paymentReceivedAt);
+  }
   if (r.paymentReceivedAt) return true;
   const stripeStatus = (r.formSubmission?.stripePaymentStatus ?? "").toLowerCase();
   return stripeStatus === "paid";
@@ -39,22 +42,20 @@ export function registrationListPaymentBadge(r: RegistrationPaymentBadgeInput): 
   label: string;
   className: string;
 } {
-  if (r.paymentReceivedAt) {
-    return {
-      label: "Paid",
-      className:
-        "inline-flex rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-xs font-medium text-emerald-800 dark:text-emerald-300",
-    };
-  }
-  const stripeStatus = (r.formSubmission?.stripePaymentStatus ?? "").toLowerCase();
-  if (stripeStatus === "paid") {
-    return {
-      label: "Paid",
-      className:
-        "inline-flex rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-xs font-medium text-emerald-800 dark:text-emerald-300",
-    };
-  }
+  const paidBadge = {
+    label: "Paid",
+    className:
+      "inline-flex rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-xs font-medium text-emerald-800 dark:text-emerald-300",
+  };
+  const dueBadge = {
+    label: "Due",
+    className:
+      "inline-flex rounded-full bg-amber-500/15 px-2.5 py-0.5 text-xs font-medium text-amber-900 dark:text-amber-200",
+  };
+
   if (r.expectsPayment) {
+    if (r.paymentReceivedAt) return paidBadge;
+    const stripeStatus = (r.formSubmission?.stripePaymentStatus ?? "").toLowerCase();
     if (stripeStatus === "pending" && r.formSubmission?.stripeCheckoutSessionId) {
       return {
         label: "Checkout pending",
@@ -69,12 +70,12 @@ export function registrationListPaymentBadge(r: RegistrationPaymentBadgeInput): 
           "inline-flex rounded-full bg-amber-500/15 px-2.5 py-0.5 text-xs font-medium text-amber-900 dark:text-amber-200",
       };
     }
-    return {
-      label: "Due",
-      className:
-        "inline-flex rounded-full bg-amber-500/15 px-2.5 py-0.5 text-xs font-medium text-amber-900 dark:text-amber-200",
-    };
+    return dueBadge;
   }
+
+  if (r.paymentReceivedAt) return paidBadge;
+  const stripeStatus = (r.formSubmission?.stripePaymentStatus ?? "").toLowerCase();
+  if (stripeStatus === "paid") return paidBadge;
   return { label: "Not required", className: "text-xs text-foreground/55" };
 }
 
@@ -84,6 +85,11 @@ export function registrationPaymentOutstandingWhere(): Prisma.RegistrationWhereI
     expectsPayment: true,
     paymentReceivedAt: null,
   };
+}
+
+/** True when the registration list would show Paid (manual mark or Stripe, fee not re-opened). */
+export function registrationListShowsPaid(r: RegistrationPaymentBadgeInput): boolean {
+  return registrationListPaymentBadge(r).label === "Paid";
 }
 
 const paidClause: Prisma.RegistrationWhereInput = {

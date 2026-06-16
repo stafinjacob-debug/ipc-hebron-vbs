@@ -7,7 +7,11 @@ import { canUseCheckInActions } from "@/lib/permissions";
 import { loadStaffAccessScope, registrationAllowedByScope } from "@/lib/staff-access-scope";
 import { registrationTicketUrl } from "@/lib/registration-identity";
 import { getPublicAppBaseUrl } from "@/lib/public-app-url";
-import { isCheckoutPendingRegistration } from "@/lib/registration-list-payment";
+import {
+  isCheckoutPendingRegistration,
+  registrationListShowsPaid,
+  registrationPaymentIsComplete,
+} from "@/lib/registration-list-payment";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import QRCode from "qrcode";
@@ -115,6 +119,13 @@ export default async function RegistrationDetailPage({
     paymentReceivedAt: reg.paymentReceivedAt,
     formSubmission: reg.formSubmission,
   });
+  const paymentInput = {
+    expectsPayment: reg.expectsPayment,
+    paymentReceivedAt: reg.paymentReceivedAt,
+    formSubmission: reg.formSubmission,
+  };
+  const paymentShowsPaid = registrationListShowsPaid(paymentInput);
+  const paymentOutstanding = reg.expectsPayment && !registrationPaymentIsComplete(paymentInput);
   const hasTicket = Boolean(reg.checkInToken);
   const base = getPublicAppBaseUrl();
   const ticketUrl = hasTicket ? registrationTicketUrl(reg.checkInToken!, base, reg.season) : null;
@@ -342,6 +353,8 @@ export default async function RegistrationDetailPage({
               checkoutReminderSentAt={
                 reg.formSubmission?.stripeCheckoutReminderSentAt?.toISOString() ?? null
               }
+              paymentShowsPaid={paymentShowsPaid}
+              paymentOutstanding={paymentOutstanding}
               smsSetupHint={smsGatewaySetupHint()}
             />
           ) : null}
