@@ -11,18 +11,34 @@ import {
 } from 'react-native';
 import { palette } from '@/constants/theme';
 import { Card, SectionTitle } from '@/components/ui';
-import { ApiError, apiFetch } from '@/lib/api';
+import { apiFetch } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { isAdminLikeRole, roleLabel } from '@/lib/roles';
 
+type ClassSummary = {
+  classId: string;
+  className: string;
+  room: string | null;
+  enrolled: number;
+  checkedIn: number;
+  expected: number;
+};
+
 type Dashboard = {
   season: { id: string; name: string; year: number; isActive: boolean };
+  attendance: {
+    campDate: string;
+    campDateLabel: string;
+    multiDayCheckInEnabled: boolean;
+  } | null;
   kpis: {
     checkedIn: number;
+    expected: number;
     remainingArrivals: number;
     classesActive: number;
     studentsWithAlerts: number;
   };
+  classSummaries: ClassSummary[];
   recentCheckIns: Array<{
     registrationId: string;
     studentName: string;
@@ -71,6 +87,9 @@ export default function HomeScreen() {
   }
 
   const firstName = user?.name?.split(/\s+/)[0] ?? 'there';
+  const dayLabel = data?.attendance?.campDateLabel ?? 'Today';
+  const primaryClass =
+    data?.classSummaries.length === 1 ? data.classSummaries[0]! : null;
 
   return (
     <ScrollView
@@ -82,9 +101,15 @@ export default function HomeScreen() {
     >
       <Text style={styles.greeting}>Hi, {firstName}</Text>
       <View style={styles.headerRow}>
-        <Text style={styles.seasonName}>
-          {data?.season.name ?? 'VBS season'}
-        </Text>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.seasonName}>
+            {data?.season.name ?? 'VBS season'}
+          </Text>
+          {primaryClass ? (
+            <Text style={styles.className}>{primaryClass.className}</Text>
+          ) : null}
+          <Text style={styles.dayLabel}>{dayLabel}</Text>
+        </View>
         <View style={styles.badge}>
           <Text style={styles.badgeText}>{roleLabel(user?.role)}</Text>
         </View>
@@ -94,18 +119,21 @@ export default function HomeScreen() {
         <ActivityIndicator size="large" color={palette.accent} />
       ) : data ? (
         <>
+          <View style={[styles.kpiRow, !admin && styles.kpiRowLast]}>
+            <Kpi
+              label="Checked in"
+              value={String(data.kpis.checkedIn)}
+              tone="success"
+            />
+            <Kpi
+              label="Expected"
+              value={String(data.kpis.expected)}
+              tone="neutral"
+            />
+          </View>
+
           {admin ? (
-            <View style={styles.kpiGrid}>
-              <Kpi
-                label="Checked in"
-                value={String(data.kpis.checkedIn)}
-                tone="success"
-              />
-              <Kpi
-                label="Still expected"
-                value={String(data.kpis.remainingArrivals)}
-                tone="neutral"
-              />
+            <View style={styles.kpiRowSecondary}>
               <Kpi
                 label="Classes"
                 value={String(data.kpis.classesActive)}
@@ -119,20 +147,32 @@ export default function HomeScreen() {
                 }
               />
             </View>
-          ) : (
-            <View style={styles.kpiRowVolunteer}>
-              <Kpi
-                label="Checked in"
-                value={String(data.kpis.checkedIn)}
-                tone="success"
-              />
-              <Kpi
-                label="Expected"
-                value={String(data.kpis.remainingArrivals)}
-                tone="neutral"
-              />
-            </View>
-          )}
+          ) : null}
+
+          {data.classSummaries.length > 0 ? (
+            <>
+              <SectionTitle>
+                {data.classSummaries.length === 1 ? 'Your class' : 'Classes today'}
+              </SectionTitle>
+              {data.classSummaries.map((c) => (
+                <Pressable
+                  key={c.classId}
+                  onPress={() => router.push(`/class/${c.classId}`)}
+                >
+                  <Card style={styles.classCard}>
+                    <Text style={styles.classCardName}>{c.className}</Text>
+                    {c.room ? (
+                      <Text style={styles.classCardMeta}>Room {c.room}</Text>
+                    ) : null}
+                    <Text style={styles.classCardCounts}>
+                      {c.checkedIn} checked in · {c.expected} expected ·{' '}
+                      {c.enrolled} enrolled
+                    </Text>
+                  </Card>
+                </Pressable>
+              ))}
+            </>
+          ) : null}
 
           <SectionTitle>Quick actions</SectionTitle>
           <View style={styles.actions}>
@@ -152,7 +192,7 @@ export default function HomeScreen() {
 
           <SectionTitle>Recent check-ins</SectionTitle>
           {data.recentCheckIns.length === 0 ? (
-            <Text style={styles.muted}>No check-ins yet today.</Text>
+            <Text style={styles.muted}>No check-ins yet for {dayLabel.toLowerCase()}.</Text>
           ) : (
             data.recentCheckIns.map((r) => (
               <Pressable
@@ -163,7 +203,7 @@ export default function HomeScreen() {
               >
                 <Card style={styles.activityCard}>
                   <Text style={styles.activityName}>{r.studentName}</Text>
-                  <Text style={styles.muted}>
+                  <Text style={styles.activityClass}>
                     {r.className ?? 'Class TBD'}
                   </Text>
                 </Card>
@@ -229,13 +269,24 @@ const styles = StyleSheet.create({
   greeting: { fontSize: 28, fontWeight: '700', color: palette.text },
   headerRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    flexWrap: 'wrap',
+    alignItems: 'flex-start',
     gap: 8,
     marginTop: 6,
     marginBottom: 20,
   },
-  seasonName: { fontSize: 16, color: palette.textSecondary, flex: 1 },
+  seasonName: { fontSize: 16, color: palette.textSecondary },
+  className: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: palette.text,
+    marginTop: 4,
+  },
+  dayLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: palette.accent,
+    marginTop: 4,
+  },
   badge: {
     backgroundColor: palette.accentMuted,
     paddingHorizontal: 10,
@@ -243,11 +294,11 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   badgeText: { fontSize: 12, fontWeight: '700', color: palette.accent },
-  kpiGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 24 },
-  kpiRowVolunteer: { flexDirection: 'row', gap: 10, marginBottom: 24 },
+  kpiRow: { flexDirection: 'row', gap: 10, marginBottom: 10 },
+  kpiRowLast: { marginBottom: 24 },
+  kpiRowSecondary: { flexDirection: 'row', gap: 10, marginBottom: 24 },
   kpi: {
-    flexGrow: 1,
-    minWidth: '44%',
+    flex: 1,
     backgroundColor: palette.surface,
     borderRadius: 14,
     padding: 14,
@@ -257,6 +308,15 @@ const styles = StyleSheet.create({
   },
   kpiValue: { fontSize: 26, fontWeight: '800', color: palette.text },
   kpiLabel: { fontSize: 13, color: palette.textSecondary, marginTop: 4 },
+  classCard: { marginBottom: 10 },
+  classCardName: { fontSize: 18, fontWeight: '700', color: palette.text },
+  classCardMeta: { fontSize: 14, color: palette.textSecondary, marginTop: 2 },
+  classCardCounts: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: palette.text,
+    marginTop: 8,
+  },
   actions: { gap: 10, marginBottom: 24 },
   qa: {
     backgroundColor: palette.accent,
@@ -269,6 +329,12 @@ const styles = StyleSheet.create({
   qaText: { color: '#fff', fontSize: 17, fontWeight: '700' },
   activityCard: { marginBottom: 10 },
   activityName: { fontSize: 16, fontWeight: '600', color: palette.text },
+  activityClass: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: palette.accent,
+    marginTop: 4,
+  },
   muted: { fontSize: 14, color: palette.textSecondary, marginTop: 4 },
   err: { color: palette.danger, fontSize: 15 },
 });
