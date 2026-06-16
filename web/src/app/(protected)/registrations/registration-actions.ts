@@ -502,11 +502,21 @@ export async function setRegistrationExpectsPayment(
 
   await prisma.registration.update({
     where: { id: registrationId },
-    data: { expectsPayment },
+    data: {
+      expectsPayment,
+      // Manual paid date overrides the Due badge; clear it when fee tracking changes.
+      paymentReceivedAt: null,
+    },
   });
 
   revalidatePath(`/registrations/${registrationId}`);
-  return { ok: true, message: expectsPayment ? "Marked as expecting payment." : "Payment expectation cleared." };
+  revalidatePath("/registrations");
+  return {
+    ok: true,
+    message: expectsPayment
+      ? "Marked as expecting payment (status will show Due unless paid online)."
+      : "Payment expectation cleared.",
+  };
 }
 
 export async function markRegistrationPaymentReceived(registrationId: string): Promise<RegActionState> {
