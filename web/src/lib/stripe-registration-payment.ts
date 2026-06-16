@@ -17,6 +17,33 @@ export function getStripeClient(): Stripe | null {
   return new Stripe(key);
 }
 
+/** True when staff re-opened payment on at least one active registration on this submission. */
+export async function submissionHasOutstandingRegistrationPayment(
+  formSubmissionId: string,
+): Promise<boolean> {
+  const count = await prisma.registration.count({
+    where: {
+      formSubmissionId,
+      status: { not: "CANCELLED" },
+      expectsPayment: true,
+      paymentReceivedAt: null,
+    },
+  });
+  return count > 0;
+}
+
+/** After admin marks payment due again, allow a fresh Stripe checkout for the family. */
+export async function clearFormSubmissionStripePaymentState(formSubmissionId: string): Promise<void> {
+  await prisma.formSubmission.update({
+    where: { id: formSubmissionId },
+    data: {
+      stripePaymentStatus: null,
+      stripePaidAt: null,
+      stripeCheckoutSessionId: null,
+    },
+  });
+}
+
 export async function createRegistrationStripeCheckoutSession(params: {
   formSubmissionId: string;
   seasonId: string;
@@ -133,18 +160,23 @@ export async function resolveCheckoutResumeUrlForSubmission(
   });
   if (!submission) return { error: "Registration submission not found." };
 
+  const paymentReopened = await submissionHasOutstandingRegistrationPayment(formSubmissionId);
+
   const stripeStatus = (submission.stripePaymentStatus ?? "").toLowerCase();
-  if (stripeStatus === "paid" || submission.stripePaidAt) {
+  if (
+    !paymentReopened &&
+    (stripeStatus === "paid" || submission.stripePaidAt)
+  ) {
     return { error: "Payment has already been completed for this registration." };
   }
 
   if (submission.stripeCheckoutSessionId) {
     try {
       const existing = await stripe.checkout.sessions.retrieve(submission.stripeCheckoutSessionId);
-      if (existing.status === "complete") {
+      if (existing.status === "complete" && !paymentReopened) {
         return { error: "Payment has already been completed for this registration." };
       }
-      if (existing.status === "open" && existing.url) {
+      if (!paymentReopened && existing.status === "open" && existing.url) {
         return { url: existing.url };
       }
     } catch (err) {

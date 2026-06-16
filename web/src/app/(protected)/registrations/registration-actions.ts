@@ -20,6 +20,7 @@ import { tryAutoAssignRegistration } from "@/lib/class-assignment";
 import { makeCheckInToken, makeUniqueRegistrationNumber } from "@/lib/registration-identity";
 import { prisma } from "@/lib/prisma";
 import { canManageDirectory } from "@/lib/roles";
+import { clearFormSubmissionStripePaymentState } from "@/lib/stripe-registration-payment";
 import { sendCustomRegistrationSms, sendRegistrationConfirmationSms } from "@/lib/sms/registration-sms";
 import { revalidatePath } from "next/cache";
 
@@ -522,6 +523,16 @@ export async function setRegistrationExpectsPayment(
     },
   });
 
+  if (expectsPayment) {
+    const reg = await prisma.registration.findUnique({
+      where: { id: registrationId },
+      select: { formSubmissionId: true },
+    });
+    if (reg?.formSubmissionId) {
+      await clearFormSubmissionStripePaymentState(reg.formSubmissionId);
+    }
+  }
+
   revalidatePath(`/registrations/${registrationId}`);
   revalidatePath("/registrations");
   return {
@@ -559,6 +570,7 @@ export async function markRegistrationPaymentDue(registrationId: string): Promis
     select: {
       expectsPayment: true,
       paymentReceivedAt: true,
+      formSubmissionId: true,
       formSubmission: { select: { stripePaymentStatus: true, stripeCheckoutSessionId: true } },
     },
   });
@@ -580,6 +592,10 @@ export async function markRegistrationPaymentDue(registrationId: string): Promis
       expectsPayment: true,
     },
   });
+
+  if (reg.formSubmissionId) {
+    await clearFormSubmissionStripePaymentState(reg.formSubmissionId);
+  }
 
   revalidatePath(`/registrations/${registrationId}`);
   revalidatePath("/registrations");

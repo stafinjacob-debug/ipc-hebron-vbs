@@ -424,6 +424,19 @@ function buildPayLaterPaymentInstructionsHtml(args: {
     </div>`;
 }
 
+function buildPaymentReminderPayLinkBlock(payUrl: string | null): string {
+  if (!payUrl) return "";
+  const href = escapeHtml(payUrl);
+  return `
+    <p style="margin:0 0 12px;">
+      <a href="${href}" style="display:inline-block;background:#0f766e;color:#ffffff;padding:12px 18px;border-radius:999px;text-decoration:none;font-size:14px;line-height:1.1;font-weight:700;border:1px solid #0b5f58;">Pay online</a>
+    </p>
+    <p style="margin:0 0 16px;font-size:13px;line-height:1.5;color:#64748b;">
+      If the button does not open, copy this link into your browser:<br/>
+      <a href="${href}" style="color:#0369a1;word-break:break-all;">${href}</a>
+    </p>`;
+}
+
 export async function sendSubmissionReceivedEmail(submissionId: string): Promise<EmailSendResult> {
   await ensureRegistrationIdentitiesForSubmission(submissionId);
 
@@ -1060,7 +1073,14 @@ export async function sendCheckoutReminderEmail(formSubmissionId: string): Promi
 }
 
 export async function sendPaymentReminderEmail(registrationId: string): Promise<EmailSendResult> {
-  const reg = await loadRegistrationForEmail(registrationId);
+  const reg = await prisma.registration.findUnique({
+    where: { id: registrationId },
+    include: {
+      child: { include: { guardian: true } },
+      season: true,
+      classroom: true,
+    },
+  });
   if (!reg) return "skipped_no_email";
   if (!reg.expectsPayment || reg.paymentReceivedAt) return "skipped_ineligible";
 
@@ -1070,6 +1090,13 @@ export async function sendPaymentReminderEmail(registrationId: string): Promise<
   const ctx = await loadRegistrationEmailContext(reg.seasonId);
   if (!ctx) return "skipped_ineligible";
 
+  const base = getPublicAppBaseUrl();
+  let payUrl: string | null = null;
+  if (reg.formSubmissionId) {
+    const payToken = signSubmissionPublicToken(reg.formSubmissionId, "pay");
+    payUrl = payToken ? submissionPayUrl(payToken, base) : null;
+  }
+
   const childName = `${reg.child.firstName} ${reg.child.lastName}`;
   const gname = `${guardian.firstName} ${guardian.lastName}`.trim();
   const num = escapeHtml(reg.registrationNumber ?? "Pending approval");
@@ -1077,11 +1104,13 @@ export async function sendPaymentReminderEmail(registrationId: string): Promise<
   const contactFooter = registrationContactFooterHtml(registrationContactFooterInput(ctx), {
     style: "margin:0;font-size:14px;color:#475569;",
   });
+  const payLinkBlock = buildPaymentReminderPayLinkBlock(payUrl);
 
   const inner = `
     <p style="margin:0 0 16px;">Hi ${escapeHtml(gname)},</p>
     <p style="margin:0 0 16px;">This is a friendly reminder about the program fee for <strong>${escapeHtml(childName)}</strong>’s registration <strong>${num}</strong> for <strong>${season}</strong>.</p>
     <div style="margin:0 0 16px;">${paymentDeadlineNoticeEmailBlock(ctx)}</div>
+    ${payLinkBlock}
     <p style="margin:0 0 16px;">If you’ve already paid, thank you — you can disregard this message.</p>
     ${contactFooter}
   `;
