@@ -4,6 +4,7 @@ import { AppShell } from "@/components/layout/app-shell";
 import { normalizeStaffRole } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { findUserRawByEmail } from "@/lib/user-auth-raw";
+import { filterSeasonsForStaff, loadStaffAccessScope } from "@/lib/staff-access-scope";
 
 export default async function ProtectedLayout({
   children,
@@ -59,11 +60,16 @@ export default async function ProtectedLayout({
 
   let seasons: { id: string; name: string; year: number }[] = [];
   let databaseNotice: string | null = null;
+  let staffScope = { seasonIds: [] as string[], classroomIds: [] as string[], isRestricted: false };
   try {
-    seasons = await prisma.vbsSeason.findMany({
-      orderBy: [{ year: "desc" }, { startDate: "desc" }],
-      select: { id: true, name: true, year: true },
-    });
+    [seasons, staffScope] = await Promise.all([
+      prisma.vbsSeason.findMany({
+        orderBy: [{ year: "desc" }, { startDate: "desc" }],
+        select: { id: true, name: true, year: true },
+      }),
+      loadStaffAccessScope(dbRow.id),
+    ]);
+    seasons = filterSeasonsForStaff(seasons, staffScope);
   } catch {
     databaseNotice =
       "Could not load seasons from the database. The season switcher is empty until the connection is restored.";

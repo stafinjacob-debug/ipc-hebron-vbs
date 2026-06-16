@@ -25,6 +25,12 @@ import {
   registrationListPaymentBadge,
   registrationPaymentOutstandingWhere,
 } from "@/lib/registration-list-payment";
+import {
+  filterSeasonsForStaff,
+  loadStaffAccessScope,
+  mergeRegistrationScopeWhere,
+  seasonIdAllowed,
+} from "@/lib/staff-access-scope";
 import { ExportRegistrationsModal } from "./export-registrations-modal";
 import { RegistrationListColumnsModal } from "./registration-list-columns-modal";
 import { RegistrationsFiltersForm } from "./registrations-filters-form";
@@ -179,6 +185,8 @@ export default async function RegistrationsPage({
   if (!canViewOperations(session.user.role)) redirect("/dashboard");
   const sp = await searchParams;
 
+  const staffScope = session.user.id ? await loadStaffAccessScope(session.user.id) : null;
+
   let seasons: Array<{
     id: string;
     name: string;
@@ -213,10 +221,35 @@ export default async function RegistrationsPage({
     );
   }
 
+  if (staffScope) {
+    seasons = filterSeasonsForStaff(seasons, staffScope);
+  }
+
   const seasonParam = queryParamString(sp.season);
+  if (staffScope && seasonParam && !seasonIdAllowed(staffScope, seasonParam)) {
+    const qs = buildRegistrationListQueryString({
+      season: "",
+      q: queryParamString(sp.q),
+      status: parseRegistrationStatusFilter(queryParamString(sp.status)) ?? "",
+      classroom: queryParamString(sp.classroom),
+      payment: queryParamString(sp.payment),
+      df1k: queryParamString(sp.df1k),
+      df1v: queryParamString(sp.df1v),
+      df2k: queryParamString(sp.df2k),
+      df2v: queryParamString(sp.df2v),
+      df3k: queryParamString(sp.df3k),
+      df3v: queryParamString(sp.df3v),
+      extraColumnKeys: [],
+    });
+    redirect(qs ? `/registrations?${qs}` : "/registrations");
+  }
+
   const filterSeason = seasonParam ? (seasons.find((s) => s.id === seasonParam) ?? null) : null;
   const uiSeason = filterSeason ?? seasons[0] ?? null;
-  const statsWhere: Prisma.RegistrationWhereInput = filterSeason?.id ? { seasonId: filterSeason.id } : {};
+  const statsWhere: Prisma.RegistrationWhereInput = mergeRegistrationScopeWhere(
+    staffScope ?? { seasonIds: [], classroomIds: [], isRestricted: false },
+    filterSeason?.id ? { seasonId: filterSeason.id } : {},
+  );
 
   let totalRegistrations = 0;
   let pendingRegistrations = 0;
@@ -341,6 +374,11 @@ export default async function RegistrationsPage({
     ];
   }
 
+  const scopedWhere = mergeRegistrationScopeWhere(
+    staffScope ?? { seasonIds: [], classroomIds: [], isRestricted: false },
+    where,
+  );
+
   const include = {
     child: { include: { guardian: true } },
     season: true,
@@ -364,7 +402,7 @@ export default async function RegistrationsPage({
   let totalPages: number;
 
   if (dynamicFilters.length === 0) {
-    totalCount = await prisma.registration.count({ where });
+    totalCount = await prisma.registration.count({ where: scopedWhere });
     totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
     if (page > totalPages) {
       const s = buildRegistrationListQueryString({ ...listQueryInput, page: totalPages });
@@ -373,7 +411,7 @@ export default async function RegistrationsPage({
 
     const skip = (page - 1) * pageSize;
     rows = await prisma.registration.findMany({
-      where,
+      where: scopedWhere,
       orderBy: { registeredAt: "desc" },
       skip,
       take: pageSize,
@@ -395,7 +433,7 @@ export default async function RegistrationsPage({
 
     while (neededIds.length < neededEnd || (!hasExtraMatch && !dbExhausted)) {
       const batch = await prisma.registration.findMany({
-        where,
+        where: scopedWhere,
         orderBy: { registeredAt: "desc" },
         skip: dbSkip,
         take: chunkSize,
@@ -447,7 +485,7 @@ export default async function RegistrationsPage({
       let matchCount = neededIds.length;
       while (true) {
         const batch = await prisma.registration.findMany({
-          where,
+          where: scopedWhere,
           orderBy: { registeredAt: "desc" },
           skip: dbSkip,
           take: chunkSize,
@@ -489,6 +527,7 @@ export default async function RegistrationsPage({
   const bulkRows: RegistrationBulkTableRow[] = rows.map((r) => {
     const badge = registrationListPaymentBadge(r);
     const checkoutPending = isCheckoutPendingRegistration(r);
+    const paymentOutstanding = r.expectsPayment && !r.paymentReceivedAt;
     const extraCells: Record<string, string> = {};
     for (const key of extraColumnKeys) {
       extraCells[key] = resolveRegistrationExportFieldValue(
@@ -521,6 +560,7 @@ export default async function RegistrationsPage({
       paymentBadgeClassName: badge.className,
       checkoutPending,
       checkoutReminderSentAtIso: r.formSubmission?.stripeCheckoutReminderSentAt?.toISOString() ?? null,
+      paymentOutstanding,
       extraCells,
     };
   });
@@ -601,6 +641,16 @@ export default async function RegistrationsPage({
             Review duplicates
           </Link>
         </div>
+      ) : null}
+
+      {staffScope?.isRestricted ? (
+        <p className="text-xs text-foreground/60">
+          Your account is limited to{" "}
+          {staffScope.seasonIds.length > 0
+            ? `${staffScope.seasonIds.length} season${staffScope.seasonIds.length === 1 ? "" : "s"}`
+            : "specific classes"}
+          . Only registrations within that scope are shown.
+        </p>
       ) : null}
 
       {filterSeason ? (

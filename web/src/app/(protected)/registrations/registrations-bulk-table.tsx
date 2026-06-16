@@ -7,6 +7,7 @@ import {
   approveRegistration,
   bulkDeleteRegistrations,
   bulkSendCheckoutRemindersAction,
+  bulkSendPaymentRemindersAction,
   sendCheckoutReminderEmailAction,
 } from "./registration-actions";
 
@@ -24,6 +25,7 @@ export type RegistrationBulkTableRow = {
   paymentBadgeClassName: string;
   checkoutPending: boolean;
   checkoutReminderSentAtIso: string | null;
+  paymentOutstanding: boolean;
   extraCells?: Record<string, string>;
 };
 
@@ -212,6 +214,36 @@ export function RegistrationsBulkTable({
     });
   }, [selected, rowById, router]);
 
+  const runBulkPaymentReminder = useCallback(() => {
+    const ids = [...selected];
+    if (ids.length === 0) return;
+    const eligible = ids.filter((id) => {
+      const row = rowById.get(id);
+      return row?.paymentOutstanding && row.guardianEmail;
+    });
+    if (eligible.length === 0) {
+      window.alert(
+        "None of the selected rows have payment outstanding with a guardian email on file.",
+      );
+      return;
+    }
+    if (
+      !confirm(
+        `Send a payment reminder email for up to ${eligible.length} selected row(s)? Families with multiple children in the same season receive one email per family.`,
+      )
+    ) {
+      return;
+    }
+    startTransition(async () => {
+      const r = await bulkSendPaymentRemindersAction(ids);
+      alert(r.message);
+      if (r.ok) {
+        setSelected(new Set());
+        router.refresh();
+      }
+    });
+  }, [selected, rowById, router]);
+
   const runBulkCheckoutReminder = useCallback(() => {
     const ids = [...selected];
     if (ids.length === 0) return;
@@ -288,6 +320,15 @@ export function RegistrationsBulkTable({
             </button>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              disabled={pending || selected.size === 0}
+              title="Email guardians about outstanding program fees (payment due only; one email per family per season)"
+              className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm font-semibold text-amber-950 hover:bg-amber-500/20 disabled:opacity-50 dark:text-amber-100"
+              onClick={runBulkPaymentReminder}
+            >
+              Send payment reminder
+            </button>
             <button
               type="button"
               disabled={pending || selected.size === 0}

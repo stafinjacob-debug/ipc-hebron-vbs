@@ -521,7 +521,105 @@ export async function markRegistrationPaymentReceived(registrationId: string): P
   });
 
   revalidatePath(`/registrations/${registrationId}`);
+  revalidatePath("/registrations");
   return { ok: true, message: "Payment marked as received." };
+}
+
+export async function markRegistrationPaymentDue(registrationId: string): Promise<RegActionState> {
+  const session = await auth();
+  if (!session?.user?.role || !canManageDirectory(session.user.role)) {
+    return { ok: false, message: "You do not have permission." };
+  }
+
+  const reg = await prisma.registration.findUnique({
+    where: { id: registrationId },
+    select: { paymentReceivedAt: true },
+  });
+  if (!reg) return { ok: false, message: "Registration not found." };
+  if (!reg.paymentReceivedAt) {
+    return { ok: false, message: "Payment is not marked as received." };
+  }
+
+  await prisma.registration.update({
+    where: { id: registrationId },
+    data: {
+      paymentReceivedAt: null,
+      expectsPayment: true,
+    },
+  });
+
+  revalidatePath(`/registrations/${registrationId}`);
+  revalidatePath("/registrations");
+  return { ok: true, message: "Payment marked as due again." };
+}
+
+export async function bulkSendPaymentRemindersAction(
+  registrationIds: string[],
+): Promise<RegActionState> {
+  const session = await auth();
+  if (!session?.user?.role || !canManageDirectory(session.user.role)) {
+    return { ok: false, message: "You do not have permission." };
+  }
+
+  const uniqueIds = [...new Set(registrationIds.filter(Boolean))];
+  if (uniqueIds.length === 0) {
+    return { ok: false, message: "Select at least one registration." };
+  }
+
+  const regs = await prisma.registration.findMany({
+    where: { id: { in: uniqueIds } },
+    select: {
+      id: true,
+      expectsPayment: true,
+      paymentReceivedAt: true,
+      seasonId: true,
+      child: { select: { guardianId: true } },
+    },
+  });
+
+  const seenFamilies = new Set<string>();
+  const toSend: string[] = [];
+  for (const reg of regs) {
+    if (!reg.expectsPayment || reg.paymentReceivedAt) continue;
+    const familyKey = `${reg.child.guardianId}::${reg.seasonId}`;
+    if (seenFamilies.has(familyKey)) continue;
+    seenFamilies.add(familyKey);
+    toSend.push(reg.id);
+  }
+
+  if (toSend.length === 0) {
+    return {
+      ok: false,
+      message: "None of the selected rows expect payment or still have payment outstanding with an email on file.",
+    };
+  }
+
+  let sent = 0;
+  let failed = 0;
+  let skippedNoEmail = 0;
+  for (const registrationId of toSend) {
+    const r = await sendPaymentReminderEmail(registrationId);
+    if (r === "sent") sent += 1;
+    else if (r === "skipped_no_email") skippedNoEmail += 1;
+    else failed += 1;
+  }
+
+  revalidatePath("/registrations");
+  if (sent === 0) {
+    const hint =
+      skippedNoEmail > 0
+        ? " Guardians may be missing email addresses."
+        : " Check email config and payment status.";
+    return { ok: false, message: `Could not send any payment reminders.${hint}` };
+  }
+  const skipNote =
+    skippedNoEmail + failed > 0
+      ? ` ${skippedNoEmail + failed} could not be sent (missing email or ineligible).`
+      : "";
+  return {
+    ok: true,
+    message: `Payment reminder sent for ${sent} famil${sent === 1 ? "y" : "ies"}.${skipNote}`,
+  };
 }
 
 export async function sendRegistrationConfirmationSmsAction(

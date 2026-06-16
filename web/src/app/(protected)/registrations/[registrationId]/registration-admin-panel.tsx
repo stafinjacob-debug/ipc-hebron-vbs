@@ -6,6 +6,7 @@ import {
   approveRegistration,
   declineRegistration,
   deleteRegistrationRecord,
+  markRegistrationPaymentDue,
   markRegistrationPaymentReceived,
   sendCustomRegistrationSmsAction,
   sendRegistrationConfirmationSmsAction,
@@ -203,9 +204,33 @@ export function RegistrationAdminPanel({
             Expects payment
           </label>
           {paymentReceivedAt ? (
-            <span className="text-xs text-foreground/60">
-              Paid {new Date(paymentReceivedAt).toLocaleString()}
-            </span>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs text-foreground/60">
+                Paid {new Date(paymentReceivedAt).toLocaleString()}
+              </span>
+              <button
+                type="button"
+                disabled={pending}
+                className="text-sm font-medium text-brand underline disabled:opacity-40"
+                onClick={() => {
+                  if (
+                    !confirm(
+                      "Mark this registration as payment due again? This clears the paid date so reminders and due status apply.",
+                    )
+                  ) {
+                    return;
+                  }
+                  setMsg(null);
+                  startTransition(async () => {
+                    const r = await markRegistrationPaymentDue(registrationId);
+                    setMsg(r.message);
+                    if (r.ok) router.refresh();
+                  });
+                }}
+              >
+                Mark payment due
+              </button>
+            </div>
           ) : (
             <button
               type="button"

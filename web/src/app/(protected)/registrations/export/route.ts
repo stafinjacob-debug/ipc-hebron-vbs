@@ -5,6 +5,7 @@ import {
   buildRegistrationExportFieldOptionsFromJson,
 } from "@/lib/registration-export";
 import { canViewOperations } from "@/lib/roles";
+import { loadStaffAccessScope, seasonIdAllowed } from "@/lib/staff-access-scope";
 
 function csvCell(s: string) {
   return `"${String(s).replace(/"/g, '""')}"`;
@@ -35,6 +36,13 @@ export async function GET(req: Request) {
   const url = new URL(req.url);
   const seasonId = url.searchParams.get("season")?.trim() ?? "";
   if (!seasonId) return new Response("Missing season", { status: 400 });
+
+  if (session.user.id) {
+    const staffScope = await loadStaffAccessScope(session.user.id);
+    if (!seasonIdAllowed(staffScope, seasonId)) {
+      return new Response("Forbidden", { status: 403 });
+    }
+  }
 
   const season = await prisma.vbsSeason.findUnique({
     where: { id: seasonId },

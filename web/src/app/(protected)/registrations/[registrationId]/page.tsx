@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { parseFormDefinitionJson } from "@/lib/registration-form-definition";
 import { canManageDirectory, canViewOperations } from "@/lib/roles";
 import { canUseCheckInActions } from "@/lib/permissions";
+import { loadStaffAccessScope, registrationAllowedByScope } from "@/lib/staff-access-scope";
 import { registrationTicketUrl } from "@/lib/registration-identity";
 import { getPublicAppBaseUrl } from "@/lib/public-app-url";
 import { isCheckoutPendingRegistration } from "@/lib/registration-list-payment";
@@ -74,6 +75,13 @@ export default async function RegistrationDetailPage({
       waiverAgreement: { select: { pdfUrl: true, signedAt: true, signerName: true } },
     },
   });
+
+  if (!reg) notFound();
+
+  if (session.user.id) {
+    const staffScope = await loadStaffAccessScope(session.user.id);
+    if (!registrationAllowedByScope(staffScope, reg)) notFound();
+  }
 
   const seasonClassrooms = reg
     ? await prisma.classroom.findMany({
