@@ -55,10 +55,22 @@ import { formatSeasonDateRange } from "@/lib/season-calendar-date";
 import type { PublicRegistrationClosedDisplay } from "@/lib/public-registration-closed-display";
 import { submitPublicRegistration, type PublicRegisterState } from "./actions";
 import { RegistrationContactFooter } from "@/components/registration-contact-footer";
-
-/** Shown on the thank-you screen when card checkout was skipped by the form’s payment-skip rule. */
-const PAYMENT_SKIP_TEAM_REVIEW_NOTE =
-  "Thank you — we have received your registration. Someone from our team will review your details and confirm your enrollment. If anything else is needed, we will reach out using the contact information you provided.";
+import {
+  formatRegistrationDate,
+  translateAllergyPreset,
+  translateFieldForDisplay,
+  translateParticipantLabel,
+  translateSectionDescription,
+  translateSectionTitle,
+  translateServerMessage,
+  translateStepLabel,
+  translateWaiverDisplay,
+  type RegistrationLocale,
+} from "@/lib/registration-i18n";
+import { resolveWaiverDisplayContent } from "@/lib/default-waiver-content";
+import type { RegistrationMessageKey } from "@/lib/registration-i18n";
+import { RegistrationLocaleProvider, useRegistrationLocale } from "./registration-locale-context";
+import { RegistrationLanguageSwitcher } from "./registration-language-switcher";
 
 /** Compact waiver flags/text per season — passed separately from `seasons` so RSC→client payload cannot drop them behind a large `definition`. */
 export type PublicSeasonWaiverSnapshot = {
@@ -247,11 +259,16 @@ function typedSignaturePngDataUrl(name: string): string {
   return canvas.toDataURL("image/png");
 }
 
-function TypedSignaturePreview({ dataUrl }: { dataUrl: string }) {
+type RegistrationUi = {
+  locale: RegistrationLocale;
+  t: (key: RegistrationMessageKey, params?: Record<string, string | number>) => string;
+};
+
+function TypedSignaturePreview({ dataUrl, ui }: { dataUrl: string; ui: RegistrationUi }) {
   if (!dataUrl.trim()) {
     return (
       <div className="flex min-h-[160px] items-center justify-center rounded-lg border border-dashed border-neutral-300/60 bg-white/90 px-4 text-center text-sm text-neutral-600">
-        Your signature appears here automatically when you enter the signer name above.
+        {ui.t("signaturePreview")}
       </div>
     );
   }
@@ -329,6 +346,7 @@ function AllergiesFieldInput({
   required,
   helperText,
   fieldInstanceKey,
+  ui,
 }: {
   field: FormFieldDef;
   value: string;
@@ -336,6 +354,7 @@ function AllergiesFieldInput({
   required: boolean;
   helperText?: string;
   fieldInstanceKey?: string;
+  ui: RegistrationUi;
 }) {
   const [state, setState] = useState<AllergyChoiceState>(() => parseAllergyChoiceState(value));
 
@@ -362,7 +381,7 @@ function AllergiesFieldInput({
         {required ? (
           <span className="text-red-400"> *</span>
         ) : (
-          <span className="font-normal text-neutral-400/90"> (optional)</span>
+          <span className="font-normal text-neutral-400/90"> {ui.t("optional")}</span>
         )}
       </p>
       <p className={hintClass}>{helperText}</p>
@@ -375,7 +394,7 @@ function AllergiesFieldInput({
             onChange={() => sync({ answer: "no", selected: [], other: "" })}
             className="size-4 accent-brand"
           />
-          <span className="text-sm font-medium text-neutral-100">No</span>
+          <span className="text-sm font-medium text-neutral-100">{ui.t("allergyNo")}</span>
         </label>
         <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-white/15 bg-white/8 px-3 py-3">
           <input
@@ -385,13 +404,13 @@ function AllergiesFieldInput({
             onChange={() => sync({ ...state, answer: "yes" })}
             className="size-4 accent-brand"
           />
-          <span className="text-sm font-medium text-neutral-100">Yes</span>
+          <span className="text-sm font-medium text-neutral-100">{ui.t("allergyYes")}</span>
         </label>
       </div>
 
       {state.answer === "yes" ? (
         <div className="mt-3 space-y-2 rounded-xl border border-white/15 bg-black/25 p-3">
-          <p className="text-sm font-medium text-neutral-100">Select all that apply:</p>
+          <p className="text-sm font-medium text-neutral-100">{ui.t("allergySelectAll")}</p>
           {ALLERGY_PRESET_OPTIONS.map((option) => {
             const checked = state.selected.includes(option);
             return (
@@ -407,13 +426,13 @@ function AllergiesFieldInput({
                   }}
                   className="size-4 accent-brand"
                 />
-                {option}
+                {translateAllergyPreset(ui.locale, option)}
               </label>
             );
           })}
           <div className="pt-1">
             <label htmlFor={`allergy-other-${scope}`} className="text-sm font-medium text-neutral-100">
-              Other
+              {ui.t("allergyOther")}
             </label>
             <textarea
               id={`allergy-other-${scope}`}
@@ -421,7 +440,7 @@ function AllergiesFieldInput({
               onChange={(e) => sync({ ...state, other: e.target.value })}
               rows={2}
               className={`${inputClass} mt-1 resize-y`}
-              placeholder="Add any other allergy or medical notes"
+              placeholder={ui.t("allergyOtherPlaceholder")}
             />
           </div>
         </div>
@@ -471,14 +490,17 @@ function renderFieldInput(
   onChange: (v: string) => void,
   rules: PublicRegistrationFieldRules,
   opts?: { onBlur?: () => void; onBlurWithValue?: (value: string) => void; fieldInstanceKey?: string },
+  ui?: RegistrationUi,
 ) {
+  const displayField = ui ? translateFieldForDisplay(ui.locale, field) : field;
+
   if (field.type === "sectionHeader") {
-    return <h3 className="mt-4 text-base font-bold text-neutral-100">{field.label}</h3>;
+    return <h3 className="mt-4 text-base font-bold text-neutral-100">{displayField.label}</h3>;
   }
   if (field.type === "staticText") {
     return (
       <div className="mt-2 rounded-lg bg-neutral-100 px-3 py-2 text-sm text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
-        {field.helperText || field.label}
+        {displayField.helperText || displayField.label}
       </div>
     );
   }
@@ -493,9 +515,11 @@ function renderFieldInput(
 
   const commonLabel = (
     <label htmlFor={inputId} className={labelClass}>
-      {field.label}
+      {displayField.label}
       {req ? (
         <span className="text-red-400"> *</span>
+      ) : ui ? (
+        <span className="font-normal text-neutral-400/90"> {ui.t("optional")}</span>
       ) : (
         <span className="font-normal text-neutral-400/90"> (optional)</span>
       )}
@@ -505,17 +529,20 @@ function renderFieldInput(
   if (field.type === "textarea") {
     const allergiesHelper =
       field.key === "allergiesNotes" && rules.requireAllergiesNotes
-        ? "Required for this program — you can enter “None” if not applicable."
-        : field.helperText;
-    if (field.key === "allergiesNotes") {
+        ? ui?.locale === "es"
+          ? "Obligatorio para este programa — puede escribir “Ninguna” si no aplica."
+          : "Required for this program — you can enter “None” if not applicable."
+        : displayField.helperText;
+    if (field.key === "allergiesNotes" && ui) {
       return (
         <AllergiesFieldInput
-          field={field}
+          field={displayField}
           value={value}
           onChange={onChange}
           required={req}
-          helperText={allergiesHelper ?? "Optional — helps teachers keep everyone safe."}
+          helperText={allergiesHelper ?? displayField.helperText}
           fieldInstanceKey={opts?.fieldInstanceKey}
+          ui={ui}
         />
       );
     }
@@ -527,7 +554,7 @@ function renderFieldInput(
           value={value}
           onChange={(e) => onChange(e.target.value)}
           rows={4}
-          placeholder={field.placeholder}
+          placeholder={displayField.placeholder}
           className={inputClass}
         />
         {allergiesHelper ? <p className={hintClass}>{allergiesHelper}</p> : null}
@@ -545,14 +572,14 @@ function renderFieldInput(
           onChange={(e) => onChange(e.target.value)}
           className={inputClass}
         >
-          <option value="">Choose…</option>
-          {field.options.map((o) => (
+          <option value="">{ui ? ui.t("chooseOption") : "Choose…"}</option>
+          {displayField.options?.map((o) => (
             <option key={o.value} value={o.value}>
               {o.label}
             </option>
           ))}
         </select>
-        {field.helperText ? <p className={hintClass}>{field.helperText}</p> : null}
+        {displayField.helperText ? <p className={hintClass}>{displayField.helperText}</p> : null}
       </div>
     );
   }
@@ -560,9 +587,9 @@ function renderFieldInput(
   if (field.type === "radio" && field.options?.length) {
     return (
       <fieldset>
-        <legend className={labelClass}>{field.label}</legend>
+        <legend className={labelClass}>{displayField.label}</legend>
         <div className="mt-2 space-y-2">
-          {field.options.map((o) => (
+          {displayField.options?.map((o) => (
             <label key={o.value} className="flex cursor-pointer items-center gap-2 text-sm text-neutral-100">
               <input
                 type="radio"
@@ -575,7 +602,7 @@ function renderFieldInput(
             </label>
           ))}
         </div>
-        {field.helperText ? <p className={hintClass}>{field.helperText}</p> : null}
+        {displayField.helperText ? <p className={hintClass}>{displayField.helperText}</p> : null}
       </fieldset>
     );
   }
@@ -590,9 +617,9 @@ function renderFieldInput(
           className="mt-1 size-5 accent-brand"
         />
         <span>
-          <span className="font-semibold text-neutral-100">{field.label}</span>
-          {field.helperText ? (
-            <span className="mt-1 block text-sm text-neutral-300/90">{field.helperText}</span>
+          <span className="font-semibold text-neutral-100">{displayField.label}</span>
+          {displayField.helperText ? (
+            <span className="mt-1 block text-sm text-neutral-300/90">{displayField.helperText}</span>
           ) : null}
         </span>
       </label>
@@ -608,7 +635,7 @@ function renderFieldInput(
           onChange={(e) => onChange(e.target.checked ? "true" : "")}
           className="size-5 accent-brand"
         />
-        <span className="text-sm font-medium text-neutral-100">{field.label}</span>
+        <span className="text-sm font-medium text-neutral-100">{displayField.label}</span>
       </label>
     );
   }
@@ -641,7 +668,7 @@ function renderFieldInput(
           opts?.onBlur?.();
           opts?.onBlurWithValue?.(e.currentTarget.value);
         }}
-        placeholder={field.placeholder}
+        placeholder={displayField.placeholder}
         inputMode={field.type === "tel" ? "numeric" : undefined}
         autoComplete={
           field.key === "guardianEmail"
@@ -656,12 +683,28 @@ function renderFieldInput(
         }
         className={inputClass}
       />
-      {field.helperText ? <p className={hintClass}>{field.helperText}</p> : null}
+      {displayField.helperText ? <p className={hintClass}>{displayField.helperText}</p> : null}
     </div>
   );
 }
 
-export function DynamicRegistrationWizard({
+export function DynamicRegistrationWizard(props: {
+  seasons: PublicSeasonOption[];
+  waiverBySeasonId: Record<string, PublicSeasonWaiverSnapshot>;
+  clientSubmitKey: string;
+  paymentCanceled?: boolean;
+  initialSeasonId?: string;
+  registrationClosedDisplay?: PublicRegistrationClosedDisplay | null;
+  portalBranding?: PortalBranding;
+} & RegisterContactProps) {
+  return (
+    <RegistrationLocaleProvider>
+      <DynamicRegistrationWizardInner {...props} />
+    </RegistrationLocaleProvider>
+  );
+}
+
+function DynamicRegistrationWizardInner({
   seasons,
   waiverBySeasonId,
   clientSubmitKey,
@@ -684,6 +727,9 @@ export function DynamicRegistrationWizard({
   registrationClosedDisplay?: PublicRegistrationClosedDisplay | null;
   portalBranding?: PortalBranding;
 } & RegisterContactProps) {
+  const { locale, t } = useRegistrationLocale();
+  const ui: RegistrationUi = useMemo(() => ({ locale, t }), [locale, t]);
+
   const [state, formAction, pending] = useActionState(submitPublicRegistration, initial);
   const [seasonId, setSeasonId] = useState(() => {
     const first = seasons[0]?.id ?? "";
@@ -728,9 +774,10 @@ export function DynamicRegistrationWizard({
       participantAgeAsOfDate: parseLocalDate(current.participantAgeAsOfDateIso),
     });
   }, [current]);
-  const participantLabel = current?.participantSingularLabel ?? portalBranding?.participantSingularLabel ?? "Child";
+  const participantLabelRaw = current?.participantSingularLabel ?? portalBranding?.participantSingularLabel ?? "Child";
+  const participantLabel = translateParticipantLabel(locale, participantLabelRaw);
   const sessionPickerLabel = current?.sessionPickerLabel ?? portalBranding?.sessionPickerLabel ?? "Session";
-  const teamReviewNote = portalBranding?.teamReviewNote ?? PAYMENT_SKIP_TEAM_REVIEW_NOTE;
+  const teamReviewNote = portalBranding?.teamReviewNote ?? t("teamReviewNote");
 
   const waiverSnap = useMemo((): PublicSeasonWaiverSnapshot | null => {
     const fromMap = waiverBySeasonId[seasonId];
@@ -746,6 +793,16 @@ export function DynamicRegistrationWizard({
       supplementalFields: c.waiverSupplementalFields ?? [],
     };
   }, [waiverBySeasonId, seasonId, seasons]);
+
+  const waiverDisplay = useMemo(() => {
+    if (!waiverSnap?.enabled) return null;
+    const resolved = resolveWaiverDisplayContent({
+      title: waiverSnap.title,
+      description: waiverSnap.description,
+      body: waiverSnap.body,
+    });
+    return translateWaiverDisplay(locale, resolved);
+  }, [waiverSnap, locale]);
 
   const waiverSupplementalSig = useMemo(
     () => JSON.stringify(waiverSnap?.supplementalFields ?? []),
@@ -870,19 +927,22 @@ export function DynamicRegistrationWizard({
     | { kind: "review"; label: string };
 
   const activeSteps = useMemo((): WizardStepDef[] => {
-    if (!def) return [{ kind: "review", label: "Review" }];
+    if (!def) return [{ kind: "review", label: t("review") }];
     const steps: WizardStepDef[] = [];
     const defaultLabels = {
-      guardian: portalBranding?.contactSectionLabel ?? "Your information",
-      participants: portalBranding?.participantSectionLabel ?? "Participants",
-      consent: "Privacy",
+      guardian: portalBranding?.contactSectionLabel ?? t("yourInformation"),
+      participants: portalBranding?.participantSectionLabel ?? t("participants"),
+      consent: t("privacy"),
     };
 
     for (const sec of sortSections(def)) {
       const kind = resolveSectionWizardKind(def, sec);
       if (!kind) continue;
 
-      const label = sec.title?.trim() || defaultLabels[kind];
+      const label = translateStepLabel(
+        locale,
+        translateSectionTitle(locale, sec.title?.trim() || defaultLabels[kind]),
+      );
       const last = steps[steps.length - 1];
       if (last && "sectionIds" in last && last.kind === kind) {
         last.sectionIds.push(sec.id);
@@ -892,11 +952,11 @@ export function DynamicRegistrationWizard({
     }
 
     if (waiverStepActive) {
-      steps.push({ kind: "waiver", label: waiverSnap?.title?.trim() || "Waiver" });
+      steps.push({ kind: "waiver", label: waiverDisplay?.title?.trim() || t("waiver") });
     }
-    steps.push({ kind: "review", label: "Review" });
+    steps.push({ kind: "review", label: t("review") });
     return steps;
-  }, [def, portalBranding?.contactSectionLabel, portalBranding?.participantSectionLabel, waiverStepActive, waiverSnap?.title]);
+  }, [def, portalBranding?.contactSectionLabel, portalBranding?.participantSectionLabel, waiverStepActive, waiverDisplay?.title, locale, t]);
 
   const stepLabels = useMemo(() => activeSteps.map((s) => s.label), [activeSteps]);
   const totalSteps = activeSteps.length;
@@ -931,9 +991,9 @@ export function DynamicRegistrationWizard({
   }, [currentStepKind, def, currentStepFormSections]);
 
   const reviewContactLabel =
-    guardianSections[0]?.title ?? portalBranding?.contactSectionLabel ?? "Contact information";
+    translateSectionTitle(locale, guardianSections[0]?.title ?? portalBranding?.contactSectionLabel ?? t("contactInformation"));
   const reviewParticipantLabel =
-    childSections[0]?.title ?? portalBranding?.participantSectionLabel ?? "Participants";
+    translateSectionTitle(locale, childSections[0]?.title ?? portalBranding?.participantSectionLabel ?? t("participants"));
 
   const childRowIds = useMemo(() => children.map((c) => c.id).join(","), [children]);
 
@@ -1016,15 +1076,16 @@ export function DynamicRegistrationWizard({
     (childIndex: number, dobStr: string) => {
       if (!current) return;
       const msg = childAgeGateMessageForDob(dobStr, childIndex, current);
+      const displayMsg = msg ? translateServerMessage(locale, msg) : null;
       setLiveDobAgeByChild((prev) => {
         const next = { ...prev };
-        if (msg) next[childIndex] = msg;
+        if (displayMsg) next[childIndex] = displayMsg;
         else delete next[childIndex];
         return next;
       });
       setAgeGateError((ag) => (ag?.childIndex === childIndex ? null : ag));
     },
-    [current],
+    [current, locale],
   );
 
   useEffect(() => {
@@ -1056,11 +1117,12 @@ export function DynamicRegistrationWizard({
 
   const validateStep = useCallback(
     (s: number): string | null => {
-      if (!def) return "Form not loaded.";
+      if (!def) return t("formNotLoaded");
       const stepDef = activeSteps[s];
       const kind = stepDef?.kind;
       const stepSectionIds =
         stepDef && "sectionIds" in stepDef ? new Set(stepDef.sectionIds) : null;
+      const fieldLabel = (f: FormFieldDef) => translateFieldForDisplay(locale, f).label;
       if (kind === "guardian" && stepSectionIds) {
         for (const sec of guardianSections.filter((x) => stepSectionIds.has(x.id))) {
           for (const f of def.fields.filter((x) => x.sectionId === sec.id)) {
@@ -1074,16 +1136,16 @@ export function DynamicRegistrationWizard({
               (f.key === "guardianPhone" && rules.requireGuardianPhone) ||
               (fieldMatchesPhone(f) && rules.requireGuardianPhone);
             if (req && (f.type === "checkbox" || f.type === "boolean") && v !== "true") {
-              return `${f.label} is required.`;
+              return t("fieldRequired", { label: fieldLabel(f) });
             }
             if (req && f.type !== "checkbox" && f.type !== "boolean" && !v.trim()) {
-              return `${f.label} is required.`;
+              return t("fieldRequired", { label: fieldLabel(f) });
             }
             if ((f.key === "guardianEmail" || fieldMatchesEmail(f)) && v.trim() && !emailLooksValid(v)) {
-              return "Please enter a valid email address.";
+              return t("validEmailRequired");
             }
             if ((f.key === "guardianPhone" || fieldMatchesPhone(f)) && rules.requireGuardianPhone && !phoneDigits(v)) {
-              return "Phone is required.";
+              return t("phoneRequired");
             }
           }
         }
@@ -1099,10 +1161,18 @@ export function DynamicRegistrationWizard({
               const req =
                 f.required || (f.key === "allergiesNotes" && rules.requireAllergiesNotes);
               if (req && (f.type === "checkbox" || f.type === "boolean") && v !== "true") {
-                return `${participantLabel} ${i + 1}: ${f.label} is required.`;
+                return t("participantFieldRequired", {
+                  participant: participantLabel,
+                  index: i + 1,
+                  label: fieldLabel(f),
+                });
               }
               if (req && f.type !== "checkbox" && f.type !== "boolean" && !v.trim()) {
-                return `${participantLabel} ${i + 1}: ${f.label} is required.`;
+                return t("participantFieldRequired", {
+                  participant: participantLabel,
+                  index: i + 1,
+                  label: fieldLabel(f),
+                });
               }
             }
           }
@@ -1118,7 +1188,7 @@ export function DynamicRegistrationWizard({
           if (stepHasDob) {
             for (let i = 0; i < children.length; i++) {
               const msg = childAgeGateMessageForDob(children[i].values.childDateOfBirth ?? "", i, current);
-              if (msg) return msg;
+              if (msg) return translateServerMessage(locale, msg);
             }
           }
         }
@@ -1136,13 +1206,13 @@ export function DynamicRegistrationWizard({
               (f.key === "guardianPhone" && rules.requireGuardianPhone) ||
               (fieldMatchesPhone(f) && rules.requireGuardianPhone);
             if (req && (f.type === "checkbox" || f.type === "boolean") && v !== "true") {
-              return `${f.label} is required.`;
+              return t("fieldRequired", { label: fieldLabel(f) });
             }
             if (req && f.type !== "checkbox" && f.type !== "boolean" && !v.trim()) {
-              return `${f.label} is required.`;
+              return t("fieldRequired", { label: fieldLabel(f) });
             }
             if (f.key === "guardianEmail" && v.trim() && !emailLooksValid(v)) {
-              return "Please enter a valid email address.";
+              return t("validEmailRequired");
             }
           }
         }
@@ -1150,7 +1220,7 @@ export function DynamicRegistrationWizard({
       }
       if (kind === "waiver") {
         if (waiverPerChild.length !== children.length) {
-          return "Waiver forms are still loading — try again in a moment.";
+          return t("waiverLoading");
         }
         const waiverChildLabel = (i: number) => {
           const row = children[i]?.values;
@@ -1161,21 +1231,21 @@ export function DynamicRegistrationWizard({
         for (let i = 0; i < children.length; i++) {
           const label = waiverChildLabel(i);
           const w = waiverPerChild[i];
-          if (!w) return `${label}: complete the waiver section.`;
-          if (!w.signerName.trim()) return `${label}: enter the signer name on the waiver.`;
-          if (!w.signedAtIso.trim()) return `${label}: choose the waiver signature date and time.`;
-          if (!w.signatureDataUrl.trim()) return `${label}: enter the signer name to generate the electronic signature.`;
-          if (!w.accepted) return `${label}: accept the waiver terms to continue.`;
+          if (!w) return t("waiverComplete", { label });
+          if (!w.signerName.trim()) return t("waiverSignerName", { label });
+          if (!w.signedAtIso.trim()) return t("waiverSignedAt", { label });
+          if (!w.signatureDataUrl.trim()) return t("waiverSignature", { label });
+          if (!w.accepted) return t("waiverAccept", { label });
           for (const d of defs) {
             if (d.required && !(w.supplemental[d.key] ?? "").trim()) {
-              return `${label}: fill in “${d.label}” on the waiver.`;
+              return t("waiverFieldRequired", { label, field: d.label });
             }
           }
         }
         return null;
       }
       if (kind === "review") {
-        if (!confirmAccurate) return "Please confirm the information is accurate to continue.";
+        if (!confirmAccurate) return t("confirmAccurateRequired");
         const resolvedGuardian = def ? resolveGuardianContactFromForm(def, guardian) : null;
         if (
           smsConsent &&
@@ -1183,10 +1253,10 @@ export function DynamicRegistrationWizard({
           formIncludesGuardianPhoneField(def) &&
           !(resolvedGuardian?.guardianPhone ?? "").trim()
         ) {
-          return "Please provide a phone number to receive SMS updates.";
+          return t("phoneSmsRequired");
         }
         if (payLaterAvailable && paymentChoice !== "card" && paymentChoice !== "pay_later") {
-          return "Choose how you would like to pay.";
+          return t("choosePayment");
         }
         return null;
       }
@@ -1209,23 +1279,25 @@ export function DynamicRegistrationWizard({
       paymentChoice,
       current,
       participantLabel,
+      locale,
+      t,
     ],
   );
 
   const primarySubmitLabel = useMemo(() => {
-    if (pending) return "Submitting…";
-    if (payLaterAvailable && paymentChoice === "pay_later") return "Submit registration";
-    if (stripePayment.active) return "Submit & pay with card";
-    if (stripeFeeConfigured && stripeSkippedByRule) return "Submit";
-    return "Submit registration";
-  }, [pending, payLaterAvailable, paymentChoice, stripePayment.active, stripeFeeConfigured, stripeSkippedByRule]);
+    if (pending) return t("submitting");
+    if (payLaterAvailable && paymentChoice === "pay_later") return t("submitRegistration");
+    if (stripePayment.active) return t("submitPayCard");
+    if (stripeFeeConfigured && stripeSkippedByRule) return t("submit");
+    return t("submitRegistration");
+  }, [pending, payLaterAvailable, paymentChoice, stripePayment.active, stripeFeeConfigured, stripeSkippedByRule, t]);
 
   const mobileSubmitLabel = useMemo(() => {
-    if (pending) return "Submitting…";
-    if (payLaterAvailable && paymentChoice === "pay_later") return "Submit";
-    if (stripePayment.active) return "Pay with card";
-    return "Submit";
-  }, [pending, payLaterAvailable, paymentChoice, stripePayment.active]);
+    if (pending) return t("submitting");
+    if (payLaterAvailable && paymentChoice === "pay_later") return t("submit");
+    if (stripePayment.active) return t("payWithCard");
+    return t("submit");
+  }, [pending, payLaterAvailable, paymentChoice, stripePayment.active, t]);
 
   const goNext = () => {
     const err = validateStep(step);
@@ -1239,7 +1311,7 @@ export function DynamicRegistrationWizard({
     const ageGate = activeSteps[step]?.kind === "participants" ? parseChildAgeGateError(err) : null;
     if (ageGate) {
       setLocalError(null);
-      setAgeGateError(ageGate);
+      setAgeGateError({ ...ageGate, message: translateServerMessage(locale, ageGate.message) });
       return;
     }
     setAgeGateError(null);
@@ -1257,14 +1329,17 @@ export function DynamicRegistrationWizard({
     emailBlurred && (guardian.guardianEmail?.trim() ?? "") && !emailLooksValid(guardian.guardianEmail ?? "");
 
   if (seasons.length === 0 || !def || !current) {
-    const headline = registrationClosedDisplay?.headline ?? "Online registration isn't open right now";
+    const headline = registrationClosedDisplay?.headline ?? t("registrationClosed");
     const detail =
       registrationClosedDisplay?.message ??
       `Please contact ${churchDisplayName}${contactPhone ? ` at ${contactPhone}` : ""}${contactEmail ? ` or ${contactEmail}` : ""}.`;
 
     return (
       <div className="relative z-0 mx-auto max-w-lg sm:max-w-xl">
-        <div className="rounded-3xl border border-white/10 bg-black/40 px-6 py-10 text-center shadow-[0_20px_60px_rgba(0,0,0,0.45),0_0_48px_rgba(255,220,100,0.12)] backdrop-blur-xl sm:px-8">
+        <div className="relative rounded-3xl border border-white/10 bg-black/40 px-6 py-10 text-center shadow-[0_20px_60px_rgba(0,0,0,0.45),0_0_48px_rgba(255,220,100,0.12)] backdrop-blur-xl sm:px-8">
+          <div className="absolute right-4 top-4 z-10">
+            <RegistrationLanguageSwitcher />
+          </div>
           <RegistrationHeroBrand churchDisplayName={churchDisplayName} />
           <p className="mt-3 text-xs font-semibold uppercase tracking-wider text-brand/90">{churchDisplayName}</p>
           <h1 className="mt-2 text-2xl font-bold tracking-tight text-white sm:text-3xl">{headline}</h1>
@@ -1276,7 +1351,7 @@ export function DynamicRegistrationWizard({
                 className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-white/30 bg-white/10 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:border-white/45 hover:bg-white/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/70"
               >
                 <Search className="size-4 shrink-0" aria-hidden />
-                Look up your registration
+                {t("lookUpRegistration")}
               </Link>
             </div>
           ) : null}
@@ -1298,10 +1373,15 @@ export function DynamicRegistrationWizard({
   if (success) {
     return (
       <div className="relative z-0 mx-auto max-w-lg sm:max-w-xl">
-        <div className="rounded-2xl border border-emerald-200 bg-white px-6 py-10 text-center shadow-lg dark:border-emerald-900/50 dark:bg-neutral-950">
+        <div className="relative rounded-2xl border border-emerald-200 bg-white px-6 py-10 text-center shadow-lg dark:border-emerald-900/50 dark:bg-neutral-950">
+          <div className="absolute right-4 top-4 z-10">
+            <RegistrationLanguageSwitcher className="border-neutral-200 bg-neutral-100/90 text-neutral-800 [&_button]:text-neutral-700 [&_button[aria-pressed=true]]:bg-white [&_button[aria-pressed=true]]:text-neutral-900" />
+          </div>
           <CheckCircle2 className="mx-auto size-14 text-emerald-600 dark:text-emerald-400" aria-hidden />
-          <p className="mt-4 text-lg font-semibold text-neutral-900 dark:text-neutral-50">You’re all set!</p>
-          <p className="mt-2 text-sm text-neutral-600 dark:text-neutral-300">{state?.message}</p>
+          <p className="mt-4 text-lg font-semibold text-neutral-900 dark:text-neutral-50">{t("allSet")}</p>
+          <p className="mt-2 text-sm text-neutral-600 dark:text-neutral-300">
+            {state?.message ? translateServerMessage(locale, state.message) : ""}
+          </p>
           {state?.paymentSkippedAwaitingTeamReview ? (
             <p className="mt-4 rounded-xl border border-emerald-500/30 bg-emerald-50 px-4 py-3 text-left text-sm leading-relaxed text-emerald-950 dark:border-emerald-500/25 dark:bg-emerald-950/40 dark:text-emerald-50/95">
               {teamReviewNote}
@@ -1309,12 +1389,12 @@ export function DynamicRegistrationWizard({
           ) : null}
           {state?.payLaterSubmitted && state.payLaterNotice ? (
             <div className="mt-4 space-y-3 rounded-xl border border-amber-500/35 bg-amber-50 px-4 py-3 text-left text-sm leading-relaxed text-amber-950 dark:border-amber-500/25 dark:bg-amber-950/40 dark:text-amber-100">
-              <p className="font-semibold">Pay later — what to know</p>
+              <p className="font-semibold">{t("payLaterHeading")}</p>
               {payLaterNoticeParagraphs(state.payLaterNotice).map((para) => (
                 <p key={para.slice(0, 48)}>{para}</p>
               ))}
               <p className="text-xs text-amber-900/80 dark:text-amber-200/80">
-                Payment details are also in the confirmation email we sent you.
+                {t("payLaterEmailNote")}
               </p>
             </div>
           ) : null}
@@ -1332,7 +1412,10 @@ export function DynamicRegistrationWizard({
 
   function renderWizardContent(season: PublicSeasonOption, formDef: FormDefinitionV1): React.ReactNode {
     return (
-      <div className="rounded-3xl border border-white/10 bg-black/40 shadow-[0_20px_60px_rgba(0,0,0,0.45),0_0_48px_rgba(255,220,100,0.12)] backdrop-blur-xl">
+      <div className="relative rounded-3xl border border-white/10 bg-black/40 shadow-[0_20px_60px_rgba(0,0,0,0.45),0_0_48px_rgba(255,220,100,0.12)] backdrop-blur-xl">
+        <div className="absolute right-4 top-4 z-10 sm:right-5 sm:top-5">
+          <RegistrationLanguageSwitcher />
+        </div>
         <div className="px-5 pt-6 text-center sm:px-8 lg:px-7 lg:pt-5">
           <RegistrationHeroBrand churchDisplayName={churchDisplayName} />
           <p className="mt-3 text-xs font-semibold uppercase tracking-wider text-brand/90">{churchDisplayName}</p>
@@ -1354,8 +1437,7 @@ export function DynamicRegistrationWizard({
             ) : null}
           </div>
           <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-neutral-200/85 lg:mt-3 lg:text-sm">
-            {season.welcomeMessage?.trim() ||
-              `Please complete this form to register for ${season.name}.`}
+            {season.welcomeMessage?.trim() || t("welcomeFallback", { eventName: season.name })}
           </p>
           {effectiveContactEmail ? (
             <p className="mx-auto mt-2 inline-flex items-center gap-1.5 text-xs font-semibold text-cyan-100/95">
@@ -1372,7 +1454,7 @@ export function DynamicRegistrationWizard({
                 className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-white/30 bg-white/10 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:border-white/45 hover:bg-white/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/70"
               >
                 <Search className="size-4 shrink-0" aria-hidden />
-                Already registered? Look up or edit
+                {t("alreadyRegistered")}
               </Link>
             </div>
           ) : null}
@@ -1383,18 +1465,15 @@ export function DynamicRegistrationWizard({
             className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-100"
             role="status"
           >
-            <p className="font-semibold">Payment was not completed</p>
-            <p className="mt-1 text-amber-900/90 dark:text-amber-100/90">
-              Your registration details are still here — review the payment step and submit again when you’re ready. If
-              you already paid, wait a moment for confirmation or contact the church office with your reference code.
-            </p>
+            <p className="font-semibold">{t("paymentNotCompleted")}</p>
+            <p className="mt-1 text-amber-900/90 dark:text-amber-100/90">{t("paymentNotCompletedDetail")}</p>
           </div>
         ) : null}
 
         <div className="mt-5 px-1 lg:mt-4">
           <div className="flex items-center justify-between text-xs font-medium text-neutral-300/90">
             <span>
-              Step {step + 1} of {totalSteps}
+              {t("stepOf", { current: step + 1, total: totalSteps })}
             </span>
             <span className="text-neutral-100">{stepLabels[step] ?? ""}</span>
           </div>
@@ -1476,7 +1555,7 @@ export function DynamicRegistrationWizard({
 
           {state && !state.ok && !hasFieldErrors(state) && (
             <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-100">
-              {state.message}
+              {translateServerMessage(locale, state.message)}
             </div>
           )}
           {state &&
@@ -1489,7 +1568,7 @@ export function DynamicRegistrationWizard({
               Object.keys(state.fieldErrors).every((k) => /^childDateOfBirth__\d+$/.test(k))
             ) && (
               <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-100">
-                {state.message}
+                {translateServerMessage(locale, state.message)}
               </div>
             )}
           {localError && (
@@ -1507,15 +1586,20 @@ export function DynamicRegistrationWizard({
               <SectionHeader
                 title={
                   currentStepFormSections.length === 1
-                    ? (currentStepFormSections[0]?.title ??
-                      portalBranding?.contactSectionLabel ??
-                      "Contact information")
-                    : (currentStep?.label ?? portalBranding?.contactSectionLabel ?? "Your information")
+                    ? translateSectionTitle(
+                        locale,
+                        currentStepFormSections[0]?.title ??
+                          portalBranding?.contactSectionLabel ??
+                          t("contactInformation"),
+                      )
+                    : (currentStep?.label ?? translateSectionTitle(locale, portalBranding?.contactSectionLabel ?? t("yourInformation")))
                 }
                 description={
                   currentStepFormSections.length === 1
-                    ? (currentStepFormSections[0]?.description?.trim() ||
-                      "We’ll use this for event updates and emergencies.")
+                    ? translateSectionDescription(
+                        locale,
+                        currentStepFormSections[0]?.description?.trim() || t("guardianContactDesc"),
+                      )
                     : undefined
                 }
               />
@@ -1542,8 +1626,14 @@ export function DynamicRegistrationWizard({
                 <div key={sec.id} className="mb-6 last:mb-0">
                   {currentStepFormSections.length > 1 ? (
                     <>
-                      <h3 className="mb-3 text-sm font-bold text-white">{sec.title}</h3>
-                      {sec.description ? <p className="mb-3 text-sm text-neutral-300/85">{sec.description}</p> : null}
+                      <h3 className="mb-3 text-sm font-bold text-white">
+                        {translateSectionTitle(locale, sec.title)}
+                      </h3>
+                      {sec.description ? (
+                        <p className="mb-3 text-sm text-neutral-300/85">
+                          {translateSectionDescription(locale, sec.description)}
+                        </p>
+                      ) : null}
                     </>
                   ) : null}
                   <div className="grid gap-4 sm:grid-cols-2">
@@ -1553,7 +1643,7 @@ export function DynamicRegistrationWizard({
                         if (f.type === "sectionHeader" || f.type === "staticText") {
                           return (
                             <div key={f.id} className="sm:col-span-2">
-                              {renderFieldInput(f, "", () => {}, rules)}
+                              {renderFieldInput(f, "", () => {}, rules, undefined, ui)}
                             </div>
                           );
                         }
@@ -1575,9 +1665,10 @@ export function DynamicRegistrationWizard({
                                     onBlur: () => setEmailBlurred(true),
                                   }
                                 : undefined,
+                              ui,
                             )}
                             {f.key === "guardianEmail" && showEmailError ? (
-                              <p className={`${hintClass} text-red-600`}>Enter a valid email address.</p>
+                              <p className={`${hintClass} text-red-600`}>{t("validEmail")}</p>
                             ) : null}
                           </div>
                         );
@@ -1591,18 +1682,23 @@ export function DynamicRegistrationWizard({
           {currentStepKind === "participants" && (
             <div className={sectionCard}>
               <SectionHeader
-                title={currentStep?.label ?? portalBranding?.participantSectionLabel ?? "Participants"}
+                title={currentStep?.label ?? translateSectionTitle(locale, portalBranding?.participantSectionLabel ?? t("participants"))}
                 description={
-                  currentStepFormSections[0]?.description?.trim() ||
-                  `Add every ${participantLabel.toLowerCase()} who will participate on this form.`
+                  translateSectionDescription(
+                    locale,
+                    currentStepFormSections[0]?.description?.trim() ||
+                      t("participantsDesc", { label: participantLabel.toLowerCase() }),
+                  )
                 }
               />
               {currentStepShowsAgeGate ? (
               <p className="mb-4 rounded-lg border border-white/15 bg-white/8 px-3 py-2 text-sm text-neutral-100/90">
-                Each {participantLabel.toLowerCase()} must be between{" "}
-                <span className="font-semibold">{participantAgeRules.minimumYears}</span> and{" "}
-                <span className="font-semibold">{participantAgeRules.maximumYears}</span> years old (whole years) as of{" "}
-                <span className="font-semibold">{formatParticipantAgeAsOfLabel(participantAgeRules.asOfDate)}</span>.
+                {t("ageGate", {
+                  label: participantLabel.toLowerCase(),
+                  min: participantAgeRules.minimumYears,
+                  max: participantAgeRules.maximumYears,
+                  asOf: formatRegistrationDate(participantAgeRules.asOfDate, locale),
+                })}
               </p>
               ) : null}
               {children.map((ch, idx) => {
@@ -1635,7 +1731,7 @@ export function DynamicRegistrationWizard({
                           className="inline-flex items-center gap-1 text-xs font-medium text-red-700 dark:text-red-300"
                         >
                           <Trash2 className="size-3.5" aria-hidden />
-                          Remove
+                          {t("remove")}
                         </button>
                       )}
                     </div>
@@ -1647,7 +1743,7 @@ export function DynamicRegistrationWizard({
                             if (field.type === "sectionHeader" || field.type === "staticText") {
                               return (
                                 <div key={field.id} className="sm:col-span-2">
-                                  {renderFieldInput(field, "", () => {}, rules)}
+                                  {renderFieldInput(field, "", () => {}, rules, undefined, ui)}
                                 </div>
                               );
                             }
@@ -1685,6 +1781,7 @@ export function DynamicRegistrationWizard({
                                           }
                                         : {}),
                                     },
+                                    ui,
                                   )}
                                 </div>
                                 {showAgeAlertHere ? (
@@ -1727,7 +1824,7 @@ export function DynamicRegistrationWizard({
                   className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-brand/40 bg-brand-muted/20 py-3 text-sm font-semibold text-brand dark:bg-brand-muted/10"
                 >
                   <Plus className="size-4" aria-hidden />
-                  Add another {participantLabel.toLowerCase()}
+                  {t("addAnother", { label: participantLabel.toLowerCase() })}
                 </button>
               )}
             </div>
@@ -1736,16 +1833,23 @@ export function DynamicRegistrationWizard({
           {currentStepKind === "consent" && (
             <div className={sectionCard}>
               <SectionHeader
-                title={currentStepFormSections[0]?.title?.trim() || currentStep?.label || "Additional information"}
+                title={
+                  translateSectionTitle(
+                    locale,
+                    currentStepFormSections[0]?.title?.trim() || currentStep?.label || t("additionalInformation"),
+                  )
+                }
                 description={
                   currentStepFormSections.length === 1
-                    ? currentStepFormSections[0]?.description?.trim() || undefined
+                    ? translateSectionDescription(locale, currentStepFormSections[0]?.description?.trim() || undefined)
                     : undefined
                 }
               />
               {currentStepFormSections.map((sec) => (
                 <div key={sec.id} className="mt-5">
-                  {currentStepFormSections.length > 1 ? <h3 className="font-semibold text-neutral-100">{sec.title}</h3> : null}
+                  {currentStepFormSections.length > 1 ? (
+                    <h3 className="font-semibold text-neutral-100">{translateSectionTitle(locale, sec.title)}</h3>
+                  ) : null}
                   {formDef.fields
                     .filter((f) => f.sectionId === sec.id)
                     .map((f) => {
@@ -1757,6 +1861,8 @@ export function DynamicRegistrationWizard({
                             guardian[f.key] ?? "",
                             (v) => setGuardian((g) => ({ ...g, [f.key]: v })),
                             rules,
+                            undefined,
+                            ui,
                           )}
                         </div>
                       );
@@ -1769,7 +1875,7 @@ export function DynamicRegistrationWizard({
                     <p className="text-neutral-200/90">{effectiveContactFooterText}</p>
                   ) : (
                     <>
-                      <p className="font-semibold">Questions?</p>
+                      <p className="font-semibold">{t("questions")}</p>
                       <p className="mt-1 text-neutral-200/90">
                         {effectiveContactEmail ? (
                           <a href={`mailto:${effectiveContactEmail}`} className="font-medium text-brand underline">
@@ -1793,36 +1899,36 @@ export function DynamicRegistrationWizard({
           {currentStepKind === "waiver" && (
             <div className={sectionCard}>
               <SectionHeader
-                title="Digital waiver"
+                title={t("digitalWaiver")}
                 description={
                   children.length > 1
-                    ? `You’re registering ${children.length} ${participantLabel.toLowerCase()}s — use a separate card for each. The name on each card is who this waiver is for.`
-                    : "Please read and sign below. You’ll review everything on the next step."
+                    ? t("waiverMultiChild", {
+                        count: children.length,
+                        label: participantLabel.toLowerCase(),
+                      })
+                    : t("waiverSingleChild")
                 }
               />
               <div className="mt-5 space-y-4">
                 <div className="rounded-xl border border-white/15 bg-white/10 p-4">
                   <h3 className="text-xl font-extrabold tracking-tight text-neutral-50 sm:text-2xl">
-                    {waiverSnap?.title?.trim() || "Medical Liability Release Form"}
+                    {waiverDisplay?.title}
                   </h3>
-                  {waiverSnap?.description?.trim() ? (
+                  {waiverDisplay?.description ? (
                     <p className="mt-3 whitespace-pre-wrap text-base font-semibold leading-relaxed text-neutral-200">
-                      {waiverSnap.description.trim()}
+                      {waiverDisplay.description}
                     </p>
                   ) : null}
                   <div
                     role="separator"
                     aria-hidden
-                    className={`h-px w-full bg-gradient-to-r from-transparent via-white/30 to-transparent ${waiverSnap?.description?.trim() ? "my-5" : "my-4"}`}
+                    className={`h-px w-full bg-gradient-to-r from-transparent via-white/30 to-transparent ${waiverDisplay?.description ? "my-5" : "my-4"}`}
                   />
                   <p className="whitespace-pre-wrap text-sm leading-relaxed text-neutral-200/90">
-                    {waiverSnap?.body?.trim() ||
-                      "I understand and accept the program waiver and consent to participation for the children listed in this submission."}
+                    {waiverDisplay?.body}
                   </p>
                   <p className="mt-3 text-xs text-neutral-300/90">
-                    {children.length > 1
-                      ? "Each card matches one child from the previous step — sign every card before continuing."
-                      : "The participant name below is taken from the child you entered on the previous step."}
+                    {children.length > 1 ? t("waiverEachCard") : t("waiverParticipantFromStep")}
                   </p>
                 </div>
                 {children.map((ch, idx) => {
@@ -1834,17 +1940,18 @@ export function DynamicRegistrationWizard({
                   return (
                     <div key={ch.id} className="rounded-xl border border-brand/30 bg-black/30 p-4">
                       <p className="text-xs font-bold uppercase tracking-wide text-brand">
-                        {multi ? `Waiver ${idx + 1} of ${children.length}` : "Waiver for"}
+                        {multi
+                          ? t("waiverNofM", { current: idx + 1, total: children.length })
+                          : t("waiverFor")}
                       </p>
                       <p className="mt-1 text-xl font-bold leading-snug text-neutral-50">{childName}</p>
                       {multi ? (
                         <p className="mt-2 text-sm text-neutral-300/95">
-                          Everything in this card (questions, signature, and agreement) applies only to{" "}
-                          <strong>{childName}</strong>.
+                          {t("waiverAppliesTo", { name: childName })}
                         </p>
                       ) : null}
                       {!w ? (
-                        <p className="mt-2 text-sm text-neutral-400">Preparing waiver…</p>
+                        <p className="mt-2 text-sm text-neutral-400">{t("preparingWaiver")}</p>
                       ) : (
                         <>
                           {(waiverSnap?.supplementalFields ?? []).length > 0 ? (
@@ -1877,7 +1984,7 @@ export function DynamicRegistrationWizard({
                           ) : null}
                           <div className="mt-4 grid gap-4 sm:grid-cols-2">
                             <div>
-                              <label className={labelClass}>Signer name</label>
+                              <label className={labelClass}>{t("signerName")}</label>
                               <input
                                 value={w.signerName}
                                 onChange={(e) => {
@@ -1894,12 +2001,12 @@ export function DynamicRegistrationWizard({
                                     return n;
                                   });
                                 }}
-                                placeholder="Parent/guardian full name"
+                                placeholder={t("signerNamePlaceholder")}
                                 className={inputClass}
                               />
                             </div>
                             <div>
-                              <label className={labelClass}>Signed at</label>
+                              <label className={labelClass}>{t("signedAt")}</label>
                               <input
                                 type="datetime-local"
                                 value={w.signedAtIso}
@@ -1917,12 +2024,10 @@ export function DynamicRegistrationWizard({
                             </div>
                           </div>
                           <div className="mt-4">
-                            <p className={labelClass}>Electronic signature</p>
-                            <p className="mt-1 text-xs text-neutral-400">
-                              Generated from the signer name above — no drawing required.
-                            </p>
+                            <p className={labelClass}>{t("electronicSignature")}</p>
+                            <p className="mt-1 text-xs text-neutral-400">{t("signatureFromName")}</p>
                             <div className="mt-2 rounded-xl border border-white/15 bg-white/10 p-3">
-                              <TypedSignaturePreview dataUrl={w.signatureDataUrl} />
+                              <TypedSignaturePreview dataUrl={w.signatureDataUrl} ui={ui} />
                             </div>
                           </div>
                           <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-xl border border-white/15 bg-black/20 px-4 py-3">
@@ -1941,9 +2046,7 @@ export function DynamicRegistrationWizard({
                               className="mt-1 size-5 accent-brand"
                             />
                             <span className="text-sm text-neutral-100">
-                              I have read this waiver for <strong>{childName}</strong> and agree to its terms. I
-                              understand this electronic signature (from the typed name above) will be stored with this
-                              registration.
+                              {t("waiverAcceptTerms", { name: childName })}
                             </span>
                           </label>
                         </>
@@ -1957,10 +2060,7 @@ export function DynamicRegistrationWizard({
 
           {step === reviewStepIndex && (
             <div className={sectionCard}>
-              <SectionHeader
-                title="Review & submit"
-                description="Take a quick look before sending."
-              />
+              <SectionHeader title={t("reviewSubmit")} description={t("reviewSubmitDesc")} />
               <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-white/15 bg-white/10 px-4 py-4">
                 <input
                   type="checkbox"
@@ -1969,8 +2069,7 @@ export function DynamicRegistrationWizard({
                   className="mt-1 size-5 accent-brand"
                 />
                 <span className="text-sm leading-relaxed text-neutral-100">
-                  I confirm the information is accurate to the best of my knowledge, and I agree to the church using
-                  it for {eventName}.
+                  {t("confirmAccurate", { eventName })}
                 </span>
               </label>
               <label className="mt-3 flex cursor-pointer items-start gap-3 rounded-xl border border-white/15 bg-white/10 px-4 py-4">
@@ -1981,8 +2080,7 @@ export function DynamicRegistrationWizard({
                   className="mt-1 size-5 accent-brand"
                 />
                 <span className="text-sm leading-relaxed text-neutral-100">
-                  I agree to receive SMS text messages on my provided phone number for {eventName} updates and
-                  announcements.
+                  {t("smsConsent", { eventName })}
                 </span>
               </label>
               <div className="space-y-4 text-sm">
@@ -2003,7 +2101,9 @@ export function DynamicRegistrationWizard({
                           if (!String(v).trim()) return null;
                           return (
                             <li key={f.key} className="flex flex-wrap gap-x-2 gap-y-0.5">
-                              <span className="text-neutral-300">{f.label?.trim() || f.key}</span>
+                              <span className="text-neutral-300">
+                                {translateFieldForDisplay(locale, f).label?.trim() || f.key}
+                              </span>
                               <span className="font-medium text-neutral-50">{v}</span>
                             </li>
                           );
@@ -2035,7 +2135,9 @@ export function DynamicRegistrationWizard({
                                 if (!String(v).trim()) return null;
                                 return (
                                   <li key={f.key} className="flex flex-wrap gap-x-2 gap-y-0.5">
-                                    <span className="text-neutral-300">{f.label?.trim() || f.key}</span>
+                                    <span className="text-neutral-300">
+                                {translateFieldForDisplay(locale, f).label?.trim() || f.key}
+                              </span>
                                     <span className="font-medium text-neutral-50">{v}</span>
                                   </li>
                                 );
@@ -2049,7 +2151,7 @@ export function DynamicRegistrationWizard({
                             role="alert"
                           >
                             <X className="mt-0.5 size-4 shrink-0" aria-hidden />
-                            <span>{reviewChildDobFieldMessages[i]}</span>
+                            <span>{translateServerMessage(locale, reviewChildDobFieldMessages[i])}</span>
                           </div>
                         ) : null}
                       </li>
@@ -2058,24 +2160,27 @@ export function DynamicRegistrationWizard({
                 </div>
                 ) : null}
                 <div>
-                  <p className="text-xs font-bold uppercase text-neutral-400">SMS updates</p>
-                  <p className="mt-1 text-neutral-200/90">{smsConsent ? "Consented" : "Not consented"}</p>
+                  <p className="text-xs font-bold uppercase text-neutral-400">{t("smsUpdates")}</p>
+                  <p className="mt-1 text-neutral-200/90">{smsConsent ? t("consented") : t("notConsented")}</p>
                 </div>
                 {waiverStepActive && waiverPerChild.length === children.length ? (
                   <div className="rounded-lg border border-white/15 bg-white/8 px-3 py-2.5">
-                    <p className="text-xs font-bold uppercase text-neutral-400">Waiver</p>
+                    <p className="text-xs font-bold uppercase text-neutral-400">{t("waiver")}</p>
                     <p className="mt-1 text-sm text-neutral-200/95">
-                      Digital waiver signed for {children.length}{" "}
-                      {children.length === 1
-                        ? participantLabel.toLowerCase()
-                        : `${participantLabel.toLowerCase()}s`}{" "}
-                      ({season.name}).
+                      {t("waiverSignedFor", {
+                        count: children.length,
+                        label:
+                          children.length === 1
+                            ? participantLabel.toLowerCase()
+                            : `${participantLabel.toLowerCase()}s`,
+                        eventName: season.name,
+                      })}
                     </p>
                   </div>
                 ) : null}
                 {payLaterAvailable || stripePayment.active ? (
                   <div className="mt-5 space-y-4">
-                    <p className="text-xs font-bold uppercase text-neutral-400">Payment</p>
+                    <p className="text-xs font-bold uppercase text-neutral-400">{t("payment")}</p>
                     {payLaterAvailable ? (
                       <div className="space-y-2 rounded-xl border border-white/15 bg-white/8 p-3">
                         <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-white/10 bg-black/20 px-3 py-3">
@@ -2087,10 +2192,8 @@ export function DynamicRegistrationWizard({
                             onChange={() => setPaymentChoice("card")}
                           />
                           <span className="text-sm text-neutral-100">
-                            <strong className="font-semibold">Pay with card now</strong>
-                            <span className="mt-1 block text-neutral-300/90">
-                              Continue to secure Stripe checkout after you submit.
-                            </span>
+                            <strong className="font-semibold">{t("payCardNow")}</strong>
+                            <span className="mt-1 block text-neutral-300/90">{t("payCardNowDetail")}</span>
                           </span>
                         </label>
                         <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-white/10 bg-black/20 px-3 py-3">
@@ -2102,11 +2205,11 @@ export function DynamicRegistrationWizard({
                             onChange={() => setPaymentChoice("pay_later")}
                           />
                           <span className="text-sm text-neutral-100">
-                            <strong className="font-semibold">Pay later</strong>
+                            <strong className="font-semibold">{t("payLater")}</strong>
                             <span className="mt-1 block text-neutral-300/90">
                               {isLegacyVbs
-                                ? "Register now; pay by card online before VBS, or pay on site on Day 1."
-                                : `Register now; pay by card online before ${current?.name ?? "the event"}, or pay on site on the first day.`}
+                                ? t("payLaterDetailVbs")
+                                : t("payLaterDetailEvent", { eventName: current?.name ?? "the event" })}
                             </span>
                           </span>
                         </label>
@@ -2123,7 +2226,7 @@ export function DynamicRegistrationWizard({
                     ) : null}
                     {stripePayment.active ? (
                   <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-4 dark:border-neutral-600 dark:bg-neutral-900/60">
-                    <p className="text-xs font-bold uppercase text-neutral-500">Card payment</p>
+                    <p className="text-xs font-bold uppercase text-neutral-500">{t("cardPayment")}</p>
                     <p className="mt-1 text-sm text-neutral-700 dark:text-neutral-300">{stripePayment.label}</p>
                     <dl className="mt-3 space-y-1 text-sm">
                       <div className="flex justify-between gap-4">
@@ -2143,23 +2246,20 @@ export function DynamicRegistrationWizard({
                       </div>
                       {stripePayment.processingCents > 0 ? (
                         <div className="flex justify-between gap-4">
-                          <dt className="text-neutral-600 dark:text-neutral-400">Card processing (est.)</dt>
+                          <dt className="text-neutral-600 dark:text-neutral-400">{t("processingFeeEst")}</dt>
                           <dd className="font-medium text-neutral-900 dark:text-neutral-50">
                             {formatUsdFromCents(stripePayment.processingCents)}
                           </dd>
                         </div>
                       ) : null}
                       <div className="flex justify-between gap-4 border-t border-neutral-200 pt-2 dark:border-neutral-600">
-                        <dt className="font-semibold text-neutral-900 dark:text-neutral-100">Total due</dt>
+                        <dt className="font-semibold text-neutral-900 dark:text-neutral-100">{t("totalDue")}</dt>
                         <dd className="font-semibold text-neutral-900 dark:text-neutral-50">
                           {formatUsdFromCents(stripePayment.totalCents)}
                         </dd>
                       </div>
                     </dl>
-                    <p className="mt-2 text-xs text-neutral-500 dark:text-neutral-400">
-                      After you submit, you can continue to a secure Stripe checkout page to pay by card. Estimated
-                      processing fee uses typical US card pricing (2.9% + $0.30); actual Stripe fees may vary slightly.
-                    </p>
+                    <p className="mt-2 text-xs text-neutral-500 dark:text-neutral-400">{t("stripeAfterSubmit")}</p>
                     {stripePayment.mode === "OPTIONAL" ? (
                       <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-lg border border-neutral-200 bg-white px-3 py-3 dark:border-neutral-600 dark:bg-neutral-950">
                         <input
@@ -2171,16 +2271,16 @@ export function DynamicRegistrationWizard({
                           className="mt-0.5 size-5 accent-brand"
                         />
                         <span className="text-sm text-neutral-800 dark:text-neutral-200">
-                          Cover the estimated card processing fee (
-                          {formatUsdFromCents(
-                            computeProcessingGrossUp(stripePayment.baseCents, true).processingCents,
-                          )}
-                          ) so the program nets closer to the full registration amount after card fees.
+                          {t("coverProcessingFee", {
+                            amount: formatUsdFromCents(
+                              computeProcessingGrossUp(stripePayment.baseCents, true).processingCents,
+                            ),
+                          })}
                         </span>
                       </label>
                     ) : (
                       <p className="mt-3 text-sm font-medium text-neutral-800 dark:text-neutral-200">
-                        This form includes the estimated card processing fee on every payment.
+                        {t("processingFeeIncluded")}
                       </p>
                     )}
                   </div>
@@ -2200,19 +2300,19 @@ export function DynamicRegistrationWizard({
                   className="inline-flex min-h-11 items-center gap-1 rounded-xl border border-white/25 bg-white/10 px-4 py-2 text-sm font-semibold text-neutral-100 shadow-sm hover:bg-white/15"
                 >
                   <ChevronLeft className="size-4" aria-hidden />
-                  Back
+                  {t("back")}
                 </button>
               ) : hasConsentFormFields ? (
-                <span className="text-sm text-neutral-300/90">Need help? Check the privacy step.</span>
+                <span className="text-sm text-neutral-300/90">{t("needHelpPrivacy")}</span>
               ) : effectiveContactEmail ? (
                 <span className="text-sm text-neutral-300/90">
-                  Need help?{" "}
+                  {t("needHelpEmail")}{" "}
                   <a href={`mailto:${effectiveContactEmail}`} className="text-brand underline-offset-2 hover:underline">
                     {effectiveContactEmail}
                   </a>
                 </span>
               ) : (
-                <span className="text-sm text-neutral-300/90">Need help? Contact the event organizer.</span>
+                <span className="text-sm text-neutral-300/90">{t("needHelpOrganizer")}</span>
               )}
             </div>
             <div>
@@ -2222,7 +2322,7 @@ export function DynamicRegistrationWizard({
                   onClick={goNext}
                   className="inline-flex min-h-11 items-center gap-1 rounded-xl bg-brand px-5 py-2.5 text-sm font-semibold text-brand-foreground shadow-sm"
                 >
-                  Continue
+                  {t("continue")}
                   <ChevronRight className="size-4" aria-hidden />
                 </button>
               ) : (
@@ -2236,7 +2336,7 @@ export function DynamicRegistrationWizard({
                   }}
                   className="inline-flex min-h-11 rounded-xl bg-brand px-6 py-2.5 text-sm font-semibold text-brand-foreground disabled:opacity-50"
                 >
-                  {pending ? "Submitting…" : primarySubmitLabel}
+                  {pending ? t("submitting") : primarySubmitLabel}
                 </button>
               )}
             </div>
@@ -2251,7 +2351,7 @@ export function DynamicRegistrationWizard({
                   className="inline-flex min-h-12 flex-1 items-center justify-center gap-1 rounded-xl border border-white/20 bg-white/10 text-sm font-semibold text-white"
                 >
                   <ChevronLeft className="size-4" aria-hidden />
-                  Back
+                  {t("back")}
                 </button>
               ) : (
                 <div className="min-h-12 flex-1" />
@@ -2262,7 +2362,7 @@ export function DynamicRegistrationWizard({
                   onClick={goNext}
                   className="inline-flex min-h-12 flex-[2] items-center justify-center gap-1 rounded-xl bg-brand text-sm font-semibold text-brand-foreground"
                 >
-                  Continue
+                  {t("continue")}
                   <ChevronRight className="size-4" aria-hidden />
                 </button>
               ) : (
@@ -2276,7 +2376,7 @@ export function DynamicRegistrationWizard({
                   }}
                   className="inline-flex min-h-12 flex-[2] items-center justify-center rounded-xl bg-brand text-sm font-semibold text-brand-foreground disabled:opacity-50"
                 >
-                  {pending ? "Submitting…" : mobileSubmitLabel}
+                  {pending ? t("submitting") : mobileSubmitLabel}
                 </button>
               )}
             </div>
@@ -2291,7 +2391,7 @@ export function DynamicRegistrationWizard({
               disabled={pending}
               className="sr-only"
             >
-              Submit registration
+              {t("submitRegistration")}
             </button>
           ) : null}
         </form>

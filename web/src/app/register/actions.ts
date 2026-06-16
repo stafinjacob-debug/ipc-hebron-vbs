@@ -31,6 +31,7 @@ import {
 } from "@/lib/stripe-fee-math";
 import { shouldSkipStripeForSubmission } from "@/lib/stripe-skip-rule";
 import { createRegistrationStripeCheckoutSession } from "@/lib/stripe-registration-payment";
+import { resolveWaiverDisplayContent } from "@/lib/default-waiver-content";
 import { makeCheckInToken, makeUniqueRegistrationNumber } from "@/lib/registration-identity";
 import {
   buildSupplementalPdfRows,
@@ -510,12 +511,15 @@ async function submitPublicRegistrationCore(
               supplemental: w.supplemental ?? {},
               mergeKeysUsed: mergeKeys,
             };
+            const waiverCopy = resolveWaiverDisplayContent({
+              title: formRow.waiverTitle,
+              description: formRow.waiverDescription,
+              body: formRow.waiverBody,
+            });
             const pdfBuffer = await renderWaiverPdfBuffer({
-              title: formRow.waiverTitle?.trim() || "Medical Liability Release Form",
-              description: formRow.waiverDescription?.trim() || null,
-              body:
-                formRow.waiverBody?.trim() ||
-                "I understand and accept the waiver terms for this VBS program.",
+              title: waiverCopy.title,
+              description: waiverCopy.description,
+              body: waiverCopy.body,
               seasonName: season.name,
               primaryChildName,
               mergeRows,

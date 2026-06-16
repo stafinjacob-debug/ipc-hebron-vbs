@@ -2,6 +2,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getEffectiveDefinition } from "@/lib/ensure-registration-form";
 import { prisma } from "@/lib/prisma";
+import { resolvePaymentDeadlineNotice } from "@/lib/pay-later";
+import { resolvePortalBranding } from "@/lib/portal-branding";
 import { rulesFromDb } from "@/lib/public-registration";
 import { readRegistrantLookupSession } from "@/lib/registrant-lookup-session";
 import {
@@ -55,6 +57,10 @@ async function loadSeasonFormContext(seasonId: string) {
   });
   if (!season) return null;
   const form = season.registrationForm;
+  const isLegacyVbs = !season.publicRegistrationSlug?.trim() && season.programKind === "VBS";
+  const branding = resolvePortalBranding(season, season.publicRegistrationSettings, {
+    legacyVbsDefaults: isLegacyVbs,
+  });
   const definition =
     getEffectiveDefinition(
       {
@@ -67,6 +73,14 @@ async function loadSeasonFormContext(seasonId: string) {
     seasonName: season.name,
     definition,
     rules: rulesFromDb(season.publicRegistrationSettings),
+    paymentDeadlineNotice: resolvePaymentDeadlineNotice(
+      {
+        eventName: season.name,
+        participantSingularLabel: branding.participantSingularLabel,
+        isLegacyVbs,
+      },
+      form?.stripePaymentDeadlineNotice,
+    ),
   };
 }
 
@@ -137,6 +151,7 @@ export default async function RegistrantLookupEditPage({
           rules={formContext.rules}
           payment={payment}
           paymentCanceled={paymentCanceled}
+          paymentDeadlineNotice={formContext.paymentDeadlineNotice}
           guardianValues={buildGuardianFieldValues({
             firstName: guardian.firstName,
             lastName: guardian.lastName,
@@ -232,6 +247,7 @@ export default async function RegistrantLookupEditPage({
         rules={formContext.rules}
         payment={payment}
         paymentCanceled={paymentCanceled}
+        paymentDeadlineNotice={formContext.paymentDeadlineNotice}
         guardianValues={buildGuardianFieldValues({
           firstName: submission.guardian.firstName,
           lastName: submission.guardian.lastName,

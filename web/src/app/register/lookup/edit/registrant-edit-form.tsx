@@ -22,6 +22,7 @@ type Props = {
   rules: PublicRegistrationFieldRules;
   payment: RegistrantPaymentDisplay;
   paymentCanceled?: boolean;
+  paymentDeadlineNotice: string;
   guardianValues: Record<string, string>;
   children: ChildRow[];
 };
@@ -60,7 +61,11 @@ export function RegistrantEditForm(p: Props) {
         <p className="mt-1 font-mono text-xs text-muted">Reference {p.registrationCode}</p>
       </div>
 
-      <RegistrantPaymentSection payment={p.payment} paymentCanceled={p.paymentCanceled} />
+      <RegistrantPaymentSection
+        payment={p.payment}
+        paymentCanceled={p.paymentCanceled}
+        paymentDeadlineNotice={p.paymentDeadlineNotice}
+      />
 
       {message ? (
         <div

@@ -1,16 +1,18 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import { VBS_PAYMENT_DEADLINE_NOTICE } from "@/lib/pay-later";
+import { resolvePaymentDeadlineNotice } from "@/lib/pay-later";
 import type { RegistrantPaymentDisplay } from "@/lib/registrant-lookup-payment";
 import { startRegistrantLookupPaymentAction } from "../actions";
 
 export function RegistrantPaymentSection({
   payment,
   paymentCanceled,
+  paymentDeadlineNotice,
 }: {
   payment: RegistrantPaymentDisplay;
   paymentCanceled?: boolean;
+  paymentDeadlineNotice: string;
 }) {
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
@@ -48,7 +50,7 @@ export function RegistrantPaymentSection({
 
       {!isPaid && payment.canPayOnline ? (
         <>
-          <p className="text-xs leading-relaxed text-muted">{VBS_PAYMENT_DEADLINE_NOTICE}</p>
+          <p className="text-xs leading-relaxed text-muted">{paymentDeadlineNotice}</p>
           <button
             type="button"
             disabled={pending || !payment.stripeConfigured}

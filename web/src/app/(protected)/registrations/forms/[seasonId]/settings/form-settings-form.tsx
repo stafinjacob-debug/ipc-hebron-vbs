@@ -10,6 +10,11 @@ import {
 } from "@/lib/vbs-participant-age-gate";
 import { updateRegistrationFormSettings } from "../../actions";
 import type { WaiverSupplementalFieldDef } from "@/lib/waiver-merge-fields";
+import {
+  DEFAULT_WAIVER_BODY,
+  DEFAULT_WAIVER_DESCRIPTION,
+  DEFAULT_WAIVER_TITLE,
+} from "@/lib/default-waiver-content";
 
 function newSupplementalWaiverField(): WaiverSupplementalFieldDef {
   const suffix =
@@ -117,9 +122,11 @@ export function FormSettingsForm({
   const [msg, setMsg] = useState<string | null>(null);
   const msgRef = useRef<HTMLParagraphElement>(null);
   const [waiverEnabled, setWaiverEnabled] = useState(initial.waiverEnabled);
-  const [waiverTitle, setWaiverTitle] = useState(() => initial.waiverTitle?.trim() || "Medical Liability Release Form");
-  const [waiverDescription, setWaiverDescription] = useState(initial.waiverDescription ?? "");
-  const [waiverBody, setWaiverBody] = useState(initial.waiverBody ?? "");
+  const [waiverTitle, setWaiverTitle] = useState(() => initial.waiverTitle?.trim() || DEFAULT_WAIVER_TITLE);
+  const [waiverDescription, setWaiverDescription] = useState(
+    () => initial.waiverDescription?.trim() || DEFAULT_WAIVER_DESCRIPTION,
+  );
+  const [waiverBody, setWaiverBody] = useState(() => initial.waiverBody?.trim() || DEFAULT_WAIVER_BODY);
   const [waiverMergeFieldKeys, setWaiverMergeFieldKeys] = useState<string[]>(() => [
     ...(initial.waiverMergeFieldKeys ?? []),
   ]);
@@ -134,9 +141,9 @@ export function FormSettingsForm({
   // Only reset waiver UI when the server sends a new snapshot (stamp), not on every `initial` reference change.
   useEffect(() => {
     setWaiverEnabled(initial.waiverEnabled);
-    setWaiverTitle(initial.waiverTitle?.trim() || "Medical Liability Release Form");
-    setWaiverDescription(initial.waiverDescription ?? "");
-    setWaiverBody(initial.waiverBody ?? "");
+    setWaiverTitle(initial.waiverTitle?.trim() || DEFAULT_WAIVER_TITLE);
+    setWaiverDescription(initial.waiverDescription?.trim() || DEFAULT_WAIVER_DESCRIPTION);
+    setWaiverBody(initial.waiverBody?.trim() || DEFAULT_WAIVER_BODY);
     setWaiverMergeFieldKeys([...(initial.waiverMergeFieldKeys ?? [])]);
     setWaiverSupplementalRows([...(initial.waiverSupplementalFields ?? [])]);
     setUnassignedClassPickerFieldKeys([...(initial.unassignedClassPickerFieldKeys ?? [])]);

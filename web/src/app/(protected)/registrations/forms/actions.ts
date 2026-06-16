@@ -2,6 +2,11 @@
 
 import { auth } from "@/auth";
 import { ensureRegistrationFormForSeason, getEffectiveDefinition } from "@/lib/ensure-registration-form";
+import {
+  DEFAULT_WAIVER_BODY,
+  DEFAULT_WAIVER_DESCRIPTION,
+  DEFAULT_WAIVER_TITLE,
+} from "@/lib/default-waiver-content";
 import { prisma } from "@/lib/prisma";
 import {
   createDefaultFormDefinition,
@@ -386,9 +391,9 @@ export async function updateRegistrationFormSettings(
           : null,
         adminRegistrationEditEnabled: data.adminRegistrationEditEnabled,
         waiverEnabled: data.waiverEnabled,
-        waiverTitle: data.waiverEnabled ? data.waiverTitle?.trim() || "Medical Liability Release Form" : null,
-        waiverDescription: data.waiverEnabled ? data.waiverDescription?.trim() || null : null,
-        waiverBody: data.waiverEnabled ? data.waiverBody?.trim() || null : null,
+        waiverTitle: data.waiverEnabled ? data.waiverTitle?.trim() || DEFAULT_WAIVER_TITLE : null,
+        waiverDescription: data.waiverEnabled ? data.waiverDescription?.trim() || DEFAULT_WAIVER_DESCRIPTION : null,
+        waiverBody: data.waiverEnabled ? data.waiverBody?.trim() || DEFAULT_WAIVER_BODY : null,
         waiverMergeFieldKeys: data.waiverEnabled
           ? (mergeKeysForSave as Prisma.InputJsonValue)
           : Prisma.DbNull,
