@@ -149,10 +149,10 @@ export function ClassroomForm({
       <section className="space-y-4 rounded-xl border border-foreground/10 bg-surface-elevated p-6">
         <h2 className={sectionTitle}>Eligibility & auto-assignment</h2>
         <p className="text-sm text-muted">
-          Age band and registration-field rules are <strong>optional filters</strong> for automatic
-          placement. Turn off “Require age band…” to place purely by form answers (if configured),
-          capacity, and class order. Bands are still stored for rosters and staff reference. Overlaps
-          show as warnings — use priority order to break ties.
+          Use a birth date range for DOB-based auto-placement (e.g. Sept 2, 2012 – Aug 1, 2013) — it
+          works on its own; you do not need the age band below. Or use the age band when you prefer
+          age-based matching. Link sections A &amp; B with the same round-robin group key so
+          auto-assignment alternates evenly between them.
         </p>
         <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-lg border border-foreground/10 bg-background/50 px-3 py-3">
           <input
@@ -165,7 +165,9 @@ export function ClassroomForm({
           <span>
             <span className="text-sm font-medium text-foreground">Require age band for auto-assignment</span>
             <span className="mt-0.5 block text-xs text-muted">
-              Uncheck for “open” classes (e.g. mixed-age room) where age should not block auto-placement.
+              Applies only when no birth date range is set above. Uncheck for open/mixed-age classes.
+              When a birth date range is configured, matching uses DOB instead and this checkbox is
+              ignored.
             </span>
           </span>
         </label>
@@ -212,6 +214,49 @@ export function ClassroomForm({
               <option value="REGISTRATION_DATE">Registration date</option>
             </select>
           </div>
+          <div>
+            <label className={label} htmlFor="birthDateMin">
+              Birth date range start
+            </label>
+            <input
+              id="birthDateMin"
+              name="birthDateMin"
+              type="date"
+              className={input}
+              defaultValue={
+                c?.birthDateMin ? c.birthDateMin.toISOString().slice(0, 10) : ""
+              }
+            />
+          </div>
+          <div>
+            <label className={label} htmlFor="birthDateMax">
+              Birth date range end
+            </label>
+            <input
+              id="birthDateMax"
+              name="birthDateMax"
+              type="date"
+              className={input}
+              defaultValue={
+                c?.birthDateMax ? c.birthDateMax.toISOString().slice(0, 10) : ""
+              }
+            />
+          </div>
+          <div className="sm:col-span-3">
+            <label className={label} htmlFor="roundRobinGroupKey">
+              Round-robin group (optional)
+            </label>
+            <input
+              id="roundRobinGroupKey"
+              name="roundRobinGroupKey"
+              className={input}
+              defaultValue={c?.roundRobinGroupKey ?? ""}
+              placeholder="e.g. class-1 — same key on Section A and Section B"
+            />
+            <p className="mt-1 text-xs text-muted">
+              Sections with the same key rotate evenly (fewest seated students gets the next child).
+            </p>
+          </div>
           <div className="sm:col-span-2">
             <label className={label} htmlFor="gradeLabel">
               Grade label (display only)
@@ -242,7 +287,7 @@ export function ClassroomForm({
           <p className="mt-1 text-sm text-muted">
             When set, auto-assignment also requires a per-child registration answer (e.g. grade or
             track) to match one of the values below. Comparison is case-insensitive. Leave blank to
-            skip this filter (age rules still apply when enabled above).
+            skip this filter (birth-date or age rules still apply when configured above).
           </p>
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
             <div className="sm:col-span-2">

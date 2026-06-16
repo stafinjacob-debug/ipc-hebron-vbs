@@ -11,6 +11,9 @@ import {
 import {
   SEAT_COUNT_STATUSES,
   ageForClassroomRule,
+  birthDateInEligibilityRange,
+  classroomUsesBirthDateRange,
+  roundRobinGroupId,
   type AutoAssignResult,
   type ClassroomForAutoAssign,
 } from "./class-assignment-shared";
@@ -38,8 +41,97 @@ export async function countWaitlistedInClass(
   });
 }
 
+function classroomMatchesFormFieldRules(
+  c: ClassroomForAutoAssign,
+  childFieldContext: Record<string, string | boolean | number | null>,
+): boolean {
+  const mKey = c.matchFormFieldKey?.trim() ?? "";
+  const mVals = c.matchFormFieldValues ?? [];
+  if (!mKey || mVals.length === 0) return true;
+  return fieldValueMatchesAllowed(childFieldContext, mKey, mVals);
+}
+
+export function classroomMatchesEligibility(
+  c: ClassroomForAutoAssign,
+  childDob: Date,
+  registeredAt: Date,
+  seasonStartDate: Date,
+  childFieldContext: Record<string, string | boolean | number | null>,
+): { matches: boolean; matchedAge: number | null } {
+  const matchedAge = ageForClassroomRule(
+    childDob,
+    c.ageRule,
+    registeredAt,
+    seasonStartDate,
+  );
+
+  if (classroomUsesBirthDateRange(c)) {
+    if (
+      !birthDateInEligibilityRange(
+        childDob,
+        c.birthDateMin!,
+        c.birthDateMax!,
+      )
+    ) {
+      return { matches: false, matchedAge };
+    }
+  } else if (c.useAgeRuleForAutoAssign) {
+    if (matchedAge < c.ageMin || matchedAge > c.ageMax) {
+      return { matches: false, matchedAge };
+    }
+  }
+
+  if (!classroomMatchesFormFieldRules(c, childFieldContext)) {
+    return { matches: false, matchedAge };
+  }
+
+  return { matches: true, matchedAge };
+}
+
+async function pickFromRoundRobinGroup(
+  tx: Prisma.TransactionClient,
+  candidates: ClassroomForAutoAssign[],
+  currentStatus: RegistrationStatus,
+  matchedAge: number | null,
+): Promise<AutoAssignResult | null> {
+  const withSeats = await Promise.all(
+    candidates.map(async (c) => ({
+      c,
+      seated: await countSeatedRegistrations(tx, c.id),
+    })),
+  );
+
+  withSeats.sort(
+    (a, b) =>
+      a.seated - b.seated ||
+      a.c.sortOrder - b.c.sortOrder ||
+      a.c.id.localeCompare(b.c.id),
+  );
+
+  for (const { c, seated } of withSeats) {
+    const cap = c.capacity;
+    if (cap <= 0 || seated < cap) {
+      return { classroomId: c.id, matchedAge };
+    }
+
+    if (c.waitlistEnabled) {
+      const wl: AutoAssignResult = {
+        classroomId: c.id,
+        matchedAge,
+      };
+      if (currentStatus === "PENDING" || currentStatus === "DRAFT") {
+        wl.nextStatus = "WAITLIST";
+      }
+      return wl;
+    }
+  }
+
+  return null;
+}
+
 /**
- * Pick first matching class by sortOrder and assign seat or waitlist per class rules.
+ * Pick matching class by sortOrder and assign seat or waitlist per class rules.
+ * Linked sections (roundRobinGroupKey) rotate by fewest seated students.
  * Does not write to DB — caller updates registration.
  */
 export async function resolveAutoClassAssignment(
@@ -54,51 +146,70 @@ export async function resolveAutoClassAssignment(
     childFieldContext: Record<string, string | boolean | number | null>;
   },
 ): Promise<AutoAssignResult> {
-  const { childDob, registeredAt, seasonStartDate, currentStatus, classrooms, childFieldContext } =
-    params;
+  const {
+    childDob,
+    registeredAt,
+    seasonStartDate,
+    currentStatus,
+    classrooms,
+    childFieldContext,
+  } = params;
 
-  const sorted = [...classrooms].sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id));
+  const sorted = [...classrooms].sort(
+    (a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id),
+  );
 
+  const matching: { classroom: ClassroomForAutoAssign; matchedAge: number | null }[] = [];
   let lastMatchedAge: number | null = null;
 
   for (const c of sorted) {
     if (!c.isActive) continue;
     if (c.intakeStatus !== "OPEN") continue;
 
-    const age = ageForClassroomRule(childDob, c.ageRule, registeredAt, seasonStartDate);
-    if (c.useAgeRuleForAutoAssign && (age < c.ageMin || age > c.ageMax)) continue;
+    const { matches, matchedAge } = classroomMatchesEligibility(
+      c,
+      childDob,
+      registeredAt,
+      seasonStartDate,
+      childFieldContext,
+    );
+    if (!matches) continue;
 
-    const mKey = c.matchFormFieldKey?.trim() ?? "";
-    const mVals = c.matchFormFieldValues ?? [];
-    if (mKey && mVals.length > 0) {
-      if (!fieldValueMatchesAllowed(childFieldContext, mKey, mVals)) continue;
-    }
+    lastMatchedAge = matchedAge;
+    matching.push({ classroom: c, matchedAge });
+  }
 
-    lastMatchedAge = age;
+  if (matching.length === 0) {
+    return {
+      classroomId: null,
+      matchedAge: null,
+      note: "Auto: no active class matched this child’s eligibility for this season.",
+    };
+  }
 
-    const seated = await countSeatedRegistrations(tx, c.id);
-    const cap = c.capacity;
+  const groups = new Map<string, { classroom: ClassroomForAutoAssign; matchedAge: number | null }[]>();
+  for (const entry of matching) {
+    const key = roundRobinGroupId(entry.classroom);
+    const list = groups.get(key) ?? [];
+    list.push(entry);
+    groups.set(key, list);
+  }
 
-    if (cap <= 0 || seated < cap) {
-      return {
-        classroomId: c.id,
-        matchedAge: age,
-      };
-    }
+  const sortedGroups = [...groups.entries()].sort((a, b) => {
+    const aOrder = Math.min(...a[1].map((x) => x.classroom.sortOrder));
+    const bOrder = Math.min(...b[1].map((x) => x.classroom.sortOrder));
+    return aOrder - bOrder || a[0].localeCompare(b[0]);
+  });
 
-    if (c.waitlistEnabled) {
-      const wl: AutoAssignResult = {
-        classroomId: c.id,
-        matchedAge: age,
-      };
-      if (currentStatus === "PENDING" || currentStatus === "DRAFT") {
-        wl.nextStatus = "WAITLIST";
-      }
-      return wl;
-    }
-
-    // Full with no class waitlist — try another matching class (overflow).
-    continue;
+  for (const [, members] of sortedGroups) {
+    const result = await pickFromRoundRobinGroup(
+      tx,
+      members.map((m) => m.classroom),
+      currentStatus,
+      members[0]?.matchedAge ?? lastMatchedAge,
+    );
+    if (result?.classroomId) return result;
+    if (result) return result;
   }
 
   if (lastMatchedAge != null) {
@@ -128,6 +239,9 @@ export async function fetchClassroomsForAutoAssign(
       name: true,
       ageMin: true,
       ageMax: true,
+      birthDateMin: true,
+      birthDateMax: true,
+      roundRobinGroupKey: true,
       useAgeRuleForAutoAssign: true,
       ageRule: true,
       capacity: true,

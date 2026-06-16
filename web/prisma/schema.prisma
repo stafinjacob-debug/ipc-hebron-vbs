@@ -419,6 +419,8 @@ model RegistrationForm {
 
   /// When true, families are sent to Stripe Checkout after submit until paid (requires STRIPE_* env).
   stripeCheckoutEnabled       Boolean               @default(false)
+  /// When true, PENDING registrations auto-confirm (and email) once a class is assigned and payment is complete.
+  autoApproveWhenClassAssignedAndPaid Boolean       @default(false)
   /// Optional conditional waiver: if this field equals the configured value, Stripe checkout is skipped.
   stripeSkipWhenFieldKey      String?
   stripeSkipWhenFieldValue    String?
@@ -551,6 +553,11 @@ model Classroom {
   description String?  @db.Text
   ageMin    Int
   ageMax    Int
+  /// Inclusive calendar birth-date window for auto-assignment. When both are set, they replace ageMin/ageMax for matching.
+  birthDateMin DateTime?
+  birthDateMax DateTime?
+  /// Sections sharing the same key (e.g. class-1-a and class-1-b) rotate evenly on auto-assignment.
+  roundRobinGroupKey String?
   /// When true, auto-assignment requires age within ageMin–ageMax. When false, age is ignored for auto-placement (form field rules still apply if set).
   useAgeRuleForAutoAssign Boolean @default(true)
   /// Which date to use when comparing the child’s age to ageMin/ageMax.
@@ -592,6 +599,7 @@ model Classroom {
   leaderAssignments   ClassroomLeaderAssignment[]
 
   @@index([seasonId, sortOrder])
+  @@index([seasonId, roundRobinGroupKey])
 }
 
 model ClassroomLeaderAssignment {

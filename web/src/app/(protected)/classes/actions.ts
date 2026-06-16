@@ -11,10 +11,15 @@ import { parseMatchFieldValuesFromForm } from "@/lib/class-form-field-match";
 import {
   ageForClassroomRule,
   ageRangeOverlaps,
+  birthDateInEligibilityRange,
+  classroomUsesBirthDateRange,
   countSeatedRegistrations,
+  formatBirthDateRange,
 } from "@/lib/class-assignment";
+import { tryAutoApproveAfterRegistrationUpdate } from "@/lib/auto-approve-registration";
 import { prisma } from "@/lib/prisma";
 import { canManageDirectory } from "@/lib/roles";
+import { parseLocalDate } from "@/lib/schemas/vbs-registration";
 import { revalidatePath } from "next/cache";
 
 export type ClassActionState = {
@@ -33,6 +38,37 @@ function str(fd: FormData, k: string) {
 function intField(fd: FormData, k: string, fallback: number) {
   const n = Number(str(fd, k));
   return Number.isFinite(n) ? n : fallback;
+}
+
+function optionalDateField(fd: FormData, k: string): Date | null {
+  const raw = str(fd, k).trim();
+  if (!raw) return null;
+  try {
+    return parseLocalDate(raw);
+  } catch {
+    return null;
+  }
+}
+
+function parseBirthDateFields(formData: FormData): { ok: true; min: Date | null; max: Date | null } | { ok: false; message: string } {
+  const min = optionalDateField(formData, "birthDateMin");
+  const max = optionalDateField(formData, "birthDateMax");
+  const minRaw = str(formData, "birthDateMin").trim();
+  const maxRaw = str(formData, "birthDateMax").trim();
+
+  if (minRaw && !min) {
+    return { ok: false, message: "Birth date range start is invalid." };
+  }
+  if (maxRaw && !max) {
+    return { ok: false, message: "Birth date range end is invalid." };
+  }
+  if ((min && !max) || (!min && max)) {
+    return { ok: false, message: "Set both birth date range start and end, or leave both blank." };
+  }
+  if (min && max && min.getTime() > max.getTime()) {
+    return { ok: false, message: "Birth date range start cannot be after the end date." };
+  }
+  return { ok: true, min, max };
 }
 
 async function requireClassManager(): Promise<
@@ -105,6 +141,11 @@ export async function createClassroomAction(
   const useAgeRuleForAutoAssign =
     useAgeRuleCheck === "on" || useAgeRuleCheck === "true" || useAgeRuleCheck === "1";
 
+  const birthDates = parseBirthDateFields(formData);
+  if (!birthDates.ok) return { ok: false, message: birthDates.message };
+
+  const roundRobinGroupKey = str(formData, "roundRobinGroupKey").trim() || null;
+
   const others = await prisma.classroom.findMany({
     where: { seasonId, isActive: true },
     select: { id: true, name: true, ageMin: true, ageMax: true, useAgeRuleForAutoAssign: true },
@@ -135,6 +176,9 @@ export async function createClassroomAction(
         adminNotes: str(formData, "adminNotes").trim() || null,
         sortOrder: intField(formData, "sortOrder", 0),
         isActive: str(formData, "isActive") !== "false",
+        birthDateMin: birthDates.min,
+        birthDateMax: birthDates.max,
+        roundRobinGroupKey,
         matchFormFieldKey: useFormMatch ? mfKey : null,
         matchFormFieldValues: useFormMatch ? mfVals : Prisma.DbNull,
       },
@@ -149,7 +193,11 @@ export async function createClassroomAction(
     };
   } catch (e) {
     console.error(e);
-    return { ok: false, message: "Could not create class." };
+    const detail =
+      e instanceof Error && process.env.NODE_ENV === "development"
+        ? ` ${e.message}`
+        : "";
+    return { ok: false, message: `Could not create class.${detail}` };
   }
 }
 
@@ -188,6 +236,11 @@ export async function updateClassroomAction(
   const useAgeRuleForAutoAssign =
     useAgeRuleCheck === "on" || useAgeRuleCheck === "true" || useAgeRuleCheck === "1";
 
+  const birthDates = parseBirthDateFields(formData);
+  if (!birthDates.ok) return { ok: false, message: birthDates.message };
+
+  const roundRobinGroupKey = str(formData, "roundRobinGroupKey").trim() || null;
+
   const others = await prisma.classroom.findMany({
     where: { seasonId: existing.seasonId, isActive: true },
     select: { id: true, name: true, ageMin: true, ageMax: true, useAgeRuleForAutoAssign: true },
@@ -218,13 +271,20 @@ export async function updateClassroomAction(
         adminNotes: str(formData, "adminNotes").trim() || null,
         sortOrder: intField(formData, "sortOrder", 0),
         isActive: str(formData, "isActive") !== "false",
+        birthDateMin: birthDates.min,
+        birthDateMax: birthDates.max,
+        roundRobinGroupKey,
         matchFormFieldKey: useFormMatch ? mfKey : null,
         matchFormFieldValues: useFormMatch ? mfVals : Prisma.DbNull,
       },
     });
   } catch (e) {
     console.error(e);
-    return { ok: false, message: "Could not update class." };
+    const detail =
+      e instanceof Error && process.env.NODE_ENV === "development"
+        ? ` ${e.message}`
+        : "";
+    return { ok: false, message: `Could not update class.${detail}` };
   }
 
   revalidatePath("/classes");
@@ -376,13 +436,24 @@ export async function reassignRegistrationClassroomAction(
       reg.registeredAt,
       reg.season.startDate,
     );
-    if (
-      target.useAgeRuleForAutoAssign &&
-      (age < target.ageMin || age > target.ageMax)
-    ) {
-      hints.push(
-        `Child’s age (${age} using ${target.ageRule === "REGISTRATION_DATE" ? "registration date" : "event start"} rule) is outside this class band (${target.ageMin}–${target.ageMax}).`,
-      );
+    if (classroomUsesBirthDateRange(target) && target.birthDateMin && target.birthDateMax) {
+      if (
+        !birthDateInEligibilityRange(
+          reg.child.dateOfBirth,
+          target.birthDateMin,
+          target.birthDateMax,
+        )
+      ) {
+        hints.push(
+          `Child’s birth date is outside this class window (${formatBirthDateRange(target.birthDateMin, target.birthDateMax)}).`,
+        );
+      }
+    } else if (target.useAgeRuleForAutoAssign) {
+      if (age < target.ageMin || age > target.ageMax) {
+        hints.push(
+          `Child’s age (${age} using ${target.ageRule === "REGISTRATION_DATE" ? "registration date" : "event start"} rule) is outside this class band (${target.ageMin}–${target.ageMax}).`,
+        );
+      }
     }
 
     const seated = await countSeatedRegistrations(prisma, target.id, registrationId);
@@ -420,6 +491,13 @@ export async function reassignRegistrationClassroomAction(
   revalidatePath("/classes");
   if (fromId) revalidatePath(`/classes/${fromId}`);
   if (classroomId) revalidatePath(`/classes/${classroomId}`);
+
+  if (classroomId) {
+    void tryAutoApproveAfterRegistrationUpdate({
+      registrationId,
+      formSubmissionId: reg.formSubmissionId,
+    }).catch((err) => console.error("[auto-approve] after class reassignment", err));
+  }
 
   return {
     ok: true,

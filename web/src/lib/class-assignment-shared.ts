@@ -21,6 +21,9 @@ export type ClassroomForAutoAssign = {
   name: string;
   ageMin: number;
   ageMax: number;
+  birthDateMin: Date | null;
+  birthDateMax: Date | null;
+  roundRobinGroupKey: string | null;
   /** When false, auto-assignment skips the ageMin/ageMax check. */
   useAgeRuleForAutoAssign: boolean;
   ageRule: ClassroomAgeRule;
@@ -33,6 +36,47 @@ export type ClassroomForAutoAssign = {
   matchFormFieldKey: string | null;
   matchFormFieldValues: string[];
 };
+
+/** Calendar date as YYYYMMDD for stable comparisons. */
+export function calendarDateKey(d: Date): number {
+  return d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate();
+}
+
+export function classroomUsesBirthDateRange(c: {
+  birthDateMin: Date | null;
+  birthDateMax: Date | null;
+}): boolean {
+  return c.birthDateMin != null && c.birthDateMax != null;
+}
+
+/** True when auto-assignment applies a birth-date or age filter (not an open class). */
+export function classroomHasAutoAssignEligibilityFilter(c: {
+  birthDateMin: Date | null;
+  birthDateMax: Date | null;
+  useAgeRuleForAutoAssign: boolean;
+}): boolean {
+  return classroomUsesBirthDateRange(c) || c.useAgeRuleForAutoAssign;
+}
+
+export function birthDateInEligibilityRange(
+  dob: Date,
+  min: Date,
+  max: Date,
+): boolean {
+  const key = calendarDateKey(dob);
+  return key >= calendarDateKey(min) && key <= calendarDateKey(max);
+}
+
+export function formatBirthDateRange(min: Date, max: Date): string {
+  const fmt = (d: Date) =>
+    d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  return `${fmt(min)} – ${fmt(max)}`;
+}
+
+export function roundRobinGroupId(c: ClassroomForAutoAssign): string {
+  const key = c.roundRobinGroupKey?.trim();
+  return key ? key : `__solo_${c.id}`;
+}
 
 export function childAgeYearsOnDate(dob: Date, asOf: Date): number {
   let age = asOf.getFullYear() - dob.getFullYear();

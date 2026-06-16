@@ -201,6 +201,7 @@ export async function updateRegistrationFormSettings(
     registrationNumberPrefix: string | null;
     registrationNumberSeqDigits: number;
     stripeCheckoutEnabled: boolean;
+    autoApproveWhenClassAssignedAndPaid: boolean;
     stripeAmountCents: number | null;
     stripePricingUnit: "PER_SUBMISSION" | "PER_CHILD";
     stripeCapPaidChildrenAtThree: boolean;
@@ -369,6 +370,7 @@ export async function updateRegistrationFormSettings(
         registrationNumberPrefix,
         registrationNumberSeqDigits: seqDigits,
         stripeCheckoutEnabled: data.stripeCheckoutEnabled,
+        autoApproveWhenClassAssignedAndPaid: data.autoApproveWhenClassAssignedAndPaid,
         stripeAmountCents: data.stripeCheckoutEnabled ? stripeAmountCents : null,
         stripePricingUnit: data.stripePricingUnit,
         stripeCapPaidChildrenAtThree: data.stripeCapPaidChildrenAtThree,
@@ -462,6 +464,7 @@ export async function cloneRegistrationFormFromSeason(
       registrationNumberSeqDigits: srcForm.registrationNumberSeqDigits,
       registrationNumberNextSeq: 0,
       stripeCheckoutEnabled: srcForm.stripeCheckoutEnabled,
+      autoApproveWhenClassAssignedAndPaid: srcForm.autoApproveWhenClassAssignedAndPaid,
       stripeAmountCents: srcForm.stripeAmountCents,
       stripePricingUnit: srcForm.stripePricingUnit,
       stripeCapPaidChildrenAtThree: srcForm.stripeCapPaidChildrenAtThree,
@@ -869,6 +872,7 @@ export type FormWorkspacePayload = {
     registrationNumberSeqDigits: number;
     registrationNumberLastSeq: number;
     stripeCheckoutEnabled: boolean;
+    autoApproveWhenClassAssignedAndPaid: boolean;
     stripeAmountCents: number | null;
     stripePricingUnit: "PER_SUBMISSION" | "PER_CHILD";
     stripeCapPaidChildrenAtThree: boolean;
@@ -1036,6 +1040,7 @@ export async function loadFormWorkspacePayload(
         registrationNumberSeqDigits: form.registrationNumberSeqDigits,
         registrationNumberLastSeq: form.registrationNumberNextSeq,
         stripeCheckoutEnabled: form.stripeCheckoutEnabled,
+        autoApproveWhenClassAssignedAndPaid: form.autoApproveWhenClassAssignedAndPaid,
         stripeAmountCents: form.stripeAmountCents,
         stripePricingUnit: form.stripePricingUnit,
         stripeCapPaidChildrenAtThree: form.stripeCapPaidChildrenAtThree,

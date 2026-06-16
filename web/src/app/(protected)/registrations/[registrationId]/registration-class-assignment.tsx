@@ -1,7 +1,7 @@
 "use client";
 
 import type { ClassAssignmentMethod } from "@/generated/prisma";
-import { ageForClassroomRule } from "@/lib/class-assignment-shared";
+import { ageForClassroomRule, birthDateInEligibilityRange, classroomUsesBirthDateRange, formatBirthDateRange } from "@/lib/class-assignment-shared";
 import { reassignRegistrationClassroomAction } from "@/app/(protected)/classes/actions";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
@@ -33,6 +33,8 @@ export function RegistrationClassAssignment({
     name: string;
     ageMin: number;
     ageMax: number;
+    birthDateMin: string | null;
+    birthDateMax: string | null;
     useAgeRuleForAutoAssign: boolean;
     ageRule: string;
   }[];
@@ -57,7 +59,7 @@ export function RegistrationClassAssignment({
     method === "MANUAL"
       ? "Manual (staff moved)"
       : method === "AUTO"
-        ? "Automatic (age + optional form field rules)"
+        ? "Automatic (birth date / age + optional form field rules)"
         : "Not recorded (legacy)";
 
   return (
@@ -151,13 +153,30 @@ export function RegistrationClassAssignment({
                     registeredAt,
                     seasonStart,
                   );
-                  const match =
-                    !c.useAgeRuleForAutoAssign || (age >= c.ageMin && age <= c.ageMax);
+                  const birthMin = c.birthDateMin ? new Date(c.birthDateMin) : null;
+                  const birthMax = c.birthDateMax ? new Date(c.birthDateMax) : null;
+                  const usesBirth =
+                    birthMin &&
+                    birthMax &&
+                    classroomUsesBirthDateRange({
+                      birthDateMin: birthMin,
+                      birthDateMax: birthMax,
+                    });
+                  const hasFilter =
+                    usesBirth || c.useAgeRuleForAutoAssign;
+                  const match = usesBirth && birthMin && birthMax
+                    ? birthDateInEligibilityRange(childDob, birthMin, birthMax)
+                    : !c.useAgeRuleForAutoAssign
+                      ? true
+                      : age >= c.ageMin && age <= c.ageMax;
+                  const eligibilityLabel = usesBirth && birthMin && birthMax
+                    ? formatBirthDateRange(birthMin, birthMax)
+                    : `${c.ageMin}–${c.ageMax}`;
                   return (
                     <option key={c.id} value={c.id}>
                       {c.name}
-                      {c.useAgeRuleForAutoAssign
-                        ? ` (${c.ageMin}–${c.ageMax}${match ? "" : " · outside age band"})`
+                      {hasFilter
+                        ? ` (${eligibilityLabel}${match ? "" : " · outside eligibility"})`
                         : " (any age · auto)"}
                     </option>
                   );

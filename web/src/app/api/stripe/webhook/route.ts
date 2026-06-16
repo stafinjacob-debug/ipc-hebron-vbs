@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { sendSubmissionReceivedEmail } from "@/lib/email/registration-emails";
+import { tryAutoApproveRegistrationsForSubmission } from "@/lib/auto-approve-registration";
 import { getStripeClient } from "@/lib/stripe-registration-payment";
 import type Stripe from "stripe";
 
@@ -74,6 +75,10 @@ export async function POST(request: Request) {
 
     void sendSubmissionReceivedEmail(submissionId).catch((err) => {
       console.error("[stripe webhook] sendSubmissionReceivedEmail", err);
+    });
+
+    void tryAutoApproveRegistrationsForSubmission(submissionId).catch((err) => {
+      console.error("[stripe webhook] tryAutoApproveRegistrationsForSubmission", err);
     });
   }
 

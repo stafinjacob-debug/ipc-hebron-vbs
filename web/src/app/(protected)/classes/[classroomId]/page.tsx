@@ -3,7 +3,7 @@ import { ClassroomRosterQuickMove } from "@/app/(protected)/classes/classroom-ro
 import { auth } from "@/auth";
 import { jsonToStringArray } from "@/lib/class-form-field-match";
 import { prisma } from "@/lib/prisma";
-import { ageForClassroomRule, ageRuleLabel } from "@/lib/class-assignment";
+import { ageForClassroomRule, ageRuleLabel, classroomUsesBirthDateRange, formatBirthDateRange } from "@/lib/class-assignment";
 import { parseFormDefinitionJson } from "@/lib/registration-form-definition";
 import { buildUnassignedClassPickerPreview } from "@/lib/unassigned-class-picker-preview";
 import { canUserViewClassroom } from "@/lib/classroom-access";
@@ -146,9 +146,11 @@ export default async function ClassroomDetailPage({
             </p>
             <p className="mt-2 text-sm text-foreground/85">
               <span className="rounded-md bg-brand/10 px-2 py-0.5 font-medium text-brand">
-                {c.useAgeRuleForAutoAssign === false
-                  ? "Any age (auto-placement)"
-                  : `Ages ${c.ageMin}–${c.ageMax}`}
+                {classroomUsesBirthDateRange(c) && c.birthDateMin && c.birthDateMax
+                  ? formatBirthDateRange(c.birthDateMin, c.birthDateMax)
+                  : c.useAgeRuleForAutoAssign === false
+                    ? "Any age (auto-placement)"
+                    : `Ages ${c.ageMin}–${c.ageMax}`}
               </span>
               <span className="ml-2 text-muted">· {ageRuleLabel(c.ageRule)}</span>
             </p>
@@ -192,8 +194,23 @@ export default async function ClassroomDetailPage({
           </div>
           <div>
             <dt className="text-muted">Age for auto-assign</dt>
-            <dd>{c.useAgeRuleForAutoAssign === false ? "Off (any age)" : `On (${c.ageMin}–${c.ageMax})`}</dd>
+            <dd>
+              {classroomUsesBirthDateRange(c) && c.birthDateMin && c.birthDateMax
+                ? `Birth date ${formatBirthDateRange(c.birthDateMin, c.birthDateMax)}`
+                : c.useAgeRuleForAutoAssign === false
+                  ? "Off (any age)"
+                  : `On (${c.ageMin}–${c.ageMax})`}
+            </dd>
           </div>
+          {c.roundRobinGroupKey?.trim() ? (
+            <div>
+              <dt className="text-muted">Round-robin group</dt>
+              <dd>
+                <code className="rounded bg-foreground/10 px-1">{c.roundRobinGroupKey.trim()}</code>
+                <span className="ml-1 text-muted">(linked sections rotate)</span>
+              </dd>
+            </div>
+          ) : null}
           {c.matchFormFieldKey?.trim() && c.matchFormFieldValues != null ? (
             <div className="sm:col-span-2">
               <dt className="text-muted">Auto-assign form rule</dt>

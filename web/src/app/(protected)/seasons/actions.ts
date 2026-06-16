@@ -121,6 +121,7 @@ export async function createProgramAction(
           draftDefinitionJson: srcForm.draftDefinitionJson ?? definitionToJson(def),
           publishedDefinitionJson: null,
           stripeCheckoutEnabled: srcForm.stripeCheckoutEnabled,
+          autoApproveWhenClassAssignedAndPaid: srcForm.autoApproveWhenClassAssignedAndPaid,
           stripeAmountCents: srcForm.stripeAmountCents,
           stripePricingUnit: srcForm.stripePricingUnit,
           stripeCapPaidChildrenAtThree: srcForm.stripeCapPaidChildrenAtThree,

@@ -3,7 +3,11 @@ import { prisma } from "@/lib/prisma";
 import {
   ageForClassroomRule,
   ageRangeOverlaps,
+  birthDateInEligibilityRange,
+  classroomMatchesEligibility,
+  classroomUsesBirthDateRange,
   findInternalAgeGaps,
+  formatBirthDateRange,
 } from "@/lib/class-assignment";
 import { getEnrollmentCountsByClassroom } from "@/lib/classroom-enrollment";
 import { canManageDirectory, canViewOperations } from "@/lib/roles";
@@ -45,15 +49,29 @@ export default async function AssignmentRulesPage({
   const counts = await getEnrollmentCountsByClassroom(season.id);
 
   const activeRanges = classes
-    .filter((c) => c.isActive && c.useAgeRuleForAutoAssign)
+    .filter((c) => c.isActive && c.useAgeRuleForAutoAssign && !classroomUsesBirthDateRange(c))
     .map((c) => ({ id: c.id, ageMin: c.ageMin, ageMax: c.ageMax, name: c.name }));
   const gapAges = findInternalAgeGaps(activeRanges);
 
   function effRange(c: (typeof classes)[0]) {
-    return c.useAgeRuleForAutoAssign === false
-      ? ({ lo: 0, hi: 99, label: "any age (auto)" } as const)
-      : ({ lo: c.ageMin, hi: c.ageMax, label: `${c.ageMin}–${c.ageMax}` } as const);
+    if (classroomUsesBirthDateRange(c) && c.birthDateMin && c.birthDateMax) {
+      return {
+        lo: 0,
+        hi: 99,
+        label: formatBirthDateRange(c.birthDateMin, c.birthDateMax),
+      } as const;
+    }
+    if (c.useAgeRuleForAutoAssign === false) {
+      return { lo: 0, hi: 99, label: "any age (auto)" } as const;
+    }
+    return { lo: c.ageMin, hi: c.ageMax, label: `${c.ageMin}–${c.ageMax}` } as const;
   }
+
+  const roundRobinGroups = [...new Set(
+    classes
+      .map((c) => c.roundRobinGroupKey?.trim())
+      .filter((k): k is string => Boolean(k)),
+  )].sort();
 
   const overlaps: string[] = [];
   for (let i = 0; i < classes.length; i++) {
@@ -71,21 +89,32 @@ export default async function AssignmentRulesPage({
   }
 
   const regAt = new Date();
-  const previewAges = Array.from({ length: 15 }, (_, i) => i + 2);
+  const previewDobs = [
+    "2012-09-02",
+    "2013-01-15",
+    "2013-08-01",
+    "2013-08-02",
+    "2014-06-01",
+  ];
 
-  function firstMatch(ageYears: number): string {
+  function firstMatchForDob(ymd: string): string {
+    const childDob = new Date(`${ymd}T12:00:00`);
     const sorted = [...classes].sort(
       (a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name),
     );
-    const refDob = new Date(season.startDate);
-    refDob.setFullYear(refDob.getFullYear() - ageYears);
     for (const c of sorted) {
-      if (!c.isActive || c.intakeStatus !== "OPEN") continue;
-      if (c.useAgeRuleForAutoAssign !== false) {
-        const computed = ageForClassroomRule(refDob, c.ageRule, regAt, season.startDate);
-        if (computed < c.ageMin || computed > c.ageMax) continue;
-      }
-      return c.name;
+      const { matches } = classroomMatchesEligibility(
+        {
+          ...c,
+          matchFormFieldKey: c.matchFormFieldKey ?? null,
+          matchFormFieldValues: [],
+        },
+        childDob,
+        regAt,
+        season.startDate,
+        {},
+      );
+      if (matches && c.isActive && c.intakeStatus === "OPEN") return c.name;
     }
     return "—";
   }
@@ -98,10 +127,9 @@ export default async function AssignmentRulesPage({
         </Link>
         <h1 className="mt-2 text-2xl font-semibold tracking-tight">Assignment rules</h1>
         <p className="mt-1 text-muted">
-          Age bands are optional for auto-placement (classes can ignore age). This page still shows
-          listed ages for reference. Gaps and overlaps consider only classes that require an age
-          band. Preview uses hypothetical birthdays at event start (approximate). Form-field rules
-          are on each class’s edit page.
+          Birth-date ranges (e.g. Sept 2, 2012 – Aug 1, 2013) work on their own for auto-placement.
+          Age bands apply when no birth-date range is set. Round-robin groups link sections so
+          auto-assignment rotates between them. Form-field rules are on each class’s edit page.
         </p>
       </div>
 
@@ -158,12 +186,30 @@ export default async function AssignmentRulesPage({
         <p className="text-sm text-muted">No overlapping effective ranges among active classes.</p>
       ) : null}
 
+      {roundRobinGroups.length > 0 ? (
+        <div className="rounded-xl border border-foreground/10 bg-surface-elevated px-4 py-3 text-sm">
+          <p className="font-medium text-foreground">Round-robin groups</p>
+          <ul className="mt-2 list-disc pl-5 text-muted">
+            {roundRobinGroups.map((key) => {
+              const members = classes.filter((c) => c.roundRobinGroupKey?.trim() === key);
+              return (
+                <li key={key}>
+                  <span className="font-medium text-foreground">{key}</span>:{" "}
+                  {members.map((m) => m.name).join(", ")}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ) : null}
+
       <section className="overflow-hidden rounded-xl border border-foreground/10">
         <table className="w-full text-left text-sm">
           <thead className="bg-foreground/[0.04] text-foreground/70">
             <tr>
               <th className="px-4 py-3 font-medium">Class</th>
-              <th className="px-4 py-3 font-medium">Ages</th>
+              <th className="px-4 py-3 font-medium">Eligibility</th>
+              <th className="px-4 py-3 font-medium">Round-robin</th>
               <th className="px-4 py-3 font-medium">Priority</th>
               <th className="px-4 py-3 font-medium">Capacity</th>
               <th className="px-4 py-3 font-medium">Seated / WL</th>
@@ -185,13 +231,18 @@ export default async function AssignmentRulesPage({
                     ) : null}
                   </td>
                   <td className="px-4 py-3 tabular-nums">
-                    {c.useAgeRuleForAutoAssign === false ? (
+                    {classroomUsesBirthDateRange(c) && c.birthDateMin && c.birthDateMax ? (
+                      formatBirthDateRange(c.birthDateMin, c.birthDateMax)
+                    ) : c.useAgeRuleForAutoAssign === false ? (
                       <span className="text-muted">Any age</span>
                     ) : (
                       <>
-                        {c.ageMin}–{c.ageMax}
+                        Ages {c.ageMin}–{c.ageMax}
                       </>
                     )}
+                  </td>
+                  <td className="px-4 py-3 text-muted">
+                    {c.roundRobinGroupKey?.trim() || "—"}
                   </td>
                   <td className="px-4 py-3 tabular-nums">{c.sortOrder}</td>
                   <td className="px-4 py-3 tabular-nums">{c.capacity}</td>
@@ -216,24 +267,24 @@ export default async function AssignmentRulesPage({
       </section>
 
       <section className="rounded-xl border border-foreground/10 bg-surface-elevated p-5">
-        <h2 className="text-sm font-semibold text-foreground">Preview: first matching class by age</h2>
+        <h2 className="text-sm font-semibold text-foreground">Preview: first matching class by birth date</h2>
         <p className="mt-1 text-xs text-muted">
-          Illustrative only — real registration uses each child&apos;s date of birth and the class age
-          rule (registration date vs event start).
+          Illustrative only — real registration uses each child&apos;s date of birth, capacity, and
+          round-robin rotation within linked sections.
         </p>
         <div className="mt-4 overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="text-muted">
               <tr>
-                <th className="py-2 pr-4 text-left font-medium">Age (years)</th>
+                <th className="py-2 pr-4 text-left font-medium">Date of birth</th>
                 <th className="py-2 text-left font-medium">Would match</th>
               </tr>
             </thead>
             <tbody>
-              {previewAges.map((a) => (
-                <tr key={a} className="border-t border-foreground/10">
-                  <td className="py-2 pr-4 tabular-nums">{a}</td>
-                  <td className="py-2">{firstMatch(a)}</td>
+              {previewDobs.map((dob) => (
+                <tr key={dob} className="border-t border-foreground/10">
+                  <td className="py-2 pr-4 tabular-nums">{dob}</td>
+                  <td className="py-2">{firstMatchForDob(dob)}</td>
                 </tr>
               ))}
             </tbody>

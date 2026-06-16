@@ -18,6 +18,7 @@ import {
   fetchClassroomsForAutoAssign,
   resolveAutoClassAssignment,
 } from "@/lib/class-assignment";
+import { tryAutoApproveRegistrationsForSubmission } from "@/lib/auto-approve-registration";
 import {
   formatParticipantAgeAsOfLabel,
   resolveParticipantAgeRules,
@@ -606,6 +607,10 @@ async function submitPublicRegistrationCore(
           console.error("[sendSubmissionReceivedEmail]", err);
         });
       }
+
+      void tryAutoApproveRegistrationsForSubmission(outcome.submissionId).catch((err) => {
+        console.error("[tryAutoApproveRegistrationsForSubmission]", err);
+      });
     }
 
     const payLaterNotice =

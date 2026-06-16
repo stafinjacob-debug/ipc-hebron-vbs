@@ -153,6 +153,7 @@ export default async function RegistrationFormWorkspacePage({
           registrationNumberSeqDigits: form.registrationNumberSeqDigits,
           registrationNumberLastSeq: form.registrationNumberNextSeq,
           stripeCheckoutEnabled: form.stripeCheckoutEnabled,
+          autoApproveWhenClassAssignedAndPaid: form.autoApproveWhenClassAssignedAndPaid,
           stripeAmountCents: form.stripeAmountCents,
           stripePricingUnit: form.stripePricingUnit,
           stripeCapPaidChildrenAtThree: form.stripeCapPaidChildrenAtThree,

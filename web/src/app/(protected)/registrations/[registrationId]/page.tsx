@@ -96,6 +96,8 @@ export default async function RegistrationDetailPage({
           name: true,
           ageMin: true,
           ageMax: true,
+          birthDateMin: true,
+          birthDateMax: true,
           useAgeRuleForAutoAssign: true,
           ageRule: true,
         },
@@ -330,7 +332,11 @@ export default async function RegistrationDetailPage({
             childDobIso={reg.child.dateOfBirth.toISOString()}
             registeredAtIso={reg.registeredAt.toISOString()}
             seasonStartIso={reg.season.startDate.toISOString()}
-            classrooms={seasonClassrooms}
+            classrooms={seasonClassrooms.map((c) => ({
+              ...c,
+              birthDateMin: c.birthDateMin?.toISOString() ?? null,
+              birthDateMax: c.birthDateMax?.toISOString() ?? null,
+            }))}
             canEdit={canEdit}
           />
 

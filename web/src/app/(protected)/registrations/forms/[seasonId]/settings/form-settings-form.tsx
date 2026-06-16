@@ -68,6 +68,7 @@ export function FormSettingsForm({
     registrationNumberSeqDigits: number;
     registrationNumberLastSeq: number;
     stripeCheckoutEnabled: boolean;
+    autoApproveWhenClassAssignedAndPaid: boolean;
     stripeAmountCents: number | null;
     stripePricingUnit: "PER_SUBMISSION" | "PER_CHILD";
     stripeCapPaidChildrenAtThree: boolean;
@@ -270,6 +271,7 @@ export function FormSettingsForm({
             registrationNumberPrefix,
             registrationNumberSeqDigits,
             stripeCheckoutEnabled,
+            autoApproveWhenClassAssignedAndPaid: fd.get("autoApproveWhenClassAssignedAndPaid") === "on",
             stripeAmountCents,
             stripePricingUnit,
             stripeCapPaidChildrenAtThree,
@@ -558,6 +560,31 @@ export function FormSettingsForm({
         ) : (
           <p className="text-xs text-foreground/60">Publish a form definition with fields to enable this list.</p>
         )}
+      </div>
+
+      <div className="space-y-4 rounded-xl border border-foreground/10 p-4">
+        <h2 className="text-sm font-semibold">Auto-approval</h2>
+        <p className="text-sm text-foreground/70">
+          When enabled, a registration is automatically confirmed and the family receives the confirmation email
+          (with QR code and class assignment) as soon as{" "}
+          <strong>both</strong> conditions are met: the child has been placed in a class and payment is complete.
+          If no payment is required for the registration, payment is treated as satisfied.
+        </p>
+        <label className="flex items-start gap-2 text-sm font-medium">
+          <input
+            type="checkbox"
+            name="autoApproveWhenClassAssignedAndPaid"
+            defaultChecked={initial.autoApproveWhenClassAssignedAndPaid}
+            className="mt-0.5 size-4 rounded border-foreground/30"
+          />
+          <span>
+            Auto-approve and email when class is assigned and payment is complete
+          </span>
+        </label>
+        <p className="text-xs text-foreground/60">
+          Works with Stripe payment, pay-later marked paid by staff, or free registrations with auto class placement.
+          Staff can still approve manually before these conditions are met.
+        </p>
       </div>
 
       <div className="space-y-4 rounded-xl border border-foreground/10 p-4">

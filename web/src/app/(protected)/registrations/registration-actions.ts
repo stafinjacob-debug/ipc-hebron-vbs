@@ -17,6 +17,7 @@ import {
   registrationPaymentIsComplete,
 } from "@/lib/registration-list-payment";
 import { tryAutoAssignRegistration } from "@/lib/class-assignment";
+import { tryAutoApproveAfterRegistrationUpdate } from "@/lib/auto-approve-registration";
 import { makeCheckInToken, makeUniqueRegistrationNumber } from "@/lib/registration-identity";
 import { prisma } from "@/lib/prisma";
 import { canManageDirectory } from "@/lib/roles";
@@ -553,6 +554,17 @@ export async function markRegistrationPaymentReceived(registrationId: string): P
     where: { id: registrationId },
     data: { paymentReceivedAt: new Date() },
   });
+
+  const reg = await prisma.registration.findUnique({
+    where: { id: registrationId },
+    select: { formSubmissionId: true },
+  });
+  if (reg) {
+    void tryAutoApproveAfterRegistrationUpdate({
+      registrationId,
+      formSubmissionId: reg.formSubmissionId,
+    }).catch((err) => console.error("[auto-approve] after mark paid", err));
+  }
 
   revalidatePath(`/registrations/${registrationId}`);
   revalidatePath("/registrations");
