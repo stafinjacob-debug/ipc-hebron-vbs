@@ -4,7 +4,9 @@ import { buildBadgePrintHtml } from "@/lib/badge-print-document";
 import { renderBadgePngWithMeta } from "@/lib/badge-print-image";
 import { loadBadgePrintPayloadForRegistration } from "@/lib/badge-print-load";
 import {
+  assertSeasonAccess,
   loadSeasonOr404,
+  registrationDeniedByScope,
   requireMobileAuth,
   jsonError,
   requireCheckInRole,
@@ -22,14 +24,19 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
   if (denied) return denied;
 
   const { seasonId, registrationId } = await params;
+  const access = await assertSeasonAccess(auth.userId, seasonId);
+  if (!access.ok) return access.response;
+
   const season = await loadSeasonOr404(seasonId);
   if (!season) return jsonError(404, "Season not found");
 
   const reg = await prisma.registration.findFirst({
     where: { id: registrationId, seasonId, status: { not: "CANCELLED" } },
-    select: { id: true },
+    select: { id: true, seasonId: true, classroomId: true },
   });
   if (!reg) return jsonError(404, "Registration not found");
+  const scopeDenied = registrationDeniedByScope(access.scope, reg);
+  if (scopeDenied) return scopeDenied;
 
   const loaded = await loadBadgePrintPayloadForRegistration(registrationId);
   if (!loaded.ok) {

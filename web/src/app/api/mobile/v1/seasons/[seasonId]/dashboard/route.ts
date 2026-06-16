@@ -2,10 +2,12 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import {
+  assertSeasonAccess,
   loadSeasonOr404,
   requireMobileAuth,
   jsonError,
 } from "@/app/api/mobile/v1/_lib/mobile-request";
+import { mergeRegistrationScopeWhere, staffClassroomFilter } from "@/lib/staff-access-scope";
 
 type RouteParams = { params: Promise<{ seasonId: string }> };
 
@@ -14,28 +16,32 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
   if (auth instanceof NextResponse) return auth;
 
   const { seasonId } = await params;
+  const access = await assertSeasonAccess(auth.userId, seasonId);
+  if (!access.ok) return access.response;
+
   const season = await loadSeasonOr404(seasonId);
   if (!season) return jsonError(404, "Season not found");
 
+  const regScope = mergeRegistrationScopeWhere(access.scope, {
+    seasonId,
+    status: { not: "CANCELLED" },
+  });
+  const classScope = {
+    seasonId,
+    isActive: true,
+    ...staffClassroomFilter(access.scope),
+  };
+
   const [totalRegs, checkedIn, classCount, alertRegs, recent] =
     await Promise.all([
+      prisma.registration.count({ where: regScope }),
       prisma.registration.count({
-        where: { seasonId, status: { not: "CANCELLED" } },
+        where: { ...regScope, checkedInAt: { not: null } },
       }),
-      prisma.registration.count({
-        where: {
-          seasonId,
-          status: { not: "CANCELLED" },
-          checkedInAt: { not: null },
-        },
-      }),
-      prisma.classroom.count({
-        where: { seasonId, isActive: true },
-      }),
+      prisma.classroom.count({ where: classScope }),
       prisma.registration.count({
         where: {
-          seasonId,
-          status: { not: "CANCELLED" },
+          ...regScope,
           child: {
             allergiesNotes: { not: null },
             NOT: { allergiesNotes: "" },
@@ -43,11 +49,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
         },
       }),
       prisma.registration.findMany({
-        where: {
-          seasonId,
-          status: { not: "CANCELLED" },
-          checkedInAt: { not: null },
-        },
+        where: { ...regScope, checkedInAt: { not: null } },
         orderBy: { checkedInAt: "desc" },
         take: 8,
         include: {

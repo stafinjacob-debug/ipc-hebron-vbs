@@ -144,6 +144,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [token, sessionUnlocked, refreshUser]);
 
+  useEffect(() => {
+    if (!token || !seasonId || !sessionUnlocked) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await apiFetch<{ seasons: { id: string }[] }>(
+          '/api/mobile/v1/seasons',
+          { token },
+        );
+        if (cancelled) return;
+        if (!res.seasons.some((s) => s.id === seasonId)) {
+          await SecureStore.deleteItemAsync(STORE.season).catch(() => {});
+          setSeasonIdState(null);
+        }
+      } catch {
+        // Keep stored season; API routes will reject if invalid.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [token, seasonId, sessionUnlocked]);
+
   const signIn = useCallback(async (email: string, password: string) => {
     const res = await apiFetch<{
       accessToken: string;

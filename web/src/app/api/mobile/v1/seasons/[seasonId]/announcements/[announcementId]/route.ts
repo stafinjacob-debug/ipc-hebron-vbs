@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import {
+  assertSeasonAccess,
   loadSeasonOr404,
   requireMobileAuth,
   jsonError,
@@ -30,6 +31,9 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
   if (auth instanceof NextResponse) return auth;
 
   const { seasonId, announcementId } = await params;
+  const access = await assertSeasonAccess(auth.userId, seasonId);
+  if (!access.ok) return access.response;
+
   const season = await loadSeasonOr404(seasonId);
   if (!season) return jsonError(404, "Season not found");
 
@@ -48,6 +52,9 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
   if (denied) return denied;
 
   const { seasonId, announcementId } = await params;
+  const access = await assertSeasonAccess(auth.userId, seasonId);
+  if (!access.ok) return access.response;
+
   const season = await loadSeasonOr404(seasonId);
   if (!season) return jsonError(404, "Season not found");
 
@@ -93,6 +100,9 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
   if (denied) return denied;
 
   const { seasonId, announcementId } = await params;
+  const access = await assertSeasonAccess(auth.userId, seasonId);
+  if (!access.ok) return access.response;
+
   const season = await loadSeasonOr404(seasonId);
   if (!season) return jsonError(404, "Season not found");
 

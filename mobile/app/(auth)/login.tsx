@@ -20,7 +20,7 @@ import { useAuth } from '@/lib/auth-context';
 export default function LoginScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { signIn, token, seasonId, setSeasonId } = useAuth();
+  const { signIn, token, seasonId, setSeasonId, signOut } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -41,6 +41,14 @@ export default function LoginScreen() {
         '/api/mobile/v1/seasons',
         { token: accessToken },
       );
+      if (seasons.length === 0) {
+        Alert.alert(
+          'No program access',
+          'Your account is not assigned to any VBS program. Ask an admin to add program scope under Settings → Users.',
+        );
+        await signOut();
+        return;
+      }
       if (seasons.length === 1) {
         await setSeasonId(seasons[0].id);
         router.replace('/(tabs)');

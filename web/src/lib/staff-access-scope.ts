@@ -36,6 +36,33 @@ export function filterSeasonsForStaff<T extends { id: string }>(
   return seasons.filter((s) => allowed.has(s.id));
 }
 
+/** Season list for staff with classroom-only scope (no explicit season rows). */
+export async function filterSeasonsForStaffAsync<T extends { id: string }>(
+  seasons: T[],
+  scope: StaffAccessScope,
+): Promise<T[]> {
+  if (!scope.isRestricted) return seasons;
+  if (scope.seasonIds.length > 0) {
+    return filterSeasonsForStaff(seasons, scope);
+  }
+  if (scope.classroomIds.length === 0) return seasons;
+
+  const rows = await prisma.classroom.findMany({
+    where: { id: { in: scope.classroomIds } },
+    select: { seasonId: true },
+    distinct: ["seasonId"],
+  });
+  const allowed = new Set(rows.map((r) => r.seasonId));
+  return seasons.filter((s) => allowed.has(s.id));
+}
+
+export function staffClassroomFilter(
+  scope: StaffAccessScope,
+): Prisma.ClassroomWhereInput {
+  if (!scope.isRestricted || scope.classroomIds.length === 0) return {};
+  return { id: { in: scope.classroomIds } };
+}
+
 export function seasonIdAllowed(scope: StaffAccessScope, seasonId: string): boolean {
   if (!scope.isRestricted) return true;
   if (scope.seasonIds.length > 0 && !scope.seasonIds.includes(seasonId)) return false;

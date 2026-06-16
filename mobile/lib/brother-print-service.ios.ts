@@ -1,5 +1,4 @@
 import * as FileSystem from 'expo-file-system/legacy';
-import { Platform } from 'react-native';
 import {
   printImageViaBluetooth,
   printImageViaWifi,
@@ -14,9 +13,6 @@ export async function brotherPrintImageFile(
   fileUri: string,
   config: BrotherPrinterConfig,
 ): Promise<void> {
-  if (Platform.OS !== 'ios') {
-    throw new Error('Brother direct printing is supported on iOS check-in iPads.');
-  }
   const path = stripFileScheme(fileUri);
   if (config.connection === 'bluetooth') {
     await printImageViaBluetooth(path, config.modelName);

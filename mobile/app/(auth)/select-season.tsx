@@ -63,6 +63,14 @@ export default function SelectSeasonScreen() {
       {error ? <Text style={styles.err}>{error}</Text> : null}
       {seasons === null ? (
         <ActivityIndicator size="large" color={palette.accent} />
+      ) : seasons.length === 0 ? (
+        <View style={styles.empty}>
+          <Text style={styles.emptyTitle}>No program assigned</Text>
+          <Text style={styles.emptyBody}>
+            Your account does not have access to any VBS program. Ask an admin to
+            add program scope under Settings → Users on the website.
+          </Text>
+        </View>
       ) : (
         <FlatList
           data={seasons}
@@ -121,6 +129,20 @@ const styles = StyleSheet.create({
   },
   rowTitle: { fontSize: 17, fontWeight: '600', color: palette.text },
   rowMeta: { fontSize: 14, color: palette.textSecondary, marginTop: 2 },
+  empty: {
+    backgroundColor: palette.surface,
+    borderRadius: 14,
+    padding: 20,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: palette.border,
+  },
+  emptyTitle: { fontSize: 17, fontWeight: '700', color: palette.text },
+  emptyBody: {
+    marginTop: 8,
+    fontSize: 15,
+    color: palette.textSecondary,
+    lineHeight: 21,
+  },
   badge: {
     backgroundColor: palette.successBg,
     paddingHorizontal: 10,

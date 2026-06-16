@@ -9,6 +9,12 @@ import {
 } from "@/lib/permissions";
 import type { UserRole } from "@/generated/prisma";
 import { verifyMobileAccessToken } from "@/lib/mobile-jwt";
+import {
+  loadStaffAccessScope,
+  registrationAllowedByScope,
+  seasonIdAllowed,
+  type StaffAccessScope,
+} from "@/lib/staff-access-scope";
 
 export type MobileAuthContext = {
   userId: string;
@@ -66,4 +72,32 @@ export function requireAnnouncementsManager(
 
 export async function loadSeasonOr404(seasonId: string) {
   return prisma.vbsSeason.findUnique({ where: { id: seasonId } });
+}
+
+export type SeasonAccessResult =
+  | { ok: true; scope: StaffAccessScope }
+  | { ok: false; response: NextResponse };
+
+export async function assertSeasonAccess(
+  userId: string,
+  seasonId: string,
+): Promise<SeasonAccessResult> {
+  const scope = await loadStaffAccessScope(userId);
+  if (!seasonIdAllowed(scope, seasonId)) {
+    return {
+      ok: false,
+      response: jsonError(403, "You do not have access to this program"),
+    };
+  }
+  return { ok: true, scope };
+}
+
+export function registrationDeniedByScope(
+  scope: StaffAccessScope,
+  reg: { seasonId: string; classroomId: string | null },
+): NextResponse | null {
+  if (!registrationAllowedByScope(scope, reg)) {
+    return jsonError(403, "You do not have access to this registration");
+  }
+  return null;
 }

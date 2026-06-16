@@ -3,7 +3,9 @@ import type { NextRequest } from "next/server";
 import { loadSeasonAttendanceContext, resolveCheckedInMap } from "@/lib/attendance";
 import { prisma } from "@/lib/prisma";
 import {
+  assertSeasonAccess,
   loadSeasonOr404,
+  registrationDeniedByScope,
   requireClassRosterRole,
   requireMobileAuth,
   jsonError,
@@ -41,6 +43,9 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
   if (denied) return denied;
 
   const { seasonId, registrationId } = await params;
+  const access = await assertSeasonAccess(auth.userId, seasonId);
+  if (!access.ok) return access.response;
+
   const season = await loadSeasonOr404(seasonId);
   if (!season) return jsonError(404, "Season not found");
 
@@ -53,6 +58,12 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     include: registrationInclude(),
   });
   if (!r) return jsonError(404, "Registration not found");
+
+  const scopeDenied = registrationDeniedByScope(access.scope, {
+    seasonId: r.seasonId,
+    classroomId: r.classroomId,
+  });
+  if (scopeDenied) return scopeDenied;
 
   if (auth.role === "TEACHER" && r.classroomId) {
     const allowed = await canUserViewClassroom(auth.userId, auth.role, r.classroomId);

@@ -4,11 +4,13 @@ import type { Prisma } from "@/generated/prisma";
 import { loadSeasonAttendanceContext, resolveCheckedInMap } from "@/lib/attendance";
 import { prisma } from "@/lib/prisma";
 import {
+  assertSeasonAccess,
   loadSeasonOr404,
   requireMobileAuth,
   jsonError,
 } from "@/app/api/mobile/v1/_lib/mobile-request";
 import { canUseCheckInActions } from "@/lib/permissions";
+import { mergeRegistrationScopeWhere } from "@/lib/staff-access-scope";
 
 type RouteParams = { params: Promise<{ seasonId: string }> };
 
@@ -24,6 +26,9 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
   }
 
   const { seasonId } = await params;
+  const access = await assertSeasonAccess(auth.userId, seasonId);
+  if (!access.ok) return access.response;
+
   const season = await loadSeasonOr404(seasonId);
   if (!season) return jsonError(404, "Season not found");
 
@@ -101,11 +106,11 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
   }
 
   const rows = await prisma.registration.findMany({
-    where: {
+    where: mergeRegistrationScopeWhere(access.scope, {
       seasonId,
       status: { not: "CANCELLED" },
       OR: orFilters,
-    },
+    }),
     take: 40,
     orderBy: [{ child: { lastName: "asc" } }, { child: { firstName: "asc" } }],
     include: {

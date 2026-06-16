@@ -1,5 +1,5 @@
 import { type Href, useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   Alert,
   Platform,
@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { palette } from '@/constants/theme';
 import { Card, PrimaryButton, SectionTitle } from '@/components/ui';
-import { getApiBase } from '@/lib/api';
+import { getApiBase, apiFetch } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { isAdminLikeRole, isTeacherRole, roleLabel } from '@/lib/roles';
 import { useStationMode } from '@/lib/station-mode-context';
@@ -22,6 +22,7 @@ export default function MoreScreen() {
   const {
     user,
     seasonId,
+    token,
     signOut,
     refreshUser,
     biometricGateEnabled,
@@ -29,9 +30,28 @@ export default function MoreScreen() {
   } = useAuth();
   const { stationMode, setStationMode } = useStationMode();
   const [busy, setBusy] = useState(false);
+  const [allowedSeasonCount, setAllowedSeasonCount] = useState<number | null>(null);
   const admin = isAdminLikeRole(user?.role);
   const teacher = isTeacherRole(user?.role);
   const checkInDesk = !teacher;
+
+  useEffect(() => {
+    if (!token) {
+      setAllowedSeasonCount(null);
+      return;
+    }
+    let cancelled = false;
+    void apiFetch<{ seasons: unknown[] }>('/api/mobile/v1/seasons', { token })
+      .then((res) => {
+        if (!cancelled) setAllowedSeasonCount(res.seasons.length);
+      })
+      .catch(() => {
+        if (!cancelled) setAllowedSeasonCount(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
@@ -45,13 +65,19 @@ export default function MoreScreen() {
       </Card>
 
       <SectionTitle>Season</SectionTitle>
-      <Pressable
-        onPress={() => router.push('/(auth)/select-season')}
-        style={styles.linkRow}
-      >
-        <Text style={styles.linkText}>Switch VBS season</Text>
-        <Text style={styles.chev}>›</Text>
-      </Pressable>
+      {allowedSeasonCount !== 1 ? (
+        <Pressable
+          onPress={() => router.push('/(auth)/select-season')}
+          style={styles.linkRow}
+        >
+          <Text style={styles.linkText}>Switch VBS season</Text>
+          <Text style={styles.chev}>›</Text>
+        </Pressable>
+      ) : (
+        <Text style={styles.help}>
+          Your account is scoped to one program; season switching is not available.
+        </Text>
+      )}
       {seasonId ? (
         <Text style={styles.small}>Current season ID stored on device.</Text>
       ) : null}

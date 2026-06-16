@@ -14,11 +14,13 @@ import {
   parseCheckInLookupInput,
 } from "@/lib/check-in-lookup";
 import {
+  assertSeasonAccess,
   loadSeasonOr404,
   requireMobileAuth,
   jsonError,
   requireCheckInRole,
 } from "@/app/api/mobile/v1/_lib/mobile-request";
+import { registrationAllowedByScope } from "@/lib/staff-access-scope";
 
 type RouteParams = { params: Promise<{ seasonId: string }> };
 
@@ -29,6 +31,9 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
   if (denied) return denied;
 
   const { seasonId } = await params;
+  const access = await assertSeasonAccess(auth.userId, seasonId);
+  if (!access.ok) return access.response;
+
   const season = await loadSeasonOr404(seasonId);
   if (!season) return jsonError(404, "Season not found");
 
@@ -46,7 +51,13 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
   }
 
   const rows = await findCheckInRegistrationsForInput(seasonId, rawInput);
-  if (rows.length === 0) {
+  const scopedRows = rows.filter((r) =>
+    registrationAllowedByScope(access.scope, {
+      seasonId: r.seasonId,
+      classroomId: r.classroomId,
+    }),
+  );
+  if (scopedRows.length === 0) {
     const label = parsed.plainCode ?? "that code";
     return jsonError(
       404,
@@ -61,23 +72,23 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
   const context = await loadSeasonAttendanceContext(seasonId, body.campDate);
   const campDate = context?.defaultCampDate ?? "";
   const checkedInMap = await resolveCheckedInMap(
-    rows.map((r) => r.id),
+    scopedRows.map((r) => r.id),
     campDate,
     seasonRow?.multiDayCheckInEnabled ?? false,
   );
 
   const blockSettings = parseCheckInBlockSettings(seasonRow?.checkInBlockRulesJson);
   const blockRows =
-    blockSettings.enabled && rows.length > 0
+    blockSettings.enabled && scopedRows.length > 0
       ? await prisma.registration.findMany({
-          where: { id: { in: rows.map((r) => r.id) } },
+          where: { id: { in: scopedRows.map((r) => r.id) } },
           select: CHECK_IN_BLOCK_REGISTRATION_SELECT,
         })
       : [];
   const blockRowMap = new Map(blockRows.map((r) => [r.id, r]));
 
   return NextResponse.json({
-    matches: rows.map((r) => {
+    matches: scopedRows.map((r) => {
       const match = mapRegistrationToCheckInLookupMatch(r, checkedInMap.get(r.id) ?? false);
       const blockRow = blockRowMap.get(r.id);
       if (blockRow && seasonRow) {

@@ -4,7 +4,9 @@ import { prisma } from "@/lib/prisma";
 import { resolveBadgePrintSettings } from "@/lib/badge-print";
 import { setRegistrationAttendance } from "@/lib/attendance";
 import {
+  assertSeasonAccess,
   loadSeasonOr404,
+  registrationDeniedByScope,
   requireMobileAuth,
   jsonError,
   requireCheckInRole,
@@ -36,8 +38,19 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
   }
 
   const { seasonId, registrationId } = await params;
+  const access = await assertSeasonAccess(auth.userId, seasonId);
+  if (!access.ok) return access.response;
+
   const season = await loadSeasonOr404(seasonId);
   if (!season) return jsonError(404, "Season not found");
+
+  const regRow = await prisma.registration.findFirst({
+    where: { id: registrationId, seasonId },
+    select: { seasonId: true, classroomId: true },
+  });
+  if (!regRow) return jsonError(404, "Registration not found");
+  const scopeDenied = registrationDeniedByScope(access.scope, regRow);
+  if (scopeDenied) return scopeDenied;
 
   const badgeSettings = await prisma.badgePrintSettings.findUnique({
     where: { seasonId },

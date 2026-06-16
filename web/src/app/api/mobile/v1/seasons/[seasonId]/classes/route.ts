@@ -8,11 +8,13 @@ import {
   teacherClassroomWhere,
 } from "@/lib/mobile-class-roster";
 import {
+  assertSeasonAccess,
   loadSeasonOr404,
   requireClassRosterRole,
   requireMobileAuth,
   jsonError,
 } from "@/app/api/mobile/v1/_lib/mobile-request";
+import { staffClassroomFilter } from "@/lib/staff-access-scope";
 
 type RouteParams = { params: Promise<{ seasonId: string }> };
 
@@ -23,6 +25,9 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
   if (denied) return denied;
 
   const { seasonId } = await params;
+  const access = await assertSeasonAccess(auth.userId, seasonId);
+  if (!access.ok) return access.response;
+
   const season = await loadSeasonOr404(seasonId);
   if (!season) return jsonError(404, "Season not found");
 
@@ -36,6 +41,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       seasonId,
       isActive: true,
       ...(auth.role === "TEACHER" ? teacherClassroomWhere(auth.userId) : {}),
+      ...staffClassroomFilter(access.scope),
     },
     orderBy: { sortOrder: "asc" },
     include: {
