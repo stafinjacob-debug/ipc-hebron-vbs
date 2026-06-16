@@ -376,9 +376,6 @@ export default function StudentDetailScreen() {
           loading={acting}
           disabled={
             campDateLocked ||
-            (deskSettings.dismissalTrackingEnabled &&
-              !dismissal &&
-              data.registration.checkedIn) ||
             primaryLabel === 'Not checked in yet' ||
             (dismissal && !data.registration.checkedIn)
           }

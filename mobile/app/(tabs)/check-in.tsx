@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   Alert,
+  InteractionManager,
   Pressable,
   StyleSheet,
   Text,
@@ -211,8 +212,7 @@ export default function CheckInScreen() {
         !undoPin &&
         /security code/i.test(msg)
       ) {
-        setUndoPinMatch(match);
-        setPinModalOpen(true);
+        openUndoPinModal(match);
         return;
       }
       Alert.alert('Could not update', msg);
@@ -234,7 +234,10 @@ export default function CheckInScreen() {
 
   function openUndoPinModal(match: CheckInLookupMatch) {
     setUndoPinMatch(match);
-    setPinModalOpen(true);
+    setLookupModalOpen(false);
+    InteractionManager.runAfterInteractions(() => {
+      setTimeout(() => setPinModalOpen(true), 350);
+    });
   }
 
   async function beginUndoCheckIn(match: CheckInLookupMatch) {
@@ -248,11 +251,11 @@ export default function CheckInScreen() {
           onPress: () => {
             void (async () => {
               const pinRequired = await resolveUndoPinRequired();
-              setLookupModalOpen(false);
               if (pinRequired) {
                 openUndoPinModal(match);
                 return;
               }
+              setLookupModalOpen(false);
               await patchAttendance(match, false);
             })();
           },
