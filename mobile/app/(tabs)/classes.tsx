@@ -12,6 +12,7 @@ import {
 import { palette } from '@/constants/theme';
 import { apiFetch } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
+import { isTeacherRole } from '@/lib/roles';
 
 type ClassRow = {
   id: string;
@@ -26,20 +27,31 @@ type ClassRow = {
   leaderName: string | null;
 };
 
+type AttendanceMeta = {
+  campDate: string;
+  todayCampDate: string;
+  multiDayCheckInEnabled: boolean;
+  campDates: Array<{ key: string; label: string }>;
+};
+
 export default function ClassesScreen() {
   const router = useRouter();
-  const { token, seasonId } = useAuth();
+  const { token, seasonId, user } = useAuth();
   const [classes, setClasses] = useState<ClassRow[] | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const teacher = isTeacherRole(user?.role);
 
   const load = useCallback(async () => {
     if (!token || !seasonId) return;
-    const res = await apiFetch<{ classes: ClassRow[] }>(
+    const res = await apiFetch<{ classes: ClassRow[]; attendance?: AttendanceMeta | null }>(
       `/api/mobile/v1/seasons/${seasonId}/classes`,
       { token },
     );
     setClasses(res.classes);
-  }, [token, seasonId]);
+    if (teacher && res.classes.length === 1) {
+      router.replace(`/class/${res.classes[0]!.id}`);
+    }
+  }, [token, seasonId, teacher, router]);
 
   useEffect(() => {
     void load();
@@ -68,7 +80,11 @@ export default function ClassesScreen() {
         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
       }
       ListEmptyComponent={
-        <Text style={styles.empty}>No active classes this season.</Text>
+        <Text style={styles.empty}>
+          {teacher
+            ? 'No class is assigned to your account yet. Ask an admin to add you as a class leader.'
+            : 'No active classes this season.'}
+        </Text>
       }
       renderItem={({ item }) => (
         <Pressable
@@ -89,7 +105,7 @@ export default function ClassesScreen() {
           </Text>
           <View style={styles.footer}>
             <Text style={styles.counts}>
-              {item.checkedIn}/{item.enrolled} in · cap {item.capacity}
+              {item.checkedIn}/{item.enrolled} in today · cap {item.capacity}
             </Text>
             <View
               style={[
@@ -135,5 +151,5 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   liveText: { fontSize: 12, fontWeight: '700', color: palette.textSecondary },
-  empty: { textAlign: 'center', marginTop: 40, color: palette.textSecondary },
+  empty: { textAlign: 'center', marginTop: 40, color: palette.textSecondary, paddingHorizontal: 24 },
 });

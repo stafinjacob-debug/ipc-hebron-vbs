@@ -4,10 +4,11 @@ import { loadSeasonAttendanceContext, resolveCheckedInMap } from "@/lib/attendan
 import { prisma } from "@/lib/prisma";
 import {
   loadSeasonOr404,
+  requireClassRosterRole,
   requireMobileAuth,
   jsonError,
-  requireCheckInRole,
 } from "@/app/api/mobile/v1/_lib/mobile-request";
+import { canUserViewClassroom } from "@/lib/classroom-access";
 
 type RouteParams = {
   params: Promise<{ seasonId: string; registrationId: string }>;
@@ -36,7 +37,7 @@ function registrationInclude() {
 export async function GET(req: NextRequest, { params }: RouteParams) {
   const auth = await requireMobileAuth(req);
   if (auth instanceof NextResponse) return auth;
-  const denied = requireCheckInRole(auth);
+  const denied = requireClassRosterRole(auth);
   if (denied) return denied;
 
   const { seasonId, registrationId } = await params;
@@ -52,6 +53,13 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     include: registrationInclude(),
   });
   if (!r) return jsonError(404, "Registration not found");
+
+  if (auth.role === "TEACHER" && r.classroomId) {
+    const allowed = await canUserViewClassroom(auth.userId, auth.role, r.classroomId);
+    if (!allowed) return jsonError(403, "You do not have access to this student");
+  } else if (auth.role === "TEACHER" && !r.classroomId) {
+    return jsonError(403, "You do not have access to this student");
+  }
 
   const checkedInMap = await resolveCheckedInMap(
     [r.id],

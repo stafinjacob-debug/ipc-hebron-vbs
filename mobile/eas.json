@@ -10,6 +10,9 @@
       "ios": {
         "simulator": true
       },
+      "android": {
+        "buildType": "apk"
+      },
       "env": {
         "EXPO_PUBLIC_API_URL": "http://localhost:3000"
       }
@@ -19,12 +22,18 @@
       "ios": {
         "simulator": false
       },
+      "android": {
+        "buildType": "apk"
+      },
       "channel": "preview"
     },
     "production": {
       "autoIncrement": true,
       "ios": {
         "resourceClass": "m-medium"
+      },
+      "android": {
+        "buildType": "app-bundle"
       },
       "channel": "production",
       "env": {
@@ -37,6 +46,9 @@
       "ios": {
         "appleTeamId": "F862SY24B9",
         "ascAppId": "6761950822"
+      },
+      "android": {
+        "track": "internal"
       }
     }
   }

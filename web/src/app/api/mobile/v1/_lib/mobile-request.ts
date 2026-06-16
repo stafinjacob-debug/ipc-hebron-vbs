@@ -3,7 +3,8 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import {
   canManageSeasonAnnouncements,
-  canUseCheckInActions,
+  canPerformMobileCheckIn,
+  canViewMobileClassRoster,
   normalizeStaffRole,
 } from "@/lib/permissions";
 import type { UserRole } from "@/generated/prisma";
@@ -41,8 +42,15 @@ export async function requireMobileAuth(
 }
 
 export function requireCheckInRole(ctx: MobileAuthContext): NextResponse | null {
-  if (!canUseCheckInActions(ctx.role)) {
+  if (!canPerformMobileCheckIn(ctx.role)) {
     return jsonError(403, "Check-in is not available for your role");
+  }
+  return null;
+}
+
+export function requireClassRosterRole(ctx: MobileAuthContext): NextResponse | null {
+  if (!canViewMobileClassRoster(ctx.role)) {
+    return jsonError(403, "Classes are not available for your role");
   }
   return null;
 }

@@ -97,6 +97,16 @@ export function canUseCheckInActions(role: UserRole): boolean {
   );
 }
 
+/** Mobile class roster (includes teachers). */
+export function canViewMobileClassRoster(role: UserRole): boolean {
+  return canUseCheckInActions(role);
+}
+
+/** Check-in desk actions — teachers view roster only, no desk check-in. */
+export function canPerformMobileCheckIn(role: UserRole): boolean {
+  return canUseCheckInActions(role) && role !== "TEACHER";
+}
+
 export function canManageVolunteersModule(role: UserRole): boolean {
   return (
     role === "SUPER_ADMIN" ||

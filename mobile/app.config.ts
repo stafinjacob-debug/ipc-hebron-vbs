@@ -34,12 +34,15 @@ const config: ExpoConfig = {
     },
   },
   android: {
+    package: 'org.ipchebron.vbs',
+    versionCode: 1,
     adaptiveIcon: {
       foregroundImage: './assets/images/adaptive-icon.png',
       backgroundColor: '#ffffff',
     },
     edgeToEdgeEnabled: true,
     predictiveBackGestureEnabled: false,
+    permissions: ['android.permission.CAMERA'],
   },
   web: {
     bundler: 'metro',

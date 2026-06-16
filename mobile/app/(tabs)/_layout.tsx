@@ -5,6 +5,8 @@ import React from 'react';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 import { useClientOnlyValue } from '@/components/useClientOnlyValue';
+import { useAuth } from '@/lib/auth-context';
+import { canUseCheckInDesk, isTeacherRole } from '@/lib/roles';
 import { useStationMode } from '@/lib/station-mode-context';
 
 function TabIcon({
@@ -20,6 +22,10 @@ function TabIcon({
 export default function TabLayout() {
   const colorScheme = useColorScheme();
   const { stationMode } = useStationMode();
+  const { user } = useAuth();
+  const role = user?.role;
+  const teacher = isTeacherRole(role);
+  const checkInDesk = canUseCheckInDesk(role);
 
   return (
     <Tabs
@@ -34,7 +40,7 @@ export default function TabLayout() {
         name="index"
         options={{
           title: 'Home',
-          href: stationMode ? null : undefined,
+          href: stationMode || teacher ? null : undefined,
           tabBarIcon: ({ color }) => <TabIcon name="home-outline" color={color} />,
         }}
       />
@@ -42,6 +48,7 @@ export default function TabLayout() {
         name="check-in"
         options={{
           title: 'Check-In',
+          href: checkInDesk ? undefined : null,
           tabBarIcon: ({ color }) => (
             <TabIcon name="scan-outline" color={color} />
           ),
@@ -50,7 +57,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="classes"
         options={{
-          title: 'Classes',
+          title: teacher ? 'My class' : 'Classes',
           href: stationMode ? null : undefined,
           tabBarIcon: ({ color }) => (
             <TabIcon name="people-outline" color={color} />

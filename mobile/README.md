@@ -150,6 +150,35 @@ eas build --platform ios --profile preview
 
 Install the `.ipa` via Apple Configurator or ad-hoc provisioning (advanced).
 
+## Android builds
+
+The same app runs on Android phones and tablets. Brother direct printing is **iOS/iPad only**; Android uses AirPrint-style sharing where badge printing is enabled.
+
+### Preview APK (internal testing)
+
+```bash
+cd mobile
+eas build --platform android --profile preview
+```
+
+Download the APK from the Expo build page and install on test devices (enable “Install unknown apps” if sideloading).
+
+### Production (Google Play)
+
+```bash
+cd mobile
+eas build --platform android --profile production
+eas submit --platform android --profile production
+```
+
+Package name: `org.ipchebron.vbs`. Configure a Google Play service account in EAS for automated submit, or upload the `.aab` manually in Play Console.
+
+Build both platforms for a release:
+
+```bash
+eas build --platform all --profile production
+```
+
 ### Development build on device
 
 For local iteration with native modules (camera, print):

@@ -1,25 +1,37 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { canUserViewClassroom } from "@/lib/classroom-access";
+import {
+  buildMobileRosterRows,
+  loadMobileClassAttendanceMeta,
+} from "@/lib/mobile-class-roster";
 import {
   loadSeasonOr404,
+  requireClassRosterRole,
   requireMobileAuth,
   jsonError,
 } from "@/app/api/mobile/v1/_lib/mobile-request";
-import { canUseCheckInActions } from "@/lib/permissions";
 
 type RouteParams = { params: Promise<{ seasonId: string; classId: string }> };
 
 export async function GET(req: NextRequest, { params }: RouteParams) {
   const auth = await requireMobileAuth(req);
   if (auth instanceof NextResponse) return auth;
-  if (!canUseCheckInActions(auth.role)) {
-    return jsonError(403, "Classes are not available for your role");
-  }
+  const denied = requireClassRosterRole(auth);
+  if (denied) return denied;
 
   const { seasonId, classId } = await params;
   const season = await loadSeasonOr404(seasonId);
   if (!season) return jsonError(404, "Season not found");
+
+  const allowed = await canUserViewClassroom(auth.userId, auth.role, classId);
+  if (!allowed) return jsonError(403, "You do not have access to this class");
+
+  const campDateParam = req.nextUrl.searchParams.get("campDate");
+  const attendance = await loadMobileClassAttendanceMeta(seasonId, campDateParam);
+  const campDate = attendance?.campDate ?? "";
+  const multiDay = attendance?.multiDayCheckInEnabled ?? season.multiDayCheckInEnabled;
 
   const classroom = await prisma.classroom.findFirst({
     where: { id: classId, seasonId },
@@ -51,20 +63,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     },
   });
 
-  const roster = registrations.map((r) => {
-    const notes = r.child.allergiesNotes?.trim();
-    const status: "expected" | "checked_in" = r.checkedInAt
-      ? "checked_in"
-      : "expected";
-    return {
-      registrationId: r.id,
-      studentName: `${r.child.firstName} ${r.child.lastName}`,
-      hasMedicalAlert: Boolean(notes),
-      checkedIn: !!r.checkedInAt,
-      checkedInAt: r.checkedInAt?.toISOString() ?? null,
-      status,
-    };
-  });
+  const roster = await buildMobileRosterRows(registrations, seasonId, multiDay, campDate);
 
   const leaders = classroom.leaderAssignments.map((a) => ({
     userId: a.userId,
@@ -88,5 +87,6 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       enrolled: roster.length,
       checkedIn: roster.filter((x) => x.checkedIn).length,
     },
+    attendance,
   });
 }

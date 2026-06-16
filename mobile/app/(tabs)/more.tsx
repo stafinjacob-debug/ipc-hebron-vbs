@@ -14,7 +14,7 @@ import { palette } from '@/constants/theme';
 import { Card, PrimaryButton, SectionTitle } from '@/components/ui';
 import { getApiBase } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
-import { isAdminLikeRole, roleLabel } from '@/lib/roles';
+import { isAdminLikeRole, isTeacherRole, roleLabel } from '@/lib/roles';
 import { useStationMode } from '@/lib/station-mode-context';
 
 export default function MoreScreen() {
@@ -30,6 +30,8 @@ export default function MoreScreen() {
   const { stationMode, setStationMode } = useStationMode();
   const [busy, setBusy] = useState(false);
   const admin = isAdminLikeRole(user?.role);
+  const teacher = isTeacherRole(user?.role);
+  const checkInDesk = !teacher;
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
@@ -64,41 +66,45 @@ export default function MoreScreen() {
         </>
       ) : null}
 
-      <SectionTitle>Check-in printer</SectionTitle>
-      <Pressable
-        onPress={() => router.push('/printer-settings' as Href)}
-        style={styles.linkRow}
-      >
-        <Text style={styles.linkText}>Brother label printer</Text>
-        <Text style={styles.chev}>›</Text>
-      </Pressable>
-      <Text style={styles.small}>
-        Configure once per iPad for silent badge printing (no AirPrint dialog).
-      </Text>
+      {checkInDesk ? (
+        <>
+          <SectionTitle>Check-in printer</SectionTitle>
+          <Pressable
+            onPress={() => router.push('/printer-settings' as Href)}
+            style={styles.linkRow}
+          >
+            <Text style={styles.linkText}>Brother label printer</Text>
+            <Text style={styles.chev}>›</Text>
+          </Pressable>
+          <Text style={styles.small}>
+            Configure once per iPad for silent badge printing (no AirPrint dialog).
+          </Text>
 
-      <SectionTitle>iPad check-in station</SectionTitle>
-      <Card style={styles.switchCard}>
-        <View style={styles.switchRow}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.switchLabel}>Station mode</Text>
-            <Text style={styles.switchSub}>
-              Opens directly to Check-In and hides Home, Classes, and News tabs
-              for dedicated iPad desks.
-            </Text>
-          </View>
-          <Switch
-            value={stationMode}
-            onValueChange={async (v) => {
-              await setStationMode(v);
-              if (v) {
-                router.replace('/(tabs)/check-in');
-              } else {
-                router.replace('/(tabs)');
-              }
-            }}
-          />
-        </View>
-      </Card>
+          <SectionTitle>iPad check-in station</SectionTitle>
+          <Card style={styles.switchCard}>
+            <View style={styles.switchRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.switchLabel}>Station mode</Text>
+                <Text style={styles.switchSub}>
+                  Opens directly to Check-In and hides Home, Classes, and News tabs
+                  for dedicated iPad desks.
+                </Text>
+              </View>
+              <Switch
+                value={stationMode}
+                onValueChange={async (v) => {
+                  await setStationMode(v);
+                  if (v) {
+                    router.replace('/(tabs)/check-in');
+                  } else {
+                    router.replace('/(tabs)');
+                  }
+                }}
+              />
+            </View>
+          </Card>
+        </>
+      ) : null}
 
       <SectionTitle>Security</SectionTitle>
       <Card style={styles.switchCard}>

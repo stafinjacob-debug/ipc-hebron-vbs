@@ -23,6 +23,7 @@ import {
   type CheckInDeskSettings,
 } from '@/lib/badge-print';
 import { useAuth } from '@/lib/auth-context';
+import { isTeacherRole } from '@/lib/roles';
 
 type Detail = {
   registration: {
@@ -60,7 +61,8 @@ export default function StudentDetailScreen() {
   }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { token, seasonId } = useAuth();
+  const { token, seasonId, user } = useAuth();
+  const readOnly = isTeacherRole(user?.role);
   const [data, setData] = useState<Detail | null>(null);
   const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState(false);
@@ -365,22 +367,24 @@ export default function StudentDetailScreen() {
             View class roster
           </Text>
         ) : null}
-        {deskSettings.badgePrintingEnabled ? (
+        {!readOnly && deskSettings.badgePrintingEnabled ? (
           <SecondaryButton
             label={printing ? 'Opening print…' : 'Print badge'}
             onPress={() => void runPrintBadge()}
           />
         ) : null}
-        <PrimaryButton
-          label={primaryLabel}
-          loading={acting}
-          disabled={
-            campDateLocked ||
-            primaryLabel === 'Not checked in yet' ||
-            (dismissal && !data.registration.checkedIn)
-          }
-          onPress={onPrimaryPress}
-        />
+        {!readOnly ? (
+          <PrimaryButton
+            label={primaryLabel}
+            loading={acting}
+            disabled={
+              campDateLocked ||
+              primaryLabel === 'Not checked in yet' ||
+              (dismissal && !data.registration.checkedIn)
+            }
+            onPress={onPrimaryPress}
+          />
+        ) : null}
       </View>
 
       <PinEntryModal
