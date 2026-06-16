@@ -13,7 +13,12 @@ import { palette } from '@/constants/theme';
 import { Card, SectionTitle } from '@/components/ui';
 import { apiFetch } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
-import { isAdminLikeRole, roleLabel } from '@/lib/roles';
+import {
+  canUseCheckInDesk,
+  isAdminLikeRole,
+  isTeacherRole,
+  roleLabel,
+} from '@/lib/roles';
 
 type ClassSummary = {
   classId: string;
@@ -54,6 +59,8 @@ export default function HomeScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const admin = isAdminLikeRole(user?.role);
+  const teacher = isTeacherRole(user?.role);
+  const checkInDesk = canUseCheckInDesk(user?.role);
 
   const load = useCallback(async () => {
     if (!token || !seasonId) return;
@@ -176,12 +183,14 @@ export default function HomeScreen() {
 
           <SectionTitle>Quick actions</SectionTitle>
           <View style={styles.actions}>
+            {checkInDesk ? (
+              <QuickAction
+                label="Check-in & search"
+                onPress={() => router.push('/(tabs)/check-in')}
+              />
+            ) : null}
             <QuickAction
-              label="Check-in & search"
-              onPress={() => router.push('/(tabs)/check-in')}
-            />
-            <QuickAction
-              label="Class rosters"
+              label={teacher ? 'My class' : 'Class rosters'}
               onPress={() => router.push('/(tabs)/classes')}
             />
             <QuickAction

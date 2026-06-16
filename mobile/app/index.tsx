@@ -2,7 +2,6 @@ import { Redirect } from 'expo-router';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { palette } from '@/constants/theme';
 import { useAuth } from '@/lib/auth-context';
-import { isTeacherRole } from '@/lib/roles';
 import { useStationMode } from '@/lib/station-mode-context';
 
 export default function Index() {
@@ -25,9 +24,6 @@ export default function Index() {
   }
   if (stationMode) {
     return <Redirect href="/(tabs)/check-in" />;
-  }
-  if (isTeacherRole(user?.role)) {
-    return <Redirect href="/(tabs)/classes" />;
   }
   return <Redirect href="/(tabs)" />;
 }

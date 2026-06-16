@@ -40,7 +40,7 @@ export default function TabLayout() {
         name="index"
         options={{
           title: 'Home',
-          href: stationMode || teacher ? null : undefined,
+          href: stationMode ? null : undefined,
           tabBarIcon: ({ color }) => <TabIcon name="home-outline" color={color} />,
         }}
       />
