@@ -6,6 +6,7 @@ import { Camera, Search } from "lucide-react";
 import { printBadgeByRegistrationId } from "@/components/badge-print/print-badge-button";
 import { CheckInLookupResultModal } from "@/components/check-in/check-in-lookup-result-modal";
 import { CheckInQrScanner } from "@/components/check-in/check-in-qr-scanner";
+import { UndoCheckInPinModal } from "@/components/check-in/undo-check-in-pin-modal";
 import { PrintBadgeButton } from "@/components/badge-print/print-badge-button";
 import type { CampDateOption } from "@/lib/camp-date";
 import type { CheckInLookupMatch } from "@/lib/check-in-lookup";
@@ -55,6 +56,13 @@ export function CheckInDeskClient({
   const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [nameFilter, setNameFilter] = useState("");
+  const [pinModalOpen, setPinModalOpen] = useState(false);
+  const [pendingUndo, setPendingUndo] = useState<{
+    registrationId: string;
+    nextChecked: boolean;
+    onSuccess: () => void;
+    pendingRegistrationId: string;
+  } | null>(null);
   const [, startTransition] = useTransition();
 
   const filteredRows = useMemo(() => {
@@ -103,25 +111,31 @@ export function CheckInDeskClient({
     });
   }
 
-  function promptUndoPin(): string | null {
-    const pin = window.prompt("Enter the 4-digit security code to undo check-in:");
-    if (pin === null) return null;
-    return pin.trim();
+  function requestUndo(
+    registrationId: string,
+    onSuccess: () => void,
+    pendingRegistrationId: string,
+  ) {
+    if (undoPinRequired) {
+      setPendingUndo({
+        registrationId,
+        nextChecked: false,
+        onSuccess,
+        pendingRegistrationId,
+      });
+      setPinModalOpen(true);
+      return;
+    }
+    performToggle(registrationId, false, null, onSuccess, pendingRegistrationId);
   }
 
   function handleCheckInFromModal(match: CheckInLookupMatch) {
     const nextChecked = !match.checkedIn;
-    if (!nextChecked && undoPinRequired) {
-      const pin = promptUndoPin();
-      if (pin === null) return;
-      performToggle(match.id, nextChecked, pin, () => {
+    if (!nextChecked) {
+      requestUndo(match.id, () => {
         setLookupMatches((prev) =>
-          prev.map((m) => (m.id === match.id ? { ...m, checkedIn: nextChecked } : m)),
+          prev.map((m) => (m.id === match.id ? { ...m, checkedIn: false } : m)),
         );
-        if (nextChecked) {
-          closeLookupModal();
-          setLookupQuery("");
-        }
       }, match.id);
       return;
     }
@@ -177,13 +191,30 @@ export function CheckInDeskClient({
 
   function handleToggle(row: CheckInRow) {
     const nextChecked = !row.checkedIn;
-    if (!nextChecked && undoPinRequired) {
-      const pin = promptUndoPin();
-      if (pin === null) return;
-      performToggle(row.id, nextChecked, pin, () => {}, row.id);
+    if (!nextChecked) {
+      requestUndo(row.id, () => {}, row.id);
       return;
     }
     performToggle(row.id, nextChecked, null, () => {}, row.id);
+  }
+
+  function handlePinSubmit(pin: string) {
+    const pending = pendingUndo;
+    setPinModalOpen(false);
+    setPendingUndo(null);
+    if (!pending) return;
+    performToggle(
+      pending.registrationId,
+      pending.nextChecked,
+      pin,
+      pending.onSuccess,
+      pending.pendingRegistrationId,
+    );
+  }
+
+  function closePinModal() {
+    setPinModalOpen(false);
+    setPendingUndo(null);
   }
 
   return (
@@ -280,6 +311,12 @@ export function CheckInDeskClient({
         onCheckIn={handleCheckInFromModal}
         onSelectMatch={(match) => setSelectedMatchId(match.id)}
         selectedMatchId={selectedMatchId}
+      />
+
+      <UndoCheckInPinModal
+        open={pinModalOpen}
+        onClose={closePinModal}
+        onSubmit={handlePinSubmit}
       />
 
       {error ? (

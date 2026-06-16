@@ -19,7 +19,15 @@ export default async function CheckInPage({ searchParams }: Props) {
   const activeSeason = await prisma.vbsSeason.findFirst({
     where: { isActive: true },
     orderBy: [{ year: "desc" }, { startDate: "desc" }],
-    include: { badgePrintSettings: true },
+    select: {
+      id: true,
+      name: true,
+      multiDayCheckInEnabled: true,
+      startDate: true,
+      endDate: true,
+      checkInUndoPin: true,
+      badgePrintSettings: true,
+    },
   });
 
   const attendanceContext = activeSeason

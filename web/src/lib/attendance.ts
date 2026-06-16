@@ -132,6 +132,9 @@ export async function setRegistrationAttendance(input: {
 
   if (!input.checkedIn && season.checkInUndoPin && !input.dismissalCheckout) {
     const provided = (input.undoPin ?? "").trim();
+    if (!provided) {
+      return { ok: false, message: "Security code is required to undo check-in." };
+    }
     if (provided !== season.checkInUndoPin) {
       return { ok: false, message: "Incorrect security code." };
     }
