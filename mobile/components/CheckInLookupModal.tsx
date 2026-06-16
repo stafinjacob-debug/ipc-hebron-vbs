@@ -8,6 +8,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { PinEntryForm } from '@/components/PinEntryForm';
 import { palette } from '@/constants/theme';
 import { PrimaryButton, SecondaryButton, StatusChip } from '@/components/ui';
 
@@ -39,6 +40,10 @@ type Props = {
   onSelect: (match: CheckInLookupMatch) => void;
   onCheckIn: (match: CheckInLookupMatch) => void;
   onPrintBadge: (match: CheckInLookupMatch) => void;
+  undoPinPrompt?: {
+    onCancel: () => void;
+    onSubmit: (pin: string) => void;
+  };
 };
 
 function DetailRow({ label, value }: { label: string; value: string }) {
@@ -63,6 +68,7 @@ export function CheckInLookupModal({
   onSelect,
   onCheckIn,
   onPrintBadge,
+  undoPinPrompt,
 }: Props) {
   const insets = useSafeAreaInsets();
   if (!visible || matches.length === 0) return null;
@@ -190,6 +196,17 @@ export function CheckInLookupModal({
             <SecondaryButton label="Close" onPress={onClose} />
           )}
         </View>
+        {undoPinPrompt ? (
+          <View style={styles.pinOverlay}>
+            <PinEntryForm
+              title="Security code required"
+              message="Enter the 4-digit code to undo this check-in."
+              confirmLabel="Confirm undo"
+              onCancel={undoPinPrompt.onCancel}
+              onSubmit={undoPinPrompt.onSubmit}
+            />
+          </View>
+        ) : null}
       </View>
     </Modal>
   );
@@ -292,4 +309,12 @@ const styles = StyleSheet.create({
   pickName: { fontSize: 17, fontWeight: '700', color: palette.text },
   pickMeta: { marginTop: 4, fontSize: 13, color: palette.textSecondary },
   actions: { gap: 10, marginTop: 12 },
+  pinOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+  },
 });

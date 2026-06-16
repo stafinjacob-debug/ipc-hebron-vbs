@@ -13,7 +13,6 @@ import {
   type CheckInLookupMatch,
 } from '@/components/CheckInLookupModal';
 import { CheckInQrScanner } from '@/components/CheckInQrScanner';
-import { PinEntryModal } from '@/components/PinEntryModal';
 import { palette } from '@/constants/theme';
 import { ApiError, apiFetch } from '@/lib/api';
 import {
@@ -40,8 +39,7 @@ export default function CheckInScreen() {
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [printingId, setPrintingId] = useState<string | null>(null);
   const [scannerOpen, setScannerOpen] = useState(false);
-  const [pinModalOpen, setPinModalOpen] = useState(false);
-  const [pinPendingMatch, setPinPendingMatch] = useState<CheckInLookupMatch | null>(null);
+  const [undoPinMatch, setUndoPinMatch] = useState<CheckInLookupMatch | null>(null);
   const [deskSettings, setDeskSettings] = useState<CheckInDeskSettings>({
     badgePrintingEnabled: false,
     autoPrintOnCheckIn: false,
@@ -206,6 +204,14 @@ export default function CheckInScreen() {
       }
     } catch (e) {
       const msg = e instanceof ApiError ? e.message : 'Check-in update failed.';
+      if (
+        !checkedIn &&
+        !undoPin &&
+        /security code/i.test(msg)
+      ) {
+        setUndoPinMatch(match);
+        return;
+      }
       Alert.alert('Could not update', msg);
     } finally {
       setPendingId(null);
@@ -235,8 +241,7 @@ export default function CheckInScreen() {
 
     if (match.checkedIn) {
       if (deskSettings.undoPinRequired) {
-        setPinPendingMatch(match);
-        setPinModalOpen(true);
+        setUndoPinMatch(match);
         return;
       }
       void patchAttendance(match, false);
@@ -254,10 +259,13 @@ export default function CheckInScreen() {
     void patchAttendance(match, true);
   }
 
-  function handlePinSubmit(pin: string) {
-    const match = pinPendingMatch;
-    setPinModalOpen(false);
-    setPinPendingMatch(null);
+  function cancelUndoPinPrompt() {
+    setUndoPinMatch(null);
+  }
+
+  function submitUndoPin(pin: string) {
+    const match = undoPinMatch;
+    setUndoPinMatch(null);
     if (!match) return;
     void patchAttendance(match, false, pin);
   }
@@ -422,17 +430,14 @@ export default function CheckInScreen() {
         dismissalMode={dismissal}
         onCheckIn={(match) => handleCheckIn(match)}
         onPrintBadge={(match) => void runPrintBadge(match.id)}
-      />
-
-      <PinEntryModal
-        visible={pinModalOpen}
-        title="Security code required"
-        message="Enter the 4-digit code to undo this check-in."
-        onCancel={() => {
-          setPinModalOpen(false);
-          setPinPendingMatch(null);
-        }}
-        onSubmit={handlePinSubmit}
+        undoPinPrompt={
+          undoPinMatch
+            ? {
+                onCancel: cancelUndoPinPrompt,
+                onSubmit: submitUndoPin,
+              }
+            : undefined
+        }
       />
     </View>
   );

@@ -3,6 +3,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  InteractionManager,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -173,6 +174,10 @@ export default function StudentDetailScreen() {
       );
     } catch (e) {
       const msg = e instanceof ApiError ? e.message : 'Action failed';
+      if (!checkedIn && !undoPin && /security code/i.test(msg)) {
+        setPinModalOpen(true);
+        return;
+      }
       Alert.alert('Could not update', msg);
     } finally {
       setActing(false);
@@ -209,11 +214,13 @@ export default function StudentDetailScreen() {
         return;
       }
       const confirmUndo = () => {
-        if (deskSettings.undoPinRequired) {
-          setPinModalOpen(true);
-          return;
-        }
-        void patchAttendance(false);
+        InteractionManager.runAfterInteractions(() => {
+          if (deskSettings.undoPinRequired) {
+            setPinModalOpen(true);
+            return;
+          }
+          void patchAttendance(false);
+        });
       };
       Alert.alert(
         'Undo check-in',
@@ -370,6 +377,7 @@ export default function StudentDetailScreen() {
         visible={pinModalOpen}
         title="Security code required"
         message="Enter the 4-digit code to undo this check-in."
+        confirmLabel="Confirm undo"
         onCancel={() => setPinModalOpen(false)}
         onSubmit={(pin) => {
           setPinModalOpen(false);
