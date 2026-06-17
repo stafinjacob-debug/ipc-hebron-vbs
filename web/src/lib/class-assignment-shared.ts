@@ -42,6 +42,21 @@ export function calendarDateKey(d: Date): number {
   return d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate();
 }
 
+/** Format a stored date for `<input type="date">` (handles RSC-serialized strings). */
+export function formatDateInputValue(
+  value: Date | string | null | undefined,
+): string {
+  if (value == null) return "";
+  if (typeof value === "string") {
+    const m = value.match(/^(\d{4}-\d{2}-\d{2})/);
+    return m?.[1] ?? "";
+  }
+  const y = value.getFullYear();
+  const mo = String(value.getMonth() + 1).padStart(2, "0");
+  const d = String(value.getDate()).padStart(2, "0");
+  return `${y}-${mo}-${d}`;
+}
+
 export function classroomUsesBirthDateRange(c: {
   birthDateMin: Date | null;
   birthDateMax: Date | null;

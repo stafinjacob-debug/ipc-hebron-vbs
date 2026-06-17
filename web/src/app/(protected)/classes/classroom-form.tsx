@@ -1,6 +1,7 @@
 "use client";
 
 import type { Classroom } from "@/generated/prisma";
+import { formatDateInputValue } from "@/lib/class-assignment-shared";
 import { jsonToStringArray } from "@/lib/class-form-field-match";
 import Link from "next/link";
 import { useActionState } from "react";
@@ -223,9 +224,7 @@ export function ClassroomForm({
               name="birthDateMin"
               type="date"
               className={input}
-              defaultValue={
-                c?.birthDateMin ? c.birthDateMin.toISOString().slice(0, 10) : ""
-              }
+              defaultValue={formatDateInputValue(c?.birthDateMin)}
             />
           </div>
           <div>
@@ -237,9 +236,7 @@ export function ClassroomForm({
               name="birthDateMax"
               type="date"
               className={input}
-              defaultValue={
-                c?.birthDateMax ? c.birthDateMax.toISOString().slice(0, 10) : ""
-              }
+              defaultValue={formatDateInputValue(c?.birthDateMax)}
             />
           </div>
           <div className="sm:col-span-3">

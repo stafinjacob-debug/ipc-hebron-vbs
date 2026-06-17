@@ -1,0 +1,33 @@
+# One-off / on-demand: apply VBS grade birth-date + round-robin rules to production classes.
+name: Configure class auto-assignment (Production)
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  configure:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install dependencies
+        env:
+          DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
+        run: npm ci
+
+      - name: Apply class auto-assignment rules
+        env:
+          DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
+        run: npx tsx scripts/configure-vbs-class-auto-assign.ts
