@@ -24,11 +24,12 @@ if (existsSync(resolve(webRoot, ".env.local"))) {
 type GradeRule = {
   birthDateMin: string;
   birthDateMax: string;
-  roundRobinGroupKey: string;
+  /** Shared key for A/B rotation; null for a single-section grade. */
+  roundRobinGroupKey: string | null;
   sortOrder: number;
-  sections: [string, string];
-  /** Legacy / alternate names that should receive the same config. */
-  aliases?: [string, string];
+  sections: string[];
+  /** Optional alternate names per section (same index as sections). */
+  aliases?: string[];
 };
 
 /** IPC Hebron VBS grade sections — DOB windows and A/B round-robin pairs. */
@@ -82,6 +83,27 @@ const GRADE_RULES: GradeRule[] = [
     roundRobinGroupKey: "5th-grade",
     sortOrder: 60,
     sections: ["5th Grade A", "5th Grade B"],
+  },
+  {
+    birthDateMin: "2013-09-02",
+    birthDateMax: "2014-09-01",
+    roundRobinGroupKey: null,
+    sortOrder: 70,
+    sections: ["6th Grade"],
+  },
+  {
+    birthDateMin: "2012-09-02",
+    birthDateMax: "2013-09-01",
+    roundRobinGroupKey: null,
+    sortOrder: 80,
+    sections: ["7th Grade"],
+  },
+  {
+    birthDateMin: "2011-09-02",
+    birthDateMax: "2012-09-01",
+    roundRobinGroupKey: "8th-grade",
+    sortOrder: 90,
+    sections: ["8th Grade A", "8th Grade B"],
   },
 ];
 
@@ -187,8 +209,11 @@ async function main() {
             });
           }
           matchedIds.add(match.id);
+          const rrLabel = rule.roundRobinGroupKey
+            ? `round-robin "${rule.roundRobinGroupKey}"`
+            : "no round-robin";
           updates.push(
-            `${match.name}: ${rule.birthDateMin}–${rule.birthDateMax}, round-robin "${rule.roundRobinGroupKey}"`,
+            `${match.name}: ${rule.birthDateMin}–${rule.birthDateMax}, ${rrLabel}`,
           );
         } else {
           if (!dryRun) {
@@ -206,7 +231,11 @@ async function main() {
             });
           }
           creates.push(
-            `${canonicalName}: ${rule.birthDateMin}–${rule.birthDateMax}, round-robin "${rule.roundRobinGroupKey}"`,
+            `${canonicalName}: ${rule.birthDateMin}–${rule.birthDateMax}, ${
+              rule.roundRobinGroupKey
+                ? `round-robin "${rule.roundRobinGroupKey}"`
+                : "no round-robin"
+            }`,
           );
         }
       }
