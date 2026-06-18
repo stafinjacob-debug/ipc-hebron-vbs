@@ -152,7 +152,7 @@ export default async function ClassesPage({
             <p className="mt-2 text-sm text-amber-800 dark:text-amber-200">
               Class auto-assignment is off for this event.{" "}
               <Link
-                href={`/seasons/${seasonMeta.id}/class-settings`}
+                href={`/classes/settings?season=${seasonMeta.id}`}
                 className="font-medium underline"
               >
                 Enable in class settings
@@ -176,7 +176,7 @@ export default async function ClassesPage({
                 Assignment rules
               </Link>
               <Link
-                href={`/seasons/${seasonMeta.id}/class-settings`}
+                href={`/classes/settings?season=${seasonMeta.id}`}
                 className="rounded-lg border border-foreground/20 px-3 py-2 text-sm font-medium hover:bg-foreground/[0.04]"
               >
                 Class settings

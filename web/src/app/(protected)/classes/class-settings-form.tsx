@@ -1,8 +1,8 @@
 "use client";
 
-import { useActionState } from "react";
+import { saveClassSettings, type SaveClassSettingsState } from "@/lib/class-settings-actions";
 import Link from "next/link";
-import { saveClassSettings, type SaveClassSettingsState } from "./actions";
+import { useActionState } from "react";
 
 type Props = {
   seasonId: string;

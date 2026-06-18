@@ -61,6 +61,21 @@ export default async function SettingsGeneralPage() {
             </Link>
           </li>
         )}
+        {canEdit && (
+          <li className="rounded-xl border border-foreground/10 bg-surface-elevated p-5 shadow-sm">
+            <CalendarDays className="size-8 text-brand" aria-hidden />
+            <h3 className="mt-3 font-semibold text-foreground">Class auto-assignment</h3>
+            <p className="mt-1 text-sm text-muted">
+              Enable auto-placement for soccer, VBS, and other events with class rosters.
+            </p>
+            <Link
+              href="/classes/settings"
+              className="mt-4 inline-flex text-sm font-medium text-brand underline-offset-4 hover:underline"
+            >
+              Open class settings
+            </Link>
+          </li>
+        )}
         <li className="rounded-xl border border-foreground/10 bg-surface-elevated p-5 shadow-sm sm:col-span-2">
           <h3 className="font-semibold text-foreground">Your account</h3>
           <p className="mt-1 text-sm text-muted">

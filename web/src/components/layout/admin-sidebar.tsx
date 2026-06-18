@@ -48,7 +48,35 @@ const NAV: {
       },
     ],
   },
-  { href: "/classes", label: "Classes", icon: UserSquare2, match: (p) => p === "/classes" || p.startsWith("/classes/") },
+  { href: "/classes", label: "Classes", icon: UserSquare2, match: (p) => p === "/classes" || p.startsWith("/classes/"),
+    children: [
+      {
+        href: "/classes",
+        label: "All classes",
+        match: (p) =>
+          p === "/classes" ||
+          (p.startsWith("/classes/") &&
+            !p.startsWith("/classes/settings") &&
+            !p.startsWith("/classes/auto-assign") &&
+            !p.startsWith("/classes/assignment-rules")),
+      },
+      {
+        href: "/classes/settings",
+        label: "Class settings",
+        match: (p) => p === "/classes/settings" || p.startsWith("/classes/settings"),
+      },
+      {
+        href: "/classes/auto-assign",
+        label: "Simulate auto-assign",
+        match: (p) => p === "/classes/auto-assign" || p.startsWith("/classes/auto-assign"),
+      },
+      {
+        href: "/classes/assignment-rules",
+        label: "Assignment rules",
+        match: (p) => p === "/classes/assignment-rules" || p.startsWith("/classes/assignment-rules"),
+      },
+    ],
+  },
   {
     href: "/check-in",
     label: "Check-In",

@@ -8,6 +8,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
 import { applyAutoAssignBatchAction, simulateAutoAssignAction } from "./actions";
+import { enableClassAutoAssignAction } from "@/lib/class-settings-actions";
 
 function outcomeLabel(row: AutoAssignSimulationRow): string {
   if (row.outcome === "already_assigned") return "Already assigned";
@@ -50,6 +51,7 @@ export function AutoAssignPanel({
   const [error, setError] = useState<string | null>(null);
   const [pendingSim, startSim] = useTransition();
   const [pendingApply, startApply] = useTransition();
+  const [pendingEnable, startEnable] = useTransition();
 
   const assignableRows = useMemo(
     () => summary.rows.filter((r) => r.outcome === "assignable"),
@@ -128,6 +130,31 @@ export function AutoAssignPanel({
     });
   }
 
+  function enableAutoAssign() {
+    setError(null);
+    setMessage(null);
+    startEnable(async () => {
+      const res = await enableClassAutoAssignAction(seasonId);
+      if (!res.ok) {
+        setError(res.message);
+        return;
+      }
+      setMessage(res.message);
+      router.refresh();
+      startSim(async () => {
+        const sim = await simulateAutoAssignAction(seasonId);
+        if (sim.summary) {
+          setSummary(sim.summary);
+          const ids = new Set<string>();
+          for (const row of sim.summary.rows) {
+            if (row.outcome === "assignable") ids.add(row.registrationId);
+          }
+          setSelected(ids);
+        }
+      });
+    });
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -152,15 +179,31 @@ export function AutoAssignPanel({
       </div>
 
       {!summary.classroomsEnabled ? (
-        <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-950 dark:text-amber-100">
-          Class auto-assignment is disabled for this event.{" "}
-          <Link
-            href={`/seasons/${seasonId}/class-settings`}
-            className="font-semibold underline"
-          >
-            Enable it in class settings
-          </Link>{" "}
-          to run the simulation and apply placements.
+        <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-4 text-sm text-amber-950 dark:text-amber-100">
+          <p className="font-medium">Class auto-assignment is off for this event.</p>
+          <p className="mt-1">
+            Enable it to preview and apply class placements. You can also manage this under{" "}
+            <Link href={`/classes/settings?season=${seasonId}`} className="font-semibold underline">
+              Classes → Class settings
+            </Link>
+            .
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              type="button"
+              disabled={pendingEnable || pendingSim || pendingApply}
+              onClick={enableAutoAssign}
+              className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-brand-foreground disabled:opacity-50"
+            >
+              {pendingEnable ? "Enabling…" : "Enable auto-assignment for this event"}
+            </button>
+            <Link
+              href={`/classes/settings?season=${seasonId}`}
+              className="rounded-lg border border-foreground/20 px-4 py-2 text-sm font-medium hover:bg-foreground/[0.04]"
+            >
+              Open class settings
+            </Link>
+          </div>
         </div>
       ) : null}
 
