@@ -69,6 +69,7 @@ async function buildSeasonOption(
     participantSingularLabel: branding.participantSingularLabel,
     sessionPickerLabel: branding.sessionPickerLabel,
     classroomsEnabled: s.classroomsEnabled,
+    waitlistEnabled: formRow.waitlistEnabled,
     stripeCheckoutEnabled: formRow.stripeCheckoutEnabled,
     stripeAmountCents: formRow.stripeAmountCents,
     stripePricingUnit: formRow.stripePricingUnit,

@@ -21,7 +21,7 @@ import {
 } from "@/lib/public-registration";
 import {
   formatParticipantAgeAsOfLabel,
-  participantAgeYearsOnDate,
+  parseParticipantCalendarDate,
   resolveParticipantAgeRules,
   validateParticipantAge,
 } from "@/lib/participant-age-gate";
@@ -30,7 +30,6 @@ import type { WaiverSupplementalFieldDef } from "@/lib/waiver-merge-fields";
 import type { FormDefinitionV1, FormFieldDef, FormSectionDef } from "@/lib/registration-form-definition";
 import { RESERVED_CHILD_KEYS, sectionHasFillableFields, sortSections } from "@/lib/registration-form-definition";
 import { formatPhoneInput, phoneDigits } from "@/lib/phone-format";
-import { parseLocalDate } from "@/lib/schemas/vbs-registration";
 import {
   computeProcessingGrossUp,
   computeRegistrationBaseCents,
@@ -55,6 +54,8 @@ import { formatSeasonDateRange } from "@/lib/season-calendar-date";
 import { toDatetimeLocalValueInAppTz } from "@/lib/app-timezone";
 import type { PublicRegistrationClosedDisplay } from "@/lib/public-registration-closed-display";
 import { submitPublicRegistration, type PublicRegisterState } from "./actions";
+import { checkClassPlacementAction } from "./class-placement-actions";
+import { shouldBlockRegistrationWithoutClassPlacement } from "@/lib/class-placement-gate";
 import { RegistrationContactFooter } from "@/components/registration-contact-footer";
 import {
   formatRegistrationDate,
@@ -106,6 +107,8 @@ export type PublicSeasonOption = {
   participantSingularLabel: string;
   sessionPickerLabel: string;
   classroomsEnabled: boolean;
+  /** When false with classes enabled, registration is blocked if no class grouping matches. */
+  waitlistEnabled: boolean;
   stripeCheckoutEnabled: boolean;
   stripeAmountCents: number | null;
   stripePricingUnit: "PER_SUBMISSION" | "PER_CHILD";
@@ -203,11 +206,11 @@ function childAgeGateMessageForDob(
   if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return null;
   let dob: Date;
   try {
-    dob = parseLocalDate(trimmed);
+    dob = parseParticipantCalendarDate(trimmed);
   } catch {
     return null;
   }
-  const asOfDate = parseLocalDate(season.participantAgeAsOfDateIso);
+  const asOfDate = parseParticipantCalendarDate(season.participantAgeAsOfDateIso);
   const rules = resolveParticipantAgeRules({
     minimumParticipantAgeYears: season.minimumParticipantAgeYears,
     maximumParticipantAgeYears: season.maximumParticipantAgeYears,
@@ -749,6 +752,8 @@ function DynamicRegistrationWizardInner({
   const [liveDobAgeByChild, setLiveDobAgeByChild] = useState<Record<number, string>>({});
   const [coverProcessingFee, setCoverProcessingFee] = useState(false);
   const [paymentChoice, setPaymentChoice] = useState<"card" | "pay_later">("card");
+  const [classPlacementMessage, setClassPlacementMessage] = useState<string | null>(null);
+  const [classPlacementChecking, setClassPlacementChecking] = useState(false);
   /** Single native submit control so Enter / mobile browsers cannot activate a hidden duplicate submit. */
   const nativeSubmitRef = useRef<HTMLButtonElement>(null);
 
@@ -771,7 +776,7 @@ function DynamicRegistrationWizardInner({
     return resolveParticipantAgeRules({
       minimumParticipantAgeYears: current.minimumParticipantAgeYears,
       maximumParticipantAgeYears: current.maximumParticipantAgeYears,
-      participantAgeAsOfDate: parseLocalDate(current.participantAgeAsOfDateIso),
+      participantAgeAsOfDate: parseParticipantCalendarDate(current.participantAgeAsOfDateIso),
     });
   }, [current]);
   const participantLabelRaw = current?.participantSingularLabel ?? portalBranding?.participantSingularLabel ?? "Child";
@@ -1007,6 +1012,61 @@ function DynamicRegistrationWizardInner({
     }
     return Object.keys(map).length > 0 ? map : null;
   }, [state?.fieldErrors]);
+
+  const classPlacementCheckEnabled = useMemo(
+    () =>
+      current
+        ? shouldBlockRegistrationWithoutClassPlacement({
+            classroomsEnabled: current.classroomsEnabled,
+            waitlistEnabled: current.waitlistEnabled,
+          })
+        : false,
+    [current],
+  );
+
+  const childrenPlacementPayload = useMemo(
+    () =>
+      children.map((ch) => ({
+        childFirstName: ch.values.childFirstName ?? "",
+        childLastName: ch.values.childLastName ?? "",
+        childDateOfBirth: ch.values.childDateOfBirth ?? "",
+        custom: Object.fromEntries(
+          Object.entries(ch.values)
+            .filter(([k]) => !["childFirstName", "childLastName", "childDateOfBirth"].includes(k))
+            .map(([k, v]) => [k, v.trim() ? v : null]),
+        ),
+      })),
+    [children, childRowIds],
+  );
+
+  useEffect(() => {
+    if (step !== reviewStepIndex || !classPlacementCheckEnabled || !seasonId) {
+      setClassPlacementMessage(null);
+      setClassPlacementChecking(false);
+      return;
+    }
+    if (childrenPlacementPayload.some((c) => !c.childDateOfBirth.trim())) {
+      setClassPlacementMessage(null);
+      setClassPlacementChecking(false);
+      return;
+    }
+
+    let cancelled = false;
+    setClassPlacementChecking(true);
+    void checkClassPlacementAction({ seasonId, children: childrenPlacementPayload }).then((res) => {
+      if (cancelled) return;
+      setClassPlacementChecking(false);
+      if (!res.ok) {
+        setClassPlacementMessage(res.message);
+        return;
+      }
+      setClassPlacementMessage(res.blocked ? res.message : null);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [step, reviewStepIndex, classPlacementCheckEnabled, seasonId, childrenPlacementPayload]);
 
   useEffect(() => {
     if (!def) return;
@@ -1246,6 +1306,8 @@ function DynamicRegistrationWizardInner({
       }
       if (kind === "review") {
         if (!confirmAccurate) return t("confirmAccurateRequired");
+        if (classPlacementChecking) return "Checking class availability…";
+        if (classPlacementMessage) return classPlacementMessage;
         const resolvedGuardian = def ? resolveGuardianContactFromForm(def, guardian) : null;
         if (
           smsConsent &&
@@ -1281,6 +1343,8 @@ function DynamicRegistrationWizardInner({
       participantLabel,
       locale,
       t,
+      classPlacementChecking,
+      classPlacementMessage,
     ],
   );
 
@@ -2178,6 +2242,25 @@ function DynamicRegistrationWizardInner({
                     </p>
                   </div>
                 ) : null}
+                {classPlacementCheckEnabled && (classPlacementChecking || classPlacementMessage) ? (
+                  <div
+                    className={`rounded-xl border px-4 py-3 text-sm leading-relaxed ${
+                      classPlacementMessage
+                        ? "border-red-400/40 bg-red-950/35 text-red-100"
+                        : "border-white/15 bg-white/8 text-neutral-200"
+                    }`}
+                    role="alert"
+                  >
+                    {classPlacementChecking ? (
+                      <p>Checking class availability…</p>
+                    ) : classPlacementMessage ? (
+                      <div className="flex items-start gap-2">
+                        <X className="mt-0.5 size-4 shrink-0" aria-hidden />
+                        <p>{classPlacementMessage}</p>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
                 {payLaterAvailable || stripePayment.active ? (
                   <div className="mt-5 space-y-4">
                     <p className="text-xs font-bold uppercase text-neutral-400">{t("payment")}</p>
@@ -2328,7 +2411,7 @@ function DynamicRegistrationWizardInner({
               ) : (
                 <button
                   type="button"
-                  disabled={pending}
+                  disabled={pending || classPlacementChecking || !!classPlacementMessage}
                   aria-label={primarySubmitLabel}
                   onClick={() => {
                     if (step !== reviewStepIndex) return;
@@ -2368,7 +2451,7 @@ function DynamicRegistrationWizardInner({
               ) : (
                 <button
                   type="button"
-                  disabled={pending}
+                  disabled={pending || classPlacementChecking || !!classPlacementMessage}
                   aria-label={primarySubmitLabel}
                   onClick={() => {
                     if (step !== reviewStepIndex) return;
@@ -2388,7 +2471,7 @@ function DynamicRegistrationWizardInner({
               type="submit"
               tabIndex={-1}
               aria-hidden="true"
-              disabled={pending}
+              disabled={pending || classPlacementChecking || !!classPlacementMessage}
               className="sr-only"
             >
               {t("submitRegistration")}

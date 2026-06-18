@@ -1084,6 +1084,11 @@ export function FormSettingsForm({
           />
           Waitlist when full (otherwise block submit)
         </label>
+        <p className="text-xs text-foreground/60">
+          When waitlist is off and class auto-assignment is enabled, families cannot complete
+          registration if a participant does not match any open class grouping — they see your help
+          contact on the review step before payment.
+        </p>
         {hidePublicRegistrationOpen ? null : (
           <label className="flex items-center gap-2 text-sm font-medium">
             <input

@@ -21,10 +21,10 @@ import {
 import { tryAutoApproveRegistrationsForSubmission } from "@/lib/auto-approve-registration";
 import {
   formatParticipantAgeAsOfLabel,
+  parseParticipantCalendarDate,
   resolveParticipantAgeRules,
   validateParticipantAge,
 } from "@/lib/participant-age-gate";
-import { parseLocalDate } from "@/lib/schemas/vbs-registration";
 import {
   computeProcessingGrossUp,
   computeRegistrationBaseCents,
@@ -45,6 +45,13 @@ import {
 } from "@/lib/waiver-merge-fields";
 import { renderWaiverPdfBuffer, storeWaiverPdf } from "@/lib/waiver-pdf";
 import { resolvePayLaterNotice } from "@/lib/pay-later";
+import {
+  formatClassPlacementBlockMessage,
+  resolveRegistrationHelpContact,
+  shouldBlockRegistrationWithoutClassPlacement,
+  type ClassPlacementChildInput,
+} from "@/lib/class-placement-gate";
+import { previewClassPlacementForChildren } from "@/lib/preview-class-placement";
 
 export type PublicRegisterState = {
   ok: boolean;
@@ -250,7 +257,7 @@ async function submitPublicRegistrationCore(
   const dobDates: Date[] = [];
   try {
     for (const c of data.children) {
-      dobDates.push(parseLocalDate(c.childDateOfBirth));
+      dobDates.push(parseParticipantCalendarDate(c.childDateOfBirth));
     }
   } catch {
     return {
@@ -283,6 +290,20 @@ async function submitPublicRegistrationCore(
         },
       };
     }
+  }
+
+  const classPlacementMsg = await assertClassPlacementAllowed({
+    season,
+    formRow,
+    children: data.children.map((c) => ({
+      childFirstName: c.childFirstName,
+      childLastName: c.childLastName,
+      childDateOfBirth: c.childDateOfBirth,
+      custom: c.custom,
+    })),
+  });
+  if (classPlacementMsg) {
+    return { ok: false, message: classPlacementMsg };
   }
 
   const confirmation =
@@ -670,4 +691,39 @@ export async function submitPublicRegistration(
   formData: FormData,
 ): Promise<PublicRegisterState> {
   return submitPublicRegistrationImpl(_prev, formData);
+}
+
+async function assertClassPlacementAllowed(args: {
+  season: {
+    id: string;
+    classroomsEnabled: boolean;
+    publicRegistrationSettings: {
+      helpContactEmail: string | null;
+      helpContactPhone: string | null;
+    } | null;
+  };
+  formRow: { waitlistEnabled: boolean };
+  children: ClassPlacementChildInput[];
+}): Promise<string | null> {
+  if (
+    !shouldBlockRegistrationWithoutClassPlacement({
+      classroomsEnabled: args.season.classroomsEnabled,
+      waitlistEnabled: args.formRow.waitlistEnabled,
+    })
+  ) {
+    return null;
+  }
+
+  const rows = await previewClassPlacementForChildren(prisma, {
+    seasonId: args.season.id,
+    children: args.children,
+  });
+  const unplaced = rows.filter((r) => !r.canPlace);
+  if (unplaced.length === 0) return null;
+
+  const helpContact = resolveRegistrationHelpContact({
+    helpContactEmail: args.season.publicRegistrationSettings?.helpContactEmail,
+    contactPhone: args.season.publicRegistrationSettings?.helpContactPhone,
+  });
+  return formatClassPlacementBlockMessage({ unplaced, helpContact });
 }
