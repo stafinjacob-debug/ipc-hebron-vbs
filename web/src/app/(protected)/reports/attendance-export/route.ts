@@ -1,6 +1,7 @@
 import { auth } from "@/auth";
 import { loadAttendanceExportRows } from "@/lib/attendance";
 import { formatCampDateForExport } from "@/lib/camp-date";
+import { formatAppDateTime } from "@/lib/app-timezone";
 import { prisma } from "@/lib/prisma";
 import { canViewOperations } from "@/lib/roles";
 
@@ -12,12 +13,13 @@ function formatTimestamp(iso: string | null): string {
   if (!iso) return "";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
-  return d.toLocaleString("en-US", {
+  return formatAppDateTime(d, {
     month: "numeric",
     day: "numeric",
     year: "numeric",
     hour: "numeric",
     minute: "2-digit",
+    timeZoneName: undefined,
   });
 }
 

@@ -9,7 +9,7 @@ import {
   Text,
   View,
 } from 'react-native';
-import { palette } from '@/constants/theme';
+import { formatAppDateTime } from '@/lib/app-timezone';
 import { apiFetch } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { canManageAnnouncements } from '@/lib/roles';
@@ -119,7 +119,7 @@ export default function AnnouncementsScreen() {
           <Text style={styles.cardTitle}>{item.title}</Text>
           <Text style={styles.cardMeta}>
             {audienceLabel(item.audience)} ·{' '}
-            {new Date(item.createdAt).toLocaleString()}
+            {formatAppDateTime(item.createdAt, { timeZoneName: undefined })}
           </Text>
         </Pressable>
       )}

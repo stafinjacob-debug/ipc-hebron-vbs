@@ -11,6 +11,7 @@ import {
   type RegistrationFieldValueRow,
 } from "@/lib/registration-export";
 import { getPublicAppBaseUrl } from "@/lib/public-app-url";
+import { formatAppDateTime } from "@/lib/app-timezone";
 import { registrationTicketUrl } from "@/lib/registration-ticket-url";
 
 /** Selected registration form field to include on each badge. */
@@ -449,15 +450,13 @@ type BuildBadgeInput = {
 
 /** Check-in / print timestamp in Central Time (CST/CDT). */
 export function formatBadgeCheckInTimestamp(date: Date): string {
-  return new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/Chicago",
+  return formatAppDateTime(date, {
     month: "2-digit",
     day: "2-digit",
     year: "numeric",
     hour: "numeric",
     minute: "2-digit",
-    timeZoneName: "short",
-  }).format(date);
+  });
 }
 
 function isTShirtFormField(fieldKey: string, fieldOptions: ExportFieldOption[]): boolean {

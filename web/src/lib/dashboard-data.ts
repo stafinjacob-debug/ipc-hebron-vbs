@@ -1,20 +1,9 @@
 import { SEAT_COUNT_STATUSES } from "@/lib/class-assignment";
 import { countCheckInsForCampDate, loadSeasonAttendanceContext } from "@/lib/attendance";
+import { appDateBounds, appTodayDateKey } from "@/lib/app-timezone";
 import { isTodayCampDate, type CampDateOption } from "@/lib/camp-date";
 import { getEventContext, type EventPhase } from "@/lib/event-phase";
 import { prisma } from "@/lib/prisma";
-
-function startOfLocalDay(d = new Date()) {
-  const x = new Date(d);
-  x.setHours(0, 0, 0, 0);
-  return x;
-}
-
-function endOfLocalDay(d = new Date()) {
-  const x = new Date(d);
-  x.setHours(23, 59, 59, 999);
-  return x;
-}
 
 const activeRegStatuses = ["PENDING", "CONFIRMED", "WAITLIST"] as const;
 
@@ -110,8 +99,7 @@ export async function getDashboardSnapshot(options?: {
     ? await loadSeasonAttendanceContext(seasonId, options?.campDate)
     : null;
   const selectedCampDate = attendanceContext?.defaultCampDate ?? null;
-  const dayStart = startOfLocalDay();
-  const dayEnd = endOfLocalDay();
+  const { start: dayStart, end: dayEnd } = appDateBounds(appTodayDateKey());
   const weekAgo = new Date();
   weekAgo.setDate(weekAgo.getDate() - 7);
 

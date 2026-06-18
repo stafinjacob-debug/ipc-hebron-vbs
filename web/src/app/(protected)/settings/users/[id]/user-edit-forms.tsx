@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 import type { UserRole, UserStatus } from "@/generated/prisma";
 import { ASSIGNABLE_STAFF_ROLES, canAssignRole, roleLabel } from "@/lib/roles";
+import { formatAppDate, formatAppDateTime } from "@/lib/app-timezone";
 import Link from "next/link";
 import {
   removeUserAccess,
@@ -124,9 +125,11 @@ export function UserEditForms(props: {
             <dt className="text-foreground/55">Last active</dt>
             <dd className="text-foreground/80">
               {user.lastLoginAt
-                ? new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(
-                    new Date(user.lastLoginAt),
-                  )
+                ? formatAppDateTime(new Date(user.lastLoginAt), {
+                    dateStyle: "medium",
+                    timeStyle: "short",
+                    timeZoneName: undefined,
+                  })
                 : "—"}
             </dd>
           </div>
@@ -134,7 +137,7 @@ export function UserEditForms(props: {
             <dt className="text-foreground/55">Invited</dt>
             <dd className="text-foreground/80">
               {user.invitedAt
-                ? new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(new Date(user.invitedAt))
+                ? formatAppDate(new Date(user.invitedAt), { dateStyle: "medium" })
                 : "—"}
               {user.invitedBy ? (
                 <span className="block text-xs text-foreground/55">

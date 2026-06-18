@@ -3,6 +3,7 @@ import { loadAdminSubmissionFormEditContext } from "@/lib/admin-submission-edit-
 import { prisma } from "@/lib/prisma";
 import { isCheckoutPendingRegistration } from "@/lib/registration-list-payment";
 import { canManageDirectory, canViewOperations } from "@/lib/roles";
+import { formatAppDateTime } from "@/lib/app-timezone";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { SubmissionDetailForms } from "./submission-detail-forms";
@@ -57,7 +58,7 @@ export default async function FormSubmissionDetailPage({
         </Link>
         <h2 className="mt-2 text-lg font-semibold">Submission {submission.registrationCode}</h2>
         <p className="text-sm text-foreground/70">
-          Submitted {submission.submittedAt.toLocaleString()} · Form version {submission.formVersion}
+          Submitted {formatAppDateTime(submission.submittedAt, { timeZoneName: undefined })} · Form version {submission.formVersion}
         </p>
       </div>
 

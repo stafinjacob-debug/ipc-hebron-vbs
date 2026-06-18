@@ -4,6 +4,7 @@ import {
   normalizeCalendarDateInput,
   parseCalendarDateInput,
 } from "@/lib/season-calendar-date";
+import { appDateBounds, appTodayDateKey } from "@/lib/app-timezone";
 
 export type CampDateOption = {
   key: string;
@@ -12,12 +13,9 @@ export type CampDateOption = {
   isToday: boolean;
 };
 
-/** Local calendar date key (YYYY-MM-DD) for "today" at the check-in desk. */
+/** Calendar date key (YYYY-MM-DD) for "today" in app timezone (Central Time). */
 export function localTodayCampDateKey(now = new Date()): string {
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, "0");
-  const d = String(now.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
+  return appTodayDateKey(now);
 }
 
 export function campDateKeyToUtcDate(key: string): Date {
@@ -38,14 +36,9 @@ export function isTodayCampDate(key: string, now = new Date()): boolean {
   return key === localTodayCampDateKey(now);
 }
 
-/** Local start/end of a camp calendar day (YYYY-MM-DD). */
+/** Start/end of a camp calendar day in app timezone (Central Time). */
 export function campDateLocalBounds(key: string): { start: Date; end: Date } {
-  const [y, m, d] = key.split("-").map(Number);
-  if (!y || !m || !d) throw new Error(`Invalid camp date: ${key}`);
-  return {
-    start: new Date(y, m - 1, d, 0, 0, 0, 0),
-    end: new Date(y, m - 1, d, 23, 59, 59, 999),
-  };
+  return appDateBounds(key);
 }
 
 export function listCampDateKeys(startDate: Date, endDate: Date): string[] {

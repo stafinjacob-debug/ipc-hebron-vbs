@@ -10,6 +10,7 @@ import {
   bulkSendPaymentRemindersAction,
   sendCheckoutReminderEmailAction,
 } from "./registration-actions";
+import { formatAppDateTime } from "@/lib/app-timezone";
 
 export type RegistrationBulkTableRow = {
   id: string;
@@ -408,9 +409,9 @@ export function RegistrationsBulkTable({
         </thead>
         <tbody>
           {rows.map((r) => {
-            const registeredLabel = new Date(r.registeredAtIso).toLocaleString();
+            const registeredLabel = formatAppDateTime(r.registeredAtIso, { timeZoneName: undefined });
             const reminderLabel = r.checkoutReminderSentAtIso
-              ? new Date(r.checkoutReminderSentAtIso).toLocaleString()
+              ? formatAppDateTime(r.checkoutReminderSentAtIso, { timeZoneName: undefined })
               : null;
             return (
               <tr key={r.id} className="border-t border-foreground/10">

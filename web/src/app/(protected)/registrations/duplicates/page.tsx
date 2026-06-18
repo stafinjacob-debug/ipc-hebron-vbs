@@ -2,6 +2,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { findDuplicateRegistrationGroups } from "@/lib/registration-duplicates";
 import { canViewOperations } from "@/lib/roles";
+import { formatAppDateTime } from "@/lib/app-timezone";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
@@ -98,7 +99,7 @@ export default async function RegistrationDuplicatesPage({ searchParams }: PageP
                       <td className="px-4 py-2 font-mono text-xs">{r.registrationNumber ?? "—"}</td>
                       <td className="px-4 py-2">{r.status}</td>
                       <td className="px-4 py-2 text-muted">
-                        {r.registeredAt.toLocaleString()}
+                        {formatAppDateTime(r.registeredAt, { timeZoneName: undefined })}
                       </td>
                       <td className="px-4 py-2 text-right">
                         <Link href={`/registrations/${r.id}`} className="font-medium text-brand underline">

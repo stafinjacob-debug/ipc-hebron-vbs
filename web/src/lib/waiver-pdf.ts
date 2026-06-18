@@ -4,6 +4,7 @@ import { randomUUID } from "crypto";
 import { mkdir, writeFile } from "fs/promises";
 import path from "path";
 import type { WaiverPdfMergeRow } from "@/lib/waiver-merge-fields";
+import { formatAppDateTime } from "@/lib/app-timezone";
 
 function wrapText(text: string, maxLen = 92): string[] {
   const words = text.replace(/\r/g, "").split(/\s+/).filter(Boolean);
@@ -110,7 +111,7 @@ export async function renderWaiverPdfBuffer(args: {
   y = Math.max(y, minY + 70);
   page.drawText(`Signer: ${args.signerName}`, { x: 42, y, size: 11, font: bold, color: rgb(0.05, 0.11, 0.23) });
   y -= 16;
-  page.drawText(`Signed at: ${new Date(args.signedAtIso).toLocaleString()}`, {
+  page.drawText(`Signed at: ${formatAppDateTime(new Date(args.signedAtIso), { timeZoneName: undefined })}`, {
     x: 42,
     y,
     size: 11,

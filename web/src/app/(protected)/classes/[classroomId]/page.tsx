@@ -1,4 +1,5 @@
 import { ClassroomAddUnassigned } from "@/app/(protected)/classes/classroom-add-unassigned";
+import { appDateBounds, appTodayDateKey } from "@/lib/app-timezone";
 import { ClassroomRosterQuickMove } from "@/app/(protected)/classes/classroom-roster-quick-move";
 import { auth } from "@/auth";
 import { jsonToStringArray } from "@/lib/class-form-field-match";
@@ -112,10 +113,7 @@ export default async function ClassroomDetailPage({
     orderBy: { registeredAt: "asc" },
   });
 
-  const dayStart = new Date();
-  dayStart.setHours(0, 0, 0, 0);
-  const dayEnd = new Date();
-  dayEnd.setHours(23, 59, 59, 999);
+  const { start: dayStart, end: dayEnd } = appDateBounds(appTodayDateKey());
   const checkedInToday = await prisma.registration.count({
     where: {
       classroomId: c.id,

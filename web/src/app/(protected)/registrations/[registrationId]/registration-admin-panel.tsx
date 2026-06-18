@@ -15,6 +15,7 @@ import {
   sendCheckoutReminderEmailAction,
   setRegistrationExpectsPayment,
 } from "../registration-actions";
+import { formatAppDateTime } from "@/lib/app-timezone";
 
 export function RegistrationAdminPanel({
   registrationId,
@@ -181,7 +182,7 @@ export function RegistrationAdminPanel({
           <p className="mt-2 text-xs text-foreground/60">
             Last checkout reminder:{" "}
             {checkoutReminderSentAt
-              ? new Date(checkoutReminderSentAt).toLocaleString()
+              ? formatAppDateTime(checkoutReminderSentAt, { timeZoneName: undefined })
               : "Not sent yet"}
           </p>
         ) : null}
@@ -210,7 +211,7 @@ export function RegistrationAdminPanel({
             <div className="flex flex-wrap items-center gap-2">
               {paymentReceivedAt ? (
                 <span className="text-xs text-foreground/60">
-                  Paid {new Date(paymentReceivedAt).toLocaleString()}
+                  Paid {formatAppDateTime(paymentReceivedAt, { timeZoneName: undefined })}
                 </span>
               ) : (
                 <span className="text-xs text-foreground/60">Paid (online or recorded)</span>

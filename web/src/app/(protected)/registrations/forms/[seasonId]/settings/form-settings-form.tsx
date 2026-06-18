@@ -15,6 +15,10 @@ import {
   DEFAULT_WAIVER_DESCRIPTION,
   DEFAULT_WAIVER_TITLE,
 } from "@/lib/default-waiver-content";
+import {
+  fromDatetimeLocalValueInAppTz,
+  toDatetimeLocalValueInAppTz,
+} from "@/lib/app-timezone";
 
 function newSupplementalWaiverField(): WaiverSupplementalFieldDef {
   const suffix =
@@ -25,16 +29,11 @@ function newSupplementalWaiverField(): WaiverSupplementalFieldDef {
 }
 
 function toDatetimeLocalValue(d: Date | null | undefined): string {
-  if (!d) return "";
-  const z = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
-  return z.toISOString().slice(0, 16);
+  return toDatetimeLocalValueInAppTz(d);
 }
 
 function fromDatetimeLocalValue(s: string): Date | null {
-  const t = s.trim();
-  if (!t) return null;
-  const d = new Date(t);
-  return Number.isNaN(d.getTime()) ? null : d;
+  return fromDatetimeLocalValueInAppTz(s);
 }
 
 export function FormSettingsForm({
@@ -954,7 +953,7 @@ export function FormSettingsForm({
       <div className="space-y-4 rounded-xl border border-foreground/10 p-4">
         <h2 className="text-sm font-semibold">Registration window & capacity</h2>
         <p className="text-sm text-foreground/70">
-          Date/time uses your browser&apos;s local timezone. Leave open/close empty for no extra date limits
+          Date/time uses Central Time (CST/CDT). Leave open/close empty for no extra date limits
           (season &quot;Public signup&quot; toggle still applies).
         </p>
         <div className="grid gap-4 sm:grid-cols-2">

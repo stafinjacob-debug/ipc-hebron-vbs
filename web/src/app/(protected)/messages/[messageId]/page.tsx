@@ -5,15 +5,10 @@ import { MessageMetaForm } from "@/app/(protected)/messages/message-meta-form";
 import { ReplyForm } from "@/app/(protected)/messages/reply-form";
 import { prisma } from "@/lib/prisma";
 import { canManageDirectory, canViewOperations } from "@/lib/roles";
+import { formatAppDateTime } from "@/lib/app-timezone";
 
 function formatDateTime(value: Date): string {
-  return new Intl.DateTimeFormat("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  }).format(value);
+  return formatAppDateTime(value, { timeZoneName: undefined });
 }
 
 export default async function MessageDetailPage({

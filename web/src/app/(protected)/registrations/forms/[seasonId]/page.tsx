@@ -2,6 +2,7 @@ import { auth } from "@/auth";
 import { isFormRegistrationOpen } from "@/lib/ensure-registration-form";
 import { prisma } from "@/lib/prisma";
 import { canManageDirectory, canViewOperations } from "@/lib/roles";
+import { formatAppDateTime } from "@/lib/app-timezone";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { CloneRegistrationForm } from "./clone-form";
@@ -139,7 +140,7 @@ export default async function RegistrationFormHubPage({
             <tbody>
               {audit.map((a) => (
                 <tr key={a.id} className="border-t border-foreground/10">
-                  <td className="px-4 py-2 text-foreground/70">{a.createdAt.toLocaleString()}</td>
+                  <td className="px-4 py-2 text-foreground/70">{formatAppDateTime(a.createdAt, { timeZoneName: undefined })}</td>
                   <td className="px-4 py-2 font-medium">{a.action}</td>
                   <td className="px-4 py-2 text-foreground/70 font-mono text-xs">
                     {a.metadata ? JSON.stringify(a.metadata) : "—"}

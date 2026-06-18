@@ -7,6 +7,7 @@ import { canUseCheckInActions } from "@/lib/permissions";
 import { loadStaffAccessScope, registrationAllowedByScope } from "@/lib/staff-access-scope";
 import { registrationTicketUrl } from "@/lib/registration-identity";
 import { getPublicAppBaseUrl } from "@/lib/public-app-url";
+import { formatAppDateTime } from "@/lib/app-timezone";
 import {
   isCheckoutPendingRegistration,
   registrationListShowsPaid,
@@ -213,7 +214,7 @@ export default async function RegistrationDetailPage({
               </div>
               <div>
                 <dt className="text-foreground/55">Registered</dt>
-                <dd className="text-foreground/80">{reg.registeredAt.toLocaleString()}</dd>
+                <dd className="text-foreground/80">{formatAppDateTime(reg.registeredAt, { timeZoneName: undefined })}</dd>
               </div>
               {reg.formSubmission ? (
                 <div className="sm:col-span-2">
@@ -257,7 +258,7 @@ export default async function RegistrationDetailPage({
               <h2 className="text-sm font-semibold text-foreground">Signed waiver</h2>
               <p className="mt-2 text-sm text-foreground/80">
                 Signed by <span className="font-medium text-foreground">{reg.waiverAgreement.signerName}</span> on{" "}
-                {reg.waiverAgreement.signedAt.toLocaleString()}.
+                {formatAppDateTime(reg.waiverAgreement.signedAt, { timeZoneName: undefined })}.
               </p>
               <p className="mt-3">
                 <a

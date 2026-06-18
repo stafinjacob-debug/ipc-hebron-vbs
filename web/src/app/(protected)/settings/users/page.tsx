@@ -3,6 +3,7 @@ import type { UserRole, UserStatus } from "@/generated/prisma";
 import { prisma } from "@/lib/prisma";
 import { fetchUsersForSettingsTable } from "@/lib/settings-users-data";
 import { ASSIGNABLE_STAFF_ROLES, canManageUsers, roleLabel } from "@/lib/roles";
+import { formatAppDate } from "@/lib/app-timezone";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { InviteUserButton } from "./invite-user-button";
@@ -248,7 +249,7 @@ export default async function SettingsUsersPage({
                 </td>
                 <td className="px-4 py-3 text-foreground/65">
                   {u.lastLoginAt
-                    ? new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(u.lastLoginAt)
+                    ? formatAppDate(u.lastLoginAt, { dateStyle: "medium" })
                     : "—"}
                 </td>
                 <td className="px-4 py-3 text-foreground/65">

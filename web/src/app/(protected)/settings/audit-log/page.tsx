@@ -1,6 +1,7 @@
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { canManageUsers } from "@/lib/roles";
+import { formatAppDateTime } from "@/lib/app-timezone";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
@@ -69,10 +70,11 @@ export default async function SettingsAuditLogPage() {
               {rows.map((r) => (
                 <tr key={r.id} className="bg-surface-elevated/30">
                   <td className="whitespace-nowrap px-4 py-3 text-foreground/70">
-                    {new Intl.DateTimeFormat(undefined, {
+                    {formatAppDateTime(r.createdAt, {
                       dateStyle: "medium",
                       timeStyle: "short",
-                    }).format(r.createdAt)}
+                      timeZoneName: undefined,
+                    })}
                   </td>
                   <td className="px-4 py-3 font-medium text-foreground">{formatAction(r.action)}</td>
                   <td className="px-4 py-3 text-foreground/75">

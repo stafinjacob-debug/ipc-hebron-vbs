@@ -52,6 +52,7 @@ import { RegistrationHeroBrand } from "./registration-hero-brand";
 import { payLaterNoticeParagraphs, resolvePayLaterNotice } from "@/lib/pay-later";
 import { isLegacyVbsPortal } from "@/lib/portal-public-path";
 import { formatSeasonDateRange } from "@/lib/season-calendar-date";
+import { toDatetimeLocalValueInAppTz } from "@/lib/app-timezone";
 import type { PublicRegistrationClosedDisplay } from "@/lib/public-registration-closed-display";
 import { submitPublicRegistration, type PublicRegisterState } from "./actions";
 import { RegistrationContactFooter } from "@/components/registration-contact-footer";
@@ -145,8 +146,7 @@ export type RegisterContactProps = {
 const initial: PublicRegisterState | null = null;
 
 function defaultSignedAtLocal(): string {
-  const now = new Date();
-  return new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+  return toDatetimeLocalValueInAppTz(new Date());
 }
 
 type WaiverRowState = {

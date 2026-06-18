@@ -17,6 +17,7 @@ import { palette } from '@/constants/theme';
 import { PrimaryButton, SecondaryButton } from '@/components/ui';
 import { ApiError, apiFetch } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
+import { formatAppDateTime } from '@/lib/app-timezone';
 import { canManageAnnouncements } from '@/lib/roles';
 
 type Ann = {
@@ -120,7 +121,7 @@ export default function AnnouncementDetailScreen() {
       <Text style={styles.title}>{data.title}</Text>
       <Text style={styles.meta}>
         {audienceLabel(data.audience)} ·{' '}
-        {new Date(data.createdAt).toLocaleString()}
+        {formatAppDateTime(data.createdAt, { timeZoneName: undefined })}
       </Text>
       <View style={styles.card}>
         <Text style={styles.body}>{data.body}</Text>

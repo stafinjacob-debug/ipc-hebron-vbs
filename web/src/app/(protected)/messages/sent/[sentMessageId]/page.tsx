@@ -4,15 +4,10 @@ import { auth } from "@/auth";
 import { MessagesFolderNav } from "@/app/(protected)/messages/messages-folder-nav";
 import { prisma } from "@/lib/prisma";
 import { canManageDirectory, canViewOperations } from "@/lib/roles";
+import { formatAppDateTime } from "@/lib/app-timezone";
 
 function formatDateTime(value: Date): string {
-  return new Intl.DateTimeFormat("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  }).format(value);
+  return formatAppDateTime(value, { timeZoneName: undefined });
 }
 
 export default async function SentMessageDetailPage({

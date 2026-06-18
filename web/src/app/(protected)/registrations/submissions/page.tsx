@@ -1,6 +1,7 @@
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { canViewOperations } from "@/lib/roles";
+import { formatAppDateTime } from "@/lib/app-timezone";
 import type { Prisma } from "@/generated/prisma";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -155,7 +156,7 @@ export default async function RegistrationsSubmissionsHubPage({
                     .map((r) => `${r.child.firstName} (${r.status})`)
                     .join(", ") || "—"}
                 </td>
-                <td className="px-4 py-3 text-foreground/70">{s.submittedAt.toLocaleString()}</td>
+                <td className="px-4 py-3 text-foreground/70">{formatAppDateTime(s.submittedAt, { timeZoneName: undefined })}</td>
                 <td className="px-4 py-3">
                   <details className="group">
                     <summary className="cursor-pointer list-none text-sm font-medium text-brand underline hover:no-underline">

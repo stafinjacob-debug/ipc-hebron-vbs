@@ -1,9 +1,14 @@
+import { appTodayDateKey } from "@/lib/app-timezone";
+import { normalizeCalendarDateInput } from "@/lib/season-calendar-date";
+
 export type EventPhase = "none" | "setup" | "live" | "wrapup";
 
-export function startOfDay(d: Date): Date {
-  const x = new Date(d);
-  x.setHours(0, 0, 0, 0);
-  return x;
+function daysBetween(fromKey: string, toKey: string): number {
+  const [fy, fm, fd] = fromKey.split("-").map(Number);
+  const [ty, tm, td] = toKey.split("-").map(Number);
+  const fromMs = Date.UTC(fy, fm - 1, fd);
+  const toMs = Date.UTC(ty, tm - 1, td);
+  return Math.round((toMs - fromMs) / 86400000);
 }
 
 export function getEventContext(
@@ -18,17 +23,23 @@ export function getEventContext(
   if (!seasonStart || !seasonEnd) {
     return { phase: "none", daysUntilStart: null, eventDayLabel: null };
   }
-  const t = startOfDay(now);
-  const s = startOfDay(seasonStart);
-  const e = startOfDay(seasonEnd);
-  if (t < s) {
-    const daysUntilStart = Math.ceil((s.getTime() - t.getTime()) / 86400000);
-    return { phase: "setup", daysUntilStart, eventDayLabel: null };
+
+  const today = appTodayDateKey(now);
+  const startKey = normalizeCalendarDateInput(seasonStart);
+  const endKey = normalizeCalendarDateInput(seasonEnd);
+
+  if (today < startKey) {
+    return {
+      phase: "setup",
+      daysUntilStart: daysBetween(today, startKey),
+      eventDayLabel: null,
+    };
   }
-  if (t > e) {
+  if (today > endKey) {
     return { phase: "wrapup", daysUntilStart: null, eventDayLabel: null };
   }
-  const dayNum = Math.floor((t.getTime() - s.getTime()) / 86400000) + 1;
-  const totalDays = Math.floor((e.getTime() - s.getTime()) / 86400000) + 1;
+
+  const dayNum = daysBetween(startKey, today) + 1;
+  const totalDays = daysBetween(startKey, endKey) + 1;
   return { phase: "live", daysUntilStart: null, eventDayLabel: `Day ${dayNum} of ${totalDays}` };
 }
