@@ -110,6 +110,7 @@ export default function CheckInScreen() {
     setLookupModalOpen(false);
     setLookupMatches([]);
     setSelectedMatchId(null);
+    setLookupInput('');
   }
 
   function openLookupResults(matches: CheckInLookupMatch[]) {
@@ -118,7 +119,7 @@ export default function CheckInScreen() {
     setLookupModalOpen(true);
   }
 
-  async function runLookup(rawInput: string) {
+  async function runLookup(rawInput: string, options?: { fromScan?: boolean }) {
     const value = rawInput.trim();
     if (!value) {
       setLookupMessage('Enter a name, registration code, phone, or scan a QR code.');
@@ -127,7 +128,11 @@ export default function CheckInScreen() {
     }
     if (!token || !seasonId) return;
 
-    setLookupInput(value);
+    if (!options?.fromScan) {
+      setLookupInput(value);
+    } else {
+      setLookupInput('');
+    }
     setLookupMessage(null);
     setLookupPending(true);
     try {
@@ -140,11 +145,15 @@ export default function CheckInScreen() {
         },
       );
       openLookupResults(res.matches);
+      setLookupInput('');
     } catch (e) {
       closeLookupModal();
       const msg =
         e instanceof ApiError ? e.message : 'Lookup failed. Try again.';
       setLookupMessage(msg);
+      if (options?.fromScan) {
+        setLookupInput('');
+      }
     } finally {
       setLookupPending(false);
     }
@@ -410,7 +419,11 @@ export default function CheckInScreen() {
           registration number, or family submission code.
         </Text>
         <Pressable
-          onPress={() => setScannerOpen(true)}
+          onPress={() => {
+            setLookupInput('');
+            setLookupMessage(null);
+            setScannerOpen(true);
+          }}
           style={({ pressed }) => [
             styles.scanBtn,
             pressed && { opacity: 0.92 },
@@ -458,7 +471,7 @@ export default function CheckInScreen() {
       <CheckInQrScanner
         visible={scannerOpen}
         onClose={() => setScannerOpen(false)}
-        onScan={(text) => void runLookup(text)}
+        onScan={(text) => void runLookup(text, { fromScan: true })}
       />
 
       {deskSettings.badgePrintingEnabled && deskSettings.autoPrintOnCheckIn ? (

@@ -2,6 +2,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   Modal,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -20,29 +21,65 @@ type Props = {
 export function CheckInQrScanner({ visible, onClose, onScan }: Props) {
   const insets = useSafeAreaInsets();
   const [permission, requestPermission] = useCameraPermissions();
-  const scannedRef = useRef(false);
+  const [scanLocked, setScanLocked] = useState(false);
+  const pendingScanRef = useRef<string | null>(null);
+  const scanDeliveredRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!visible) {
-      scannedRef.current = false;
+      setScanLocked(false);
       setError(null);
       return;
     }
+    pendingScanRef.current = null;
+    scanDeliveredRef.current = false;
     if (!permission?.granted) {
       void requestPermission();
     }
   }, [visible, permission?.granted, requestPermission]);
 
-  function handleBarcode(data: string) {
-    if (scannedRef.current) return;
-    scannedRef.current = true;
+  function flushPendingScan() {
+    if (scanDeliveredRef.current) return;
+    const data = pendingScanRef.current;
+    if (!data) return;
+    scanDeliveredRef.current = true;
+    pendingScanRef.current = null;
     onScan(data);
+  }
+
+  function handleBarcode(data: string) {
+    if (scanLocked) return;
+    setScanLocked(true);
+    pendingScanRef.current = data;
+    onClose();
+    // iOS only presents one modal at a time — wait until this one dismisses before lookup.
+    if (Platform.OS !== 'ios') {
+      flushPendingScan();
+      return;
+    }
+    // Rare devices may not fire onDismiss; ensure lookup still runs.
+    setTimeout(() => {
+      flushPendingScan();
+    }, 500);
+  }
+
+  function handleDismiss() {
+    flushPendingScan();
+  }
+
+  function handleCancel() {
+    pendingScanRef.current = null;
     onClose();
   }
 
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle="fullScreen">
+    <Modal
+      visible={visible}
+      animationType="slide"
+      presentationStyle="fullScreen"
+      onDismiss={handleDismiss}
+    >
       <View style={[styles.wrap, { paddingTop: insets.top + 12 }]}>
         <View style={styles.header}>
           <Text style={styles.title}>Scan check-in QR code</Text>
@@ -75,14 +112,16 @@ export function CheckInQrScanner({ visible, onClose, onScan }: Props) {
               style={StyleSheet.absoluteFill}
               facing="back"
               barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
-              onBarcodeScanned={({ data }) => handleBarcode(data)}
+              onBarcodeScanned={
+                scanLocked ? undefined : ({ data }) => handleBarcode(data)
+              }
             />
             <View style={styles.reticle} pointerEvents="none" />
           </View>
         )}
 
         <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 16) }]}>
-          <SecondaryButton label="Cancel" onPress={onClose} />
+          <SecondaryButton label="Cancel" onPress={handleCancel} />
         </View>
       </View>
     </Modal>
