@@ -153,7 +153,14 @@ export function AutoAssignPanel({
 
       {!summary.classroomsEnabled ? (
         <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-950 dark:text-amber-100">
-          Classes are disabled for this event. Enable classes on the season to use auto-assignment.
+          Class auto-assignment is disabled for this event.{" "}
+          <Link
+            href={`/seasons/${seasonId}/class-settings`}
+            className="font-semibold underline"
+          >
+            Enable it in class settings
+          </Link>{" "}
+          to run the simulation and apply placements.
         </div>
       ) : null}
 

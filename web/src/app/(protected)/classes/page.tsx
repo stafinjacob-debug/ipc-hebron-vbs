@@ -45,7 +45,7 @@ export default async function ClassesPage({
 
   const seasons = await prisma.vbsSeason.findMany({
     orderBy: [{ year: "desc" }, { startDate: "desc" }],
-    select: { id: true, name: true, year: true, isActive: true },
+    select: { id: true, name: true, year: true, isActive: true, classroomsEnabled: true },
   });
 
   if (seasons.length === 0) {
@@ -145,9 +145,20 @@ export default async function ClassesPage({
             Classes
           </h1>
           <p className="mt-1 text-muted">
-            Age-based groups, capacity, leaders, and rosters per VBS season. New registrations are
-            placed automatically when classes are configured.
+            Age-based groups, capacity, leaders, and rosters per event. Auto-assignment runs when
+            enabled in class settings and rules are configured.
           </p>
+          {!seasonMeta.classroomsEnabled && canManage ? (
+            <p className="mt-2 text-sm text-amber-800 dark:text-amber-200">
+              Class auto-assignment is off for this event.{" "}
+              <Link
+                href={`/seasons/${seasonMeta.id}/class-settings`}
+                className="font-medium underline"
+              >
+                Enable in class settings
+              </Link>
+            </p>
+          ) : null}
         </div>
         <div className="flex flex-wrap gap-2">
           {canManage ? (
@@ -163,6 +174,12 @@ export default async function ClassesPage({
                 className="rounded-lg border border-foreground/20 px-3 py-2 text-sm font-medium hover:bg-foreground/[0.04]"
               >
                 Assignment rules
+              </Link>
+              <Link
+                href={`/seasons/${seasonMeta.id}/class-settings`}
+                className="rounded-lg border border-foreground/20 px-3 py-2 text-sm font-medium hover:bg-foreground/[0.04]"
+              >
+                Class settings
               </Link>
               <Link
                 href={`/classes/new?season=${seasonMeta.id}`}

@@ -52,6 +52,7 @@ export default async function SeasonsPage() {
                 <>
                   <th className="px-4 py-3 font-medium">Registration form</th>
                   <th className="px-4 py-3 font-medium">Public form</th>
+                  <th className="px-4 py-3 font-medium">Classes</th>
                   <th className="px-4 py-3 font-medium">Check-in</th>
                   <th className="px-4 py-3 font-medium">Badges</th>
                 </>
@@ -102,6 +103,14 @@ export default async function SeasonsPage() {
                         className="text-sm font-medium text-foreground/90 underline hover:no-underline"
                       >
                         Settings
+                      </Link>
+                    </td>
+                    <td className="px-4 py-3">
+                      <Link
+                        href={`/seasons/${s.id}/class-settings`}
+                        className="text-sm font-medium text-foreground/90 underline hover:no-underline"
+                      >
+                        {s.classroomsEnabled ? "Enabled" : "Disabled"}
                       </Link>
                     </td>
                     <td className="px-4 py-3">

@@ -67,7 +67,8 @@ export async function createProgramAction(
     return { ok: false, message: "That public URL slug is already in use." };
   }
 
-  const classroomsEnabled = programKind === "VBS";
+  const classroomsEnabled =
+    programKind === "VBS" || programKind === "SPORTS" || programKind === "YOUTH";
   const checkInEnabled = programKind === "VBS";
   const badgesEnabled = programKind === "VBS";
 
