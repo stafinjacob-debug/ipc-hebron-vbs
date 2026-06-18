@@ -71,6 +71,9 @@ export async function listOpenPublicRegistrationSummaries(): Promise<OpenPublicR
       theme: s.theme ?? null,
       minimumParticipantAgeYears: form.minimumParticipantAgeYears,
       maximumParticipantAgeYears: form.maximumParticipantAgeYears,
+      participantAgeAsOfDateIso: s.participantAgeAsOfDate
+        ? calendarDateFromDate(s.participantAgeAsOfDate)
+        : null,
       registrationClosesAtIso: form.registrationClosesAt?.toISOString() ?? null,
       statusBadge,
       registrationCount,

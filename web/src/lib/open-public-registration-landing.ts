@@ -4,10 +4,10 @@
  */
 
 import {
-  formatVbsParticipantAgeAsOfLabel,
-  VBS_PARTICIPANT_MAX_YEARS,
-  VBS_PARTICIPANT_MIN_YEARS,
-} from "@/lib/vbs-participant-age-gate";
+  formatParticipantAgeAsOfLabel,
+  resolveParticipantAgeRules,
+} from "@/lib/participant-age-gate";
+import { parseCalendarDateInput } from "@/lib/season-calendar-date";
 
 /** Visual status for the public landing card (UX scan). */
 export type PublicRegistrationCardBadge = "open" | "closing_soon" | "waitlist" | "full";
@@ -28,6 +28,8 @@ export type OpenPublicRegistrationSummary = {
   theme: string | null;
   minimumParticipantAgeYears: number | null;
   maximumParticipantAgeYears: number | null;
+  /** Season-level age cutoff; empty uses event start date. */
+  participantAgeAsOfDateIso: string | null;
   registrationClosesAtIso: string | null;
   statusBadge: PublicRegistrationCardBadge;
   registrationCount: number;
@@ -38,6 +40,16 @@ export type OpenPublicRegistrationSummary = {
   publicRegistrationSlug: string | null;
 };
 
-export function formatAgeRangeForCard(_summary: OpenPublicRegistrationSummary): string | null {
-  return `Ages ${VBS_PARTICIPANT_MIN_YEARS}–${VBS_PARTICIPANT_MAX_YEARS} (as of ${formatVbsParticipantAgeAsOfLabel()})`;
+export function formatAgeRangeForCard(summary: OpenPublicRegistrationSummary): string | null {
+  const seasonStart = parseCalendarDateInput(summary.startDateIso);
+  const participantAsOf = summary.participantAgeAsOfDateIso
+    ? parseCalendarDateInput(summary.participantAgeAsOfDateIso)
+    : null;
+  const rules = resolveParticipantAgeRules({
+    minimumParticipantAgeYears: summary.minimumParticipantAgeYears,
+    maximumParticipantAgeYears: summary.maximumParticipantAgeYears,
+    participantAgeAsOfDate: participantAsOf,
+    seasonStartDate: seasonStart,
+  });
+  return `Ages ${rules.minimumYears}–${rules.maximumYears} (as of ${formatParticipantAgeAsOfLabel(rules.asOfDate)})`;
 }
