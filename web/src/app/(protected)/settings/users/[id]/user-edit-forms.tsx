@@ -128,7 +128,6 @@ export function UserEditForms(props: {
                 ? formatAppDateTime(new Date(user.lastLoginAt), {
                     dateStyle: "medium",
                     timeStyle: "short",
-                    timeZoneName: undefined,
                   })
                 : "—"}
             </dd>

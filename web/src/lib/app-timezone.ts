@@ -70,16 +70,30 @@ export function formatAppDateTime(
   options?: Intl.DateTimeFormatOptions,
 ): string {
   const d = value instanceof Date ? value : new Date(value);
-  return new Intl.DateTimeFormat("en-US", {
-    timeZone: APP_TIMEZONE,
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-    timeZoneName: "short",
-    ...options,
-  }).format(d);
+  if (Number.isNaN(d.getTime())) return "—";
+
+  const cleaned = options
+    ? (Object.fromEntries(
+        Object.entries(options).filter(([, v]) => v !== undefined),
+      ) as Intl.DateTimeFormatOptions)
+    : {};
+
+  const usesStyle = cleaned.dateStyle != null || cleaned.timeStyle != null;
+
+  const formatOptions: Intl.DateTimeFormatOptions = usesStyle
+    ? { timeZone: APP_TIMEZONE, ...cleaned }
+    : {
+        timeZone: APP_TIMEZONE,
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+        timeZoneName: "short",
+        ...cleaned,
+      };
+
+  return new Intl.DateTimeFormat("en-US", formatOptions).format(d);
 }
 
 /** Format a date (no time) for display in app timezone. */

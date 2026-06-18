@@ -73,7 +73,6 @@ export default async function SettingsAuditLogPage() {
                     {formatAppDateTime(r.createdAt, {
                       dateStyle: "medium",
                       timeStyle: "short",
-                      timeZoneName: undefined,
                     })}
                   </td>
                   <td className="px-4 py-3 font-medium text-foreground">{formatAction(r.action)}</td>
