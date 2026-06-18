@@ -153,6 +153,12 @@ export default async function ClassesPage({
           {canManage ? (
             <>
               <Link
+                href={`/classes/auto-assign?season=${seasonMeta.id}`}
+                className="rounded-lg border border-foreground/20 px-3 py-2 text-sm font-medium hover:bg-foreground/[0.04]"
+              >
+                Simulate auto-assign
+              </Link>
+              <Link
                 href={`/classes/assignment-rules?season=${seasonMeta.id}`}
                 className="rounded-lg border border-foreground/20 px-3 py-2 text-sm font-medium hover:bg-foreground/[0.04]"
               >

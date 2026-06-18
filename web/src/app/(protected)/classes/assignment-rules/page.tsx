@@ -129,7 +129,11 @@ export default async function AssignmentRulesPage({
         <p className="mt-1 text-muted">
           Birth-date ranges (e.g. Sept 2, 2012 – Aug 1, 2013) work on their own for auto-placement.
           Age bands apply when no birth-date range is set. Round-robin groups link sections so
-          auto-assignment rotates between them. Form-field rules are on each class’s edit page.
+          auto-assignment rotates between them. Form-field rules are on each class’s edit page.{" "}
+          <Link href={`/classes/auto-assign?season=${season.id}`} className="font-medium text-brand underline">
+            Simulate &amp; approve assignments
+          </Link>{" "}
+          for unassigned registrations.
         </p>
       </div>
 

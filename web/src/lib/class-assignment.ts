@@ -88,16 +88,61 @@ export function classroomMatchesEligibility(
   return { matches: true, matchedAge };
 }
 
-async function pickFromRoundRobinGroup(
+export type SeatedCounter = {
+  getSeated(classroomId: string): Promise<number>;
+};
+
+export function createVirtualSeatedCounter(initialCounts: Map<string, number>): {
+  counter: SeatedCounter;
+  /** Increment seated count after a simulated seat assignment (not waitlist-only). */
+  recordAssignment: (classroomId: string, effectiveStatus: RegistrationStatus) => void;
+} {
+  const counts = new Map(initialCounts);
+  return {
+    counter: {
+      getSeated: async (classroomId) => counts.get(classroomId) ?? 0,
+    },
+    recordAssignment(classroomId, effectiveStatus) {
+      if (!SEAT_COUNT_STATUSES.includes(effectiveStatus)) return;
+      counts.set(classroomId, (counts.get(classroomId) ?? 0) + 1);
+    },
+  };
+}
+
+export async function buildInitialSeatedCounts(
+  db: PrismaClient | Prisma.TransactionClient,
+  seasonId: string,
+  classroomIds: string[],
+): Promise<Map<string, number>> {
+  const map = new Map<string, number>();
+  await Promise.all(
+    classroomIds.map(async (id) => {
+      map.set(id, await countSeatedRegistrations(db, id));
+    }),
+  );
+  return map;
+}
+
+function createTxSeatedCounter(
   tx: Prisma.TransactionClient,
+  excludeRegistrationId?: string,
+): SeatedCounter {
+  return {
+    getSeated: (classroomId) =>
+      countSeatedRegistrations(tx, classroomId, excludeRegistrationId),
+  };
+}
+
+async function pickFromRoundRobinGroup(
   candidates: ClassroomForAutoAssign[],
   currentStatus: RegistrationStatus,
   matchedAge: number | null,
+  seatedCounter: SeatedCounter,
 ): Promise<AutoAssignResult | null> {
   const withSeats = await Promise.all(
     candidates.map(async (c) => ({
       c,
-      seated: await countSeatedRegistrations(tx, c.id),
+      seated: await seatedCounter.getSeated(c.id),
     })),
   );
 
@@ -144,6 +189,9 @@ export async function resolveAutoClassAssignment(
     classrooms: ClassroomForAutoAssign[];
     /** Merged per-child form answers (custom + standard keys like childFirstName). */
     childFieldContext: Record<string, string | boolean | number | null>;
+    /** Override seated counts (simulation). Defaults to live DB counts in `tx`. */
+    seatedCounter?: SeatedCounter;
+    excludeRegistrationId?: string;
   },
 ): Promise<AutoAssignResult> {
   const {
@@ -153,7 +201,12 @@ export async function resolveAutoClassAssignment(
     currentStatus,
     classrooms,
     childFieldContext,
+    seatedCounter,
+    excludeRegistrationId,
   } = params;
+
+  const counter =
+    seatedCounter ?? createTxSeatedCounter(tx, excludeRegistrationId);
 
   const sorted = [...classrooms].sort(
     (a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id),
@@ -203,10 +256,10 @@ export async function resolveAutoClassAssignment(
 
   for (const [, members] of sortedGroups) {
     const result = await pickFromRoundRobinGroup(
-      tx,
       members.map((m) => m.classroom),
       currentStatus,
       members[0]?.matchedAge ?? lastMatchedAge,
+      counter,
     );
     if (result?.classroomId) return result;
     if (result) return result;

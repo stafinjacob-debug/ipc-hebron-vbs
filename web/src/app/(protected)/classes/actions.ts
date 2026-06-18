@@ -505,3 +505,72 @@ export async function reassignRegistrationClassroomAction(
     hints: hints.length ? hints : undefined,
   };
 }
+
+export type AutoAssignSimulateState = {
+  ok: boolean;
+  message: string;
+  summary?: import("@/lib/auto-assign-simulation").AutoAssignSimulationSummary;
+};
+
+export async function simulateAutoAssignAction(seasonId: string): Promise<AutoAssignSimulateState> {
+  const session = await auth();
+  if (!session?.user?.role || !canManageDirectory(session.user.role)) {
+    return { ok: false, message: "You do not have permission to simulate class assignments." };
+  }
+
+  const { simulateAutoAssignForSeason } = await import("@/lib/auto-assign-simulation");
+  const summary = await simulateAutoAssignForSeason(seasonId);
+  if (!summary) return { ok: false, message: "Season not found." };
+
+  return {
+    ok: true,
+    message: `Simulation complete: ${summary.assignable} assignable, ${summary.noMatch} unmatched, ${summary.alreadyAssigned} already assigned.`,
+    summary,
+  };
+}
+
+export type AutoAssignApplyState = {
+  ok: boolean;
+  message: string;
+  applied?: number;
+  skipped?: number;
+  details?: string[];
+};
+
+export async function applyAutoAssignBatchAction(
+  seasonId: string,
+  registrationIds: string[],
+): Promise<AutoAssignApplyState> {
+  const session = await auth();
+  if (!session?.user?.role || !canManageDirectory(session.user.role)) {
+    return { ok: false, message: "You do not have permission to apply class assignments." };
+  }
+  if (!session.user.id) {
+    return { ok: false, message: "Session invalid." };
+  }
+
+  const { applyAutoAssignBatch } = await import("@/lib/auto-assign-simulation");
+  const result = await applyAutoAssignBatch(seasonId, registrationIds, session.user.id);
+
+  revalidatePath("/classes");
+  revalidatePath("/classes/auto-assign");
+  revalidatePath("/registrations");
+  revalidatePath(`/classes/assignment-rules?season=${seasonId}`);
+
+  const message =
+    result.applied > 0
+      ? `Applied auto-assignment to ${result.applied} registration${result.applied === 1 ? "" : "s"}.`
+      : "No assignments were applied.";
+  const suffix =
+    result.skipped > 0
+      ? ` ${result.skipped} skipped (no matching class or already assigned).`
+      : "";
+
+  return {
+    ok: result.applied > 0 || result.skipped === 0,
+    message: message + suffix,
+    applied: result.applied,
+    skipped: result.skipped,
+    details: result.messages.length ? result.messages : undefined,
+  };
+}
