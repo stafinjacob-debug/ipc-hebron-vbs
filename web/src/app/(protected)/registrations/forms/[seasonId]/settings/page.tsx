@@ -1,6 +1,7 @@
 import { auth } from "@/auth";
 import { ensureRegistrationFormForSeason } from "@/lib/ensure-registration-form";
 import { createDefaultFormDefinition, fieldsForAudience, parseFormDefinitionJson } from "@/lib/registration-form-definition";
+import { calendarDateFromDate } from "@/lib/season-calendar-date";
 import {
   listLookupEmailFieldOptions,
   listLookupPhoneFieldOptions,
@@ -105,6 +106,8 @@ export default async function RegistrationFormSettingsPage({
           publicRegistrationOpen: season.publicRegistrationOpen,
           minimumParticipantAgeYears: form.minimumParticipantAgeYears,
           maximumParticipantAgeYears: form.maximumParticipantAgeYears,
+          participantAgeAsOfDate: season.participantAgeAsOfDate,
+          seasonStartDateIso: calendarDateFromDate(season.startDate),
           registrationNumberPrefix: form.registrationNumberPrefix,
           registrationNumberSeqDigits: form.registrationNumberSeqDigits,
           registrationNumberLastSeq: form.registrationNumberNextSeq,

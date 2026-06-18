@@ -21,6 +21,7 @@ import { buildPublicSignupUrl } from "@/lib/portal-public-path";
 import { clampRegistrationBackgroundDimmingPercent } from "@/lib/registration-background-scrim";
 import { parsePublicRegistrationLayout } from "@/lib/public-registration-layout";
 import { rulesFromDb } from "@/lib/public-registration";
+import { calendarDateFromDate } from "@/lib/season-calendar-date";
 import { persistSubmissionFormEntries } from "@/lib/persist-submission-form-entries";
 import { syncSubmissionPaymentExpectation } from "@/lib/sync-submission-payment-expectation";
 import { parseRegistrantEditForm } from "@/lib/registrant-edit-form";
@@ -198,6 +199,7 @@ export async function updateRegistrationFormSettings(
     publicRegistrationOpen: boolean;
     minimumParticipantAgeYears: number | null;
     maximumParticipantAgeYears: number | null;
+    participantAgeAsOfDate: Date | null;
     registrationNumberPrefix: string | null;
     registrationNumberSeqDigits: number;
     stripeCheckoutEnabled: boolean;
@@ -347,7 +349,10 @@ export async function updateRegistrationFormSettings(
   await prisma.$transaction([
     prisma.vbsSeason.update({
       where: { id: seasonId },
-      data: { publicRegistrationOpen: data.publicRegistrationOpen },
+      data: {
+        publicRegistrationOpen: data.publicRegistrationOpen,
+        participantAgeAsOfDate: data.participantAgeAsOfDate,
+      },
     }),
     prisma.publicRegistrationSettings.upsert({
       where: { seasonId },
@@ -868,6 +873,8 @@ export type FormWorkspacePayload = {
     showOnPublicLanding: boolean;
     minimumParticipantAgeYears: number | null;
     maximumParticipantAgeYears: number | null;
+    participantAgeAsOfDate: string | null;
+    seasonStartDateIso: string;
     registrationNumberPrefix: string | null;
     registrationNumberSeqDigits: number;
     registrationNumberLastSeq: number;
@@ -1036,6 +1043,10 @@ export async function loadFormWorkspacePayload(
         showOnPublicLanding: season.showOnPublicLanding,
         minimumParticipantAgeYears: form.minimumParticipantAgeYears,
         maximumParticipantAgeYears: form.maximumParticipantAgeYears,
+        participantAgeAsOfDate: season.participantAgeAsOfDate
+          ? calendarDateFromDate(season.participantAgeAsOfDate)
+          : null,
+        seasonStartDateIso: calendarDateFromDate(season.startDate),
         registrationNumberPrefix: form.registrationNumberPrefix,
         registrationNumberSeqDigits: form.registrationNumberSeqDigits,
         registrationNumberLastSeq: form.registrationNumberNextSeq,

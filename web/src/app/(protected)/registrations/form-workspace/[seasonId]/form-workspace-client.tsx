@@ -5,6 +5,7 @@ import { Check, Copy, ExternalLink, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { parseCalendarDateInput } from "@/lib/season-calendar-date";
 import { AdminFormPreview } from "../../forms/[seasonId]/preview/form-preview";
 import { FormDefinitionEditor } from "../../forms/[seasonId]/edit/form-definition-editor";
 import { FormSettingsForm } from "../../forms/[seasonId]/settings/form-settings-form";
@@ -20,6 +21,9 @@ function parseSettingsInitial(s: SettingsInitialSerialized) {
     ...s,
     registrationOpensAt: s.registrationOpensAt ? new Date(s.registrationOpensAt) : null,
     registrationClosesAt: s.registrationClosesAt ? new Date(s.registrationClosesAt) : null,
+    participantAgeAsOfDate: s.participantAgeAsOfDate
+      ? parseCalendarDateInput(s.participantAgeAsOfDate)
+      : null,
   };
 }
 

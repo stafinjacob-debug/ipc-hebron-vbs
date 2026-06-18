@@ -4,7 +4,11 @@ import { Plus, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 import {
-  formatVbsParticipantAgeAsOfLabel,
+  formatCalendarDateInputValue,
+  formatCalendarDateLong,
+  parseCalendarDateInput,
+} from "@/lib/season-calendar-date";
+import {
   VBS_PARTICIPANT_MAX_YEARS,
   VBS_PARTICIPANT_MIN_YEARS,
 } from "@/lib/vbs-participant-age-gate";
@@ -63,6 +67,9 @@ export function FormSettingsForm({
     publicRegistrationOpen: boolean;
     minimumParticipantAgeYears: number | null;
     maximumParticipantAgeYears: number | null;
+    /** When null, public registration uses the event start date. */
+    participantAgeAsOfDate: Date | null;
+    seasonStartDateIso: string;
     registrationNumberPrefix: string | null;
     registrationNumberSeqDigits: number;
     registrationNumberLastSeq: number;
@@ -189,6 +196,9 @@ export function FormSettingsForm({
             ? Math.min(99, maxParsed)
             : null;
 
+        const ageAsOfRaw = String(fd.get("participantAgeAsOfDate") ?? "").trim();
+        const participantAgeAsOfDate = ageAsOfRaw ? parseCalendarDateInput(ageAsOfRaw) : null;
+
         const regPrefixRaw = String(fd.get("registrationNumberPrefix") ?? "").trim();
         const registrationNumberPrefix = regPrefixRaw.length > 0 ? regPrefixRaw : null;
         const seqDigRaw = String(fd.get("registrationNumberSeqDigits") ?? "").trim();
@@ -253,6 +263,11 @@ export function FormSettingsForm({
           return;
         }
 
+        if (ageAsOfRaw && !participantAgeAsOfDate) {
+          bumpMsg("Age “as of” date must be a valid calendar date (YYYY-MM-DD).");
+          return;
+        }
+
         setMsg(null);
         startTransition(async () => {
           const r = await updateRegistrationFormSettings(seasonId, {
@@ -267,6 +282,7 @@ export function FormSettingsForm({
             publicRegistrationOpen,
             minimumParticipantAgeYears,
             maximumParticipantAgeYears,
+            participantAgeAsOfDate,
             registrationNumberPrefix,
             registrationNumberSeqDigits,
             stripeCheckoutEnabled,
@@ -1002,7 +1018,7 @@ export function FormSettingsForm({
               htmlFor="minimumParticipantAgeYears"
               className="block text-xs font-medium text-foreground/70"
             >
-              Minimum child age (optional)
+              Minimum participant age (optional)
             </label>
             <input
               id="minimumParticipantAgeYears"
@@ -1010,7 +1026,7 @@ export function FormSettingsForm({
               type="number"
               min={1}
               max={99}
-              placeholder="No minimum"
+              placeholder={`Default ${VBS_PARTICIPANT_MIN_YEARS}`}
               defaultValue={initial.minimumParticipantAgeYears ?? ""}
               className="mt-1 w-full rounded-md border border-foreground/15 bg-background px-3 py-2 text-sm"
             />
@@ -1020,7 +1036,7 @@ export function FormSettingsForm({
               htmlFor="maximumParticipantAgeYears"
               className="block text-xs font-medium text-foreground/70"
             >
-              Maximum child age (optional)
+              Maximum participant age (optional)
             </label>
             <input
               id="maximumParticipantAgeYears"
@@ -1028,16 +1044,36 @@ export function FormSettingsForm({
               type="number"
               min={1}
               max={99}
-              placeholder="No maximum"
+              placeholder={`Default ${VBS_PARTICIPANT_MAX_YEARS}`}
               defaultValue={initial.maximumParticipantAgeYears ?? ""}
               className="mt-1 w-full rounded-md border border-foreground/15 bg-background px-3 py-2 text-sm"
             />
           </div>
         </div>
+        <div>
+          <label htmlFor="participantAgeAsOfDate" className="block text-xs font-medium text-foreground/70">
+            Age counted as of (optional)
+          </label>
+          <input
+            id="participantAgeAsOfDate"
+            name="participantAgeAsOfDate"
+            type="date"
+            defaultValue={
+              initial.participantAgeAsOfDate
+                ? formatCalendarDateInputValue(initial.participantAgeAsOfDate)
+                : ""
+            }
+            className="mt-1 w-full max-w-xs rounded-md border border-foreground/15 bg-background px-3 py-2 text-sm"
+          />
+          <p className="mt-1 text-xs text-foreground/60">
+            Shown on the public form as the date used to calculate age (whole years). Leave blank to
+            use the event start date (
+            {formatCalendarDateLong(initial.seasonStartDateIso)}).
+          </p>
+        </div>
         <p className="text-xs text-foreground/60">
-          Public registration enforces ages {VBS_PARTICIPANT_MIN_YEARS}–{VBS_PARTICIPANT_MAX_YEARS} as of{" "}
-          {formatVbsParticipantAgeAsOfLabel()} (whole years). The numbers above are saved with the form for reference;
-          leave either empty if you do not use them elsewhere.
+          Public registration enforces the min/max ages above, or defaults to {VBS_PARTICIPANT_MIN_YEARS}–
+          {VBS_PARTICIPANT_MAX_YEARS} when left empty.
         </p>
         <label className="flex items-center gap-2 text-sm">
           <input

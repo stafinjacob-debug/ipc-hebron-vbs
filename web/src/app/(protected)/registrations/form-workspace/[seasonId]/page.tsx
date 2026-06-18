@@ -18,6 +18,7 @@ import { prisma } from "@/lib/prisma";
 import { parsePublicRegistrationLayout } from "@/lib/public-registration-layout";
 import { clampRegistrationBackgroundDimmingPercent } from "@/lib/registration-background-scrim";
 import { rulesFromDb } from "@/lib/public-registration";
+import { calendarDateFromDate } from "@/lib/season-calendar-date";
 import { parseWaiverMergeFieldKeysFromDb, parseWaiverSupplementalDefsFromDb } from "@/lib/waiver-merge-fields";
 import { canManageDirectory, canViewOperations, canSeeMainNavLink } from "@/lib/roles";
 import { notFound, redirect } from "next/navigation";
@@ -149,6 +150,10 @@ export default async function RegistrationFormWorkspacePage({
           showOnPublicLanding: season.showOnPublicLanding,
           minimumParticipantAgeYears: form.minimumParticipantAgeYears,
           maximumParticipantAgeYears: form.maximumParticipantAgeYears,
+          participantAgeAsOfDate: season.participantAgeAsOfDate
+            ? calendarDateFromDate(season.participantAgeAsOfDate)
+            : null,
+          seasonStartDateIso: calendarDateFromDate(season.startDate),
           registrationNumberPrefix: form.registrationNumberPrefix,
           registrationNumberSeqDigits: form.registrationNumberSeqDigits,
           registrationNumberLastSeq: form.registrationNumberNextSeq,
