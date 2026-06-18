@@ -16,9 +16,11 @@ import { useAuth } from '@/lib/auth-context';
 import {
   canUseCheckInDesk,
   isAdminLikeRole,
+  isSuperAdmin,
   isTeacherRole,
   roleLabel,
 } from '@/lib/roles';
+import type { CampDateOption } from '@/lib/badge-print';
 
 type ClassSummary = {
   classId: string;
@@ -34,7 +36,9 @@ type Dashboard = {
   attendance: {
     campDate: string;
     campDateLabel: string;
+    todayCampDate?: string;
     multiDayCheckInEnabled: boolean;
+    campDates?: CampDateOption[];
   } | null;
   kpis: {
     checkedIn: number;
@@ -59,21 +63,27 @@ export default function HomeScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const admin = isAdminLikeRole(user?.role);
+  const superAdmin = isSuperAdmin(user?.role);
   const teacher = isTeacherRole(user?.role);
   const checkInDesk = canUseCheckInDesk(user?.role);
+  const [campDate, setCampDate] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!token || !seasonId) return;
     try {
+      const query = campDate ? `?campDate=${encodeURIComponent(campDate)}` : '';
       const res = await apiFetch<Dashboard>(
-        `/api/mobile/v1/seasons/${seasonId}/dashboard`,
+        `/api/mobile/v1/seasons/${seasonId}/dashboard${query}`,
         { token },
       );
       setData(res);
+      if (!campDate && res.attendance?.campDate) {
+        setCampDate(res.attendance.campDate);
+      }
     } catch {
       setData(null);
     }
-  }, [token, seasonId]);
+  }, [token, seasonId, campDate]);
 
   useEffect(() => {
     let cancelled = false;
@@ -95,6 +105,9 @@ export default function HomeScreen() {
 
   const firstName = user?.name?.split(/\s+/)[0] ?? 'there';
   const dayLabel = data?.attendance?.campDateLabel ?? 'Today';
+  const campDates = data?.attendance?.campDates ?? [];
+  const selectedDay = campDates.find((d) => d.key === campDate);
+  const isHistorical = Boolean(selectedDay?.isPast);
   const primaryClass =
     data?.classSummaries.length === 1 ? data.classSummaries[0]! : null;
 
@@ -121,6 +134,46 @@ export default function HomeScreen() {
           <Text style={styles.badgeText}>{roleLabel(user?.role)}</Text>
         </View>
       </View>
+
+      {superAdmin && campDates.length > 0 ? (
+        <View style={styles.datePicker}>
+          <Text style={styles.datePickerLabel}>Check-in date</Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.dateChipRow}
+          >
+            {campDates.map((day) => {
+              const selected = campDate === day.key;
+              return (
+                <Pressable
+                  key={day.key}
+                  onPress={() => setCampDate(day.key)}
+                  style={[
+                    styles.dateChip,
+                    selected && styles.dateChipOn,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.dateChipText,
+                      selected && styles.dateChipTextOn,
+                    ]}
+                  >
+                    {day.label}
+                    {day.isToday ? ' · Today' : day.isPast ? ' · Past' : ''}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+          {isHistorical ? (
+            <Text style={styles.datePickerHint}>
+              Viewing a past camp day — totals are read-only.
+            </Text>
+          ) : null}
+        </View>
+      ) : null}
 
       {loading ? (
         <ActivityIndicator size="large" color={palette.accent} />
@@ -159,7 +212,11 @@ export default function HomeScreen() {
           {data.classSummaries.length > 0 ? (
             <>
               <SectionTitle>
-                {data.classSummaries.length === 1 ? 'Your class' : 'Classes today'}
+                {data.classSummaries.length === 1
+                  ? 'Your class'
+                  : isHistorical
+                    ? 'Classes that day'
+                    : 'Classes today'}
               </SectionTitle>
               {data.classSummaries.map((c) => (
                 <Pressable
@@ -303,6 +360,33 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   badgeText: { fontSize: 12, fontWeight: '700', color: palette.accent },
+  datePicker: { marginBottom: 16 },
+  datePickerLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: palette.textSecondary,
+    marginBottom: 8,
+  },
+  dateChipRow: { gap: 8, paddingRight: 4 },
+  dateChip: {
+    borderRadius: 999,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: palette.border,
+    backgroundColor: palette.surface,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  dateChipOn: {
+    backgroundColor: palette.accent,
+    borderColor: palette.accent,
+  },
+  dateChipText: { fontSize: 14, fontWeight: '600', color: palette.text },
+  dateChipTextOn: { color: '#fff' },
+  datePickerHint: {
+    fontSize: 13,
+    color: palette.textSecondary,
+    marginTop: 8,
+  },
   kpiRow: { flexDirection: 'row', gap: 10, marginBottom: 10 },
   kpiRowLast: { marginBottom: 24 },
   kpiRowSecondary: { flexDirection: 'row', gap: 10, marginBottom: 24 },

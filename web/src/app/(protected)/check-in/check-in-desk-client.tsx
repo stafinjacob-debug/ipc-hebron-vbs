@@ -30,6 +30,8 @@ type Props = {
   undoPinRequired: boolean;
   campDates: CampDateOption[];
   selectedCampDate: string;
+  /** Super admins may browse past camp days (read-only). */
+  allowPastCampDates?: boolean;
 };
 
 export function CheckInDeskClient({
@@ -41,11 +43,13 @@ export function CheckInDeskClient({
   undoPinRequired,
   campDates,
   selectedCampDate,
+  allowPastCampDates = false,
 }: Props) {
   const router = useRouter();
   const campDate = selectedCampDate;
   const selectedDay = campDates.find((d) => d.key === campDate);
-  const campDateLocked = Boolean(selectedDay?.isPast);
+  const isPastDay = Boolean(selectedDay?.isPast);
+  const checkInDisabled = isPastDay;
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [lookupQuery, setLookupQuery] = useState("");
@@ -219,7 +223,8 @@ export function CheckInDeskClient({
 
   return (
     <div className="space-y-4">
-      {multiDayCheckInEnabled && campDates.length > 0 ? (
+      {multiDayCheckInEnabled || allowPastCampDates ? (
+        campDates.length > 0 ? (
         <div className="rounded-xl border border-foreground/10 bg-surface-elevated p-4 shadow-sm">
           <label className="block text-sm">
             <span className="font-semibold text-foreground">Camp day</span>
@@ -231,7 +236,11 @@ export function CheckInDeskClient({
               className="mt-2 w-full rounded-lg border border-foreground/15 bg-background px-3 py-2 text-sm sm:max-w-sm"
             >
               {campDates.map((day) => (
-                <option key={day.key} value={day.key} disabled={day.isPast}>
+                <option
+                  key={day.key}
+                  value={day.key}
+                  disabled={day.isPast && !allowPastCampDates}
+                >
                   {day.label}
                   {day.isToday ? " (today)" : ""}
                   {day.isPast ? " (past)" : ""}
@@ -239,12 +248,17 @@ export function CheckInDeskClient({
               ))}
             </select>
           </label>
-          {campDateLocked ? (
+          {isPastDay && allowPastCampDates ? (
+            <p className="mt-2 text-sm text-muted">
+              Viewing a past camp day — check-in counts are read-only for super admins.
+            </p>
+          ) : isPastDay ? (
             <p className="mt-2 text-sm text-amber-700 dark:text-amber-300">
               Past camp days are read-only. Switch to today to check students in or out.
             </p>
           ) : null}
         </div>
+        ) : null
       ) : null}
 
       <div className="rounded-xl border border-foreground/10 bg-surface-elevated p-4 shadow-sm">
@@ -306,7 +320,7 @@ export function CheckInDeskClient({
         matches={lookupMatches}
         pendingId={pendingId}
         badgePrintingEnabled={badgePrintingEnabled}
-        checkInDisabled={campDateLocked}
+        checkInDisabled={checkInDisabled}
         onClose={closeLookupModal}
         onCheckIn={handleCheckInFromModal}
         onSelectMatch={(match) => setSelectedMatchId(match.id)}
@@ -382,7 +396,7 @@ export function CheckInDeskClient({
                           ) : null}
                           <button
                             type="button"
-                            disabled={isPending || campDateLocked}
+                            disabled={isPending || checkInDisabled}
                             onClick={() => handleToggle(row)}
                             className={
                               row.checkedIn

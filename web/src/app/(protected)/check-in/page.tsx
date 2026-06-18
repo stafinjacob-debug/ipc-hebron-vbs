@@ -124,6 +124,7 @@ export default async function CheckInPage({ searchParams }: Props) {
           undoPinRequired={Boolean(activeSeason.checkInUndoPin)}
           campDates={attendanceContext.campDates}
           selectedCampDate={attendanceContext.defaultCampDate}
+          allowPastCampDates={session.user.role === "SUPER_ADMIN"}
           rows={registrations.map((r) => ({
             id: r.id,
             studentName: `${r.child.firstName} ${r.child.lastName}`,

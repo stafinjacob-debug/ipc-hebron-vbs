@@ -11,6 +11,7 @@ export {
   isStaffRole,
   canUseCheckInActions,
 } from "@/lib/permissions";
+export { isSuperAdmin } from "@/lib/permissions";
 
 export function canManageDirectory(role: UserRole): boolean {
   return canManageDirectoryPerm(role);

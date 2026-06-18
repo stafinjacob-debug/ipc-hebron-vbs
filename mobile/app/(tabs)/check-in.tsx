@@ -27,9 +27,11 @@ import {
   type CheckInDeskSettings,
 } from '@/lib/badge-print';
 import { useAuth } from '@/lib/auth-context';
+import { isSuperAdmin } from '@/lib/roles';
 
 export default function CheckInScreen() {
-  const { token, seasonId } = useAuth();
+  const { token, seasonId, user } = useAuth();
+  const allowPastCampDates = isSuperAdmin(user?.role);
 
   const [mode, setMode] = useState<'arrivals' | 'dismissal'>('arrivals');
   const [lookupInput, setLookupInput] = useState('');
@@ -316,7 +318,7 @@ export default function CheckInScreen() {
 
   function renderCampDayChip(day: CampDateOption) {
     const selected = campDate === day.key;
-    const disabled = day.isPast;
+    const disabled = day.isPast && !allowPastCampDates;
     return (
       <Pressable
         key={day.key}
@@ -350,18 +352,24 @@ export default function CheckInScreen() {
         </View>
       ) : null}
       <Text style={styles.screenTitle}>Check-in desk</Text>
-      {deskSettings.multiDayCheckInEnabled && deskSettings.campDates.length > 0 ? (
+      {deskSettings.multiDayCheckInEnabled || allowPastCampDates ? (
+        deskSettings.campDates.length > 0 ? (
         <View style={styles.dayPicker}>
           <Text style={styles.dayPickerLabel}>Camp day</Text>
           <View style={styles.dayChipRow}>
             {deskSettings.campDates.map((day) => renderCampDayChip(day))}
           </View>
-          {campDateLocked ? (
+          {campDateLocked && allowPastCampDates ? (
+            <Text style={styles.dayPickerHint}>
+              Viewing a past camp day — check-in is read-only.
+            </Text>
+          ) : campDateLocked ? (
             <Text style={styles.dayPickerHint}>
               Past camp days cannot be changed. Select today to check students in or out.
             </Text>
           ) : null}
         </View>
+        ) : null
       ) : null}
 
       <View style={styles.panel}>

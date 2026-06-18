@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { loadSeasonAttendanceContext, resolveCheckedInMap } from "@/lib/attendance";
-import { campDateKeyToUtcDate } from "@/lib/camp-date";
+import { campDateKeyToUtcDate, campDateLocalBounds } from "@/lib/camp-date";
 import { teacherClassroomWhere } from "@/lib/mobile-class-roster";
 import {
   assertSeasonAccess,
@@ -135,6 +135,26 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       className: d.registration.classroom?.name ?? null,
       checkedInAt: d.checkedInAt?.toISOString() ?? null,
     }));
+  } else if (campDate) {
+    const { start, end } = campDateLocalBounds(campDate);
+    const recent = await prisma.registration.findMany({
+      where: {
+        ...regScope,
+        checkedInAt: { gte: start, lte: end },
+      },
+      orderBy: { checkedInAt: "desc" },
+      take: 8,
+      include: {
+        child: { select: { firstName: true, lastName: true } },
+        classroom: { select: { name: true } },
+      },
+    });
+    recentCheckIns = recent.map((r) => ({
+      registrationId: r.id,
+      studentName: `${r.child.firstName} ${r.child.lastName}`,
+      className: r.classroom?.name ?? null,
+      checkedInAt: r.checkedInAt?.toISOString() ?? null,
+    }));
   } else {
     const recent = await prisma.registration.findMany({
       where: { ...regScope, checkedInAt: { not: null } },
@@ -169,6 +189,8 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
           campDates: attendanceContext.campDates.map((d) => ({
             key: d.key,
             label: d.label,
+            isPast: d.isPast,
+            isToday: d.isToday,
           })),
         }
       : null,

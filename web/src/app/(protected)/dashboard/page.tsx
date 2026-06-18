@@ -5,7 +5,7 @@ import { getDashboardSnapshot } from "@/lib/dashboard-data";
 import type { EventPhase } from "@/lib/event-phase";
 import { getPublicBaseUrl } from "@/lib/public-base-url";
 import { buildPublicSignupUrl, getPortalPublicPath } from "@/lib/portal-public-path";
-import { canManageDirectory, canSeeMainNavLink, canViewOperations } from "@/lib/roles";
+import { canManageDirectory, canSeeMainNavLink, canViewOperations, isSuperAdmin } from "@/lib/roles";
 import {
   AlertTriangle,
   ArrowRight,
@@ -21,6 +21,7 @@ import {
   Users,
 } from "lucide-react";
 import Link from "next/link";
+import { DashboardCampDatePicker } from "./dashboard-camp-date-picker";
 
 function formatRange(start: Date, end: Date) {
   const o = { month: "short" as const, day: "numeric" as const };
@@ -206,15 +207,33 @@ function headerCtas(
   return out.filter((item) => item.external || canSeeMainNavLink(role, item.href));
 }
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ campDate?: string }>;
+}) {
   const session = await auth();
   if (!session?.user) return null;
 
+  const sp = await searchParams;
+  const superAdmin = isSuperAdmin(session.user.role);
   const ops = canViewOperations(session.user.role);
   const manage = canManageDirectory(session.user.role);
   const showCheckIn = canSeeMainNavLink(session.user.role, "/check-in");
   const showContent = canSeeMainNavLink(session.user.role, "/content/announcements");
-  const data = ops ? await getDashboardSnapshot() : null;
+  const data = ops
+    ? await getDashboardSnapshot({
+        campDate: superAdmin ? sp.campDate : undefined,
+        includeCampDateOptions: superAdmin,
+      })
+    : null;
+  const attendanceLabel = data?.attendanceView?.isHistorical
+    ? data.attendanceView.campDateLabel
+    : "today";
+  const checkInHref =
+    superAdmin && data?.attendanceView?.campDate
+      ? `/check-in?campDate=${encodeURIComponent(data.attendanceView.campDate)}`
+      : "/check-in";
   const publicBase = ops ? await getPublicBaseUrl() : "";
   const publicSignupUrl = data?.activeSeason
     ? buildPublicSignupUrl(publicBase, data.activeSeason)
@@ -306,7 +325,7 @@ export default async function DashboardPage() {
                             {" "}
                             ·{" "}
                             <span className="text-emerald-700 dark:text-emerald-300">
-                              {data.kpis.checkedInToday} checked in today
+                              {data.kpis.checkedInToday} checked in {attendanceLabel}
                             </span>
                           </>
                         )}
@@ -367,21 +386,35 @@ export default async function DashboardPage() {
             </div>
           </header>
 
-          {data.eventPhase === "live" && showCheckIn && (
+          {superAdmin && data.attendanceView && data.attendanceView.campDates.length > 0 ? (
+            <DashboardCampDatePicker
+              campDates={data.attendanceView.campDates}
+              selectedCampDate={data.attendanceView.campDate}
+            />
+          ) : null}
+
+          {((data.eventPhase === "live" && showCheckIn) ||
+            (superAdmin && data.attendanceView?.isHistorical && showCheckIn)) && (
             <section aria-labelledby="live-ops-heading" className="space-y-3">
-              <SectionTitle id="live-ops-heading">Today&apos;s operations — live board</SectionTitle>
+              <SectionTitle id="live-ops-heading">
+                {data.attendanceView?.isHistorical
+                  ? `${data.attendanceView.campDateLabel} — attendance review`
+                  : "Today's operations — live board"}
+              </SectionTitle>
               <div className="grid gap-4 lg:grid-cols-12">
                 <div className="rounded-xl border-2 border-brand/35 bg-gradient-to-b from-brand-muted/40 to-surface-elevated p-5 shadow-md dark:from-brand-muted/15 lg:col-span-4">
                   <p className="text-[10px] font-bold uppercase tracking-wider text-brand">Right now</p>
                   <p className="mt-2 text-4xl font-bold tabular-nums text-foreground">{data.kpis.checkedInToday}</p>
-                  <p className="text-sm font-medium text-muted">Checked in today</p>
+                  <p className="text-sm font-medium text-muted">
+                    Checked in {attendanceLabel}
+                  </p>
                   <p className="mt-4 text-2xl font-bold tabular-nums text-foreground">{data.kpis.awaitingCheckIn}</p>
                   <p className="text-xs text-muted">Still awaiting check-in (active enrollments)</p>
                   <Link
-                    href="/check-in"
+                    href={checkInHref}
                     className="mt-5 inline-flex w-full items-center justify-center rounded-lg bg-brand py-2.5 text-sm font-semibold text-brand-foreground hover:opacity-90"
                   >
-                    Open check-in desk
+                    {data.attendanceView?.isHistorical ? "View check-in desk" : "Open check-in desk"}
                   </Link>
                   <p className="mt-4 border-t border-foreground/10 pt-3 text-xs text-muted">
                     Print thermal badges from check-in or a registration page. Pickup &amp; check-out tracking is still
@@ -389,9 +422,13 @@ export default async function DashboardPage() {
                   </p>
                 </div>
                 <div className="rounded-xl border border-foreground/10 bg-surface-elevated p-5 shadow-sm lg:col-span-8">
-                  <h3 className="text-sm font-semibold text-foreground">Today&apos;s attendance by class</h3>
+                  <h3 className="text-sm font-semibold text-foreground">
+                    {data.attendanceView?.isHistorical ? "Attendance by class" : "Today's attendance by class"}
+                  </h3>
                   <p className="mt-0.5 text-xs text-muted">
-                    Share of enrolled students checked in today (updates as you use check-in).
+                    {data.attendanceView?.isHistorical
+                      ? `Students checked in on ${data.attendanceView.campDateLabel}.`
+                      : "Share of enrolled students checked in today (updates as you use check-in)."}
                   </p>
                   {data.classAttendanceToday.length === 0 ? (
                     <PanelEmpty
@@ -487,13 +524,13 @@ export default async function DashboardPage() {
               {showCheckIn ? (
                 <KpiCard
                   icon={ClipboardCheck}
-                  label="Check-in today"
+                  label={data.attendanceView?.isHistorical ? "Checked in" : "Check-in today"}
                   value={data.kpis.checkedInToday}
                   sub={`${data.kpis.awaitingCheckIn} awaiting check-in`}
-                  href="/check-in"
+                  href={checkInHref}
                   actionLabel="Open attendance"
                   tone="success"
-                  emphasis={data.eventPhase === "live" ? "hero" : "default"}
+                  emphasis={data.eventPhase === "live" && !data.attendanceView?.isHistorical ? "hero" : "default"}
                 />
               ) : null}
               <KpiCard

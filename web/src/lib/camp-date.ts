@@ -38,6 +38,16 @@ export function isTodayCampDate(key: string, now = new Date()): boolean {
   return key === localTodayCampDateKey(now);
 }
 
+/** Local start/end of a camp calendar day (YYYY-MM-DD). */
+export function campDateLocalBounds(key: string): { start: Date; end: Date } {
+  const [y, m, d] = key.split("-").map(Number);
+  if (!y || !m || !d) throw new Error(`Invalid camp date: ${key}`);
+  return {
+    start: new Date(y, m - 1, d, 0, 0, 0, 0),
+    end: new Date(y, m - 1, d, 23, 59, 59, 999),
+  };
+}
+
 export function listCampDateKeys(startDate: Date, endDate: Date): string[] {
   const startKey = normalizeCalendarDateInput(startDate);
   const endKey = normalizeCalendarDateInput(endDate);

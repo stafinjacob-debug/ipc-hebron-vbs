@@ -131,3 +131,7 @@ export function canManageSeasonAnnouncements(role: UserRole): boolean {
     role === "CONTENT_MANAGER"
   );
 }
+
+export function isSuperAdmin(role: UserRole | string): boolean {
+  return normalizeStaffRole(role) === "SUPER_ADMIN";
+}

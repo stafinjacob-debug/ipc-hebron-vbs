@@ -32,6 +32,10 @@ export function isAdminLikeRole(role: AppRole | undefined): boolean {
   );
 }
 
+export function isSuperAdmin(role: AppRole | undefined): boolean {
+  return role === 'SUPER_ADMIN';
+}
+
 /** Matches server `canManageSeasonAnnouncements` (includes content managers). */
 export function canManageAnnouncements(role: AppRole | undefined): boolean {
   if (!role) return false;

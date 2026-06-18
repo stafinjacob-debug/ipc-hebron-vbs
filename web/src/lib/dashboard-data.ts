@@ -1,4 +1,6 @@
 import { SEAT_COUNT_STATUSES } from "@/lib/class-assignment";
+import { countCheckInsForCampDate, loadSeasonAttendanceContext } from "@/lib/attendance";
+import { isTodayCampDate, type CampDateOption } from "@/lib/camp-date";
 import { getEventContext, type EventPhase } from "@/lib/event-phase";
 import { prisma } from "@/lib/prisma";
 
@@ -84,15 +86,30 @@ export type DashboardSnapshot = {
     name: string;
     enrolled: number;
   }>;
+  /** When set, check-in KPIs reflect this camp day (super-admin historical view). */
+  attendanceView: {
+    campDate: string;
+    campDateLabel: string;
+    isToday: boolean;
+    isHistorical: boolean;
+    campDates: CampDateOption[];
+  } | null;
 };
 
-export async function getDashboardSnapshot(): Promise<DashboardSnapshot> {
+export async function getDashboardSnapshot(options?: {
+  campDate?: string | null;
+  includeCampDateOptions?: boolean;
+}): Promise<DashboardSnapshot> {
   const activeSeason = await prisma.vbsSeason.findFirst({
     where: { isActive: true },
     orderBy: [{ year: "desc" }, { startDate: "desc" }],
   });
 
   const seasonId = activeSeason?.id ?? null;
+  const attendanceContext = seasonId
+    ? await loadSeasonAttendanceContext(seasonId, options?.campDate)
+    : null;
+  const selectedCampDate = attendanceContext?.defaultCampDate ?? null;
   const dayStart = startOfLocalDay();
   const dayEnd = endOfLocalDay();
   const weekAgo = new Date();
@@ -103,7 +120,6 @@ export async function getDashboardSnapshot(): Promise<DashboardSnapshot> {
     registrationTotal,
     registrationsThisWeek,
     studentProfilesCount,
-    checkedInToday,
     pendingAssignments,
     awaitingCheckIn,
     classroomsWithCounts,
@@ -126,20 +142,8 @@ export async function getDashboardSnapshot(): Promise<DashboardSnapshot> {
       ? prisma.registration.count({
           where: {
             seasonId,
-            checkedInAt: { gte: dayStart, lte: dayEnd },
-          },
-        })
-      : prisma.registration.count({
-          where: {
-            checkedInAt: { gte: dayStart, lte: dayEnd },
-          },
-        }),
-    seasonId
-      ? prisma.registration.count({
-          where: {
-            seasonId,
-            classroomId: null,
             status: { in: [...activeRegStatuses] },
+            classroomId: null,
           },
         })
       : prisma.registration.count({
@@ -269,42 +273,38 @@ export async function getDashboardSnapshot(): Promise<DashboardSnapshot> {
 
   capacityAlerts.sort((a, b) => b.pct - a.pct);
 
-  const groupCheckIns = seasonId
-    ? await prisma.registration.groupBy({
-        by: ["classroomId"],
-        where: {
-          seasonId,
-          checkedInAt: { gte: dayStart, lte: dayEnd },
-          classroomId: { not: null },
-        },
-        _count: { _all: true },
-      })
-    : await prisma.registration.groupBy({
-        by: ["classroomId"],
-        where: {
-          checkedInAt: { gte: dayStart, lte: dayEnd },
-          classroomId: { not: null },
-        },
-        _count: { _all: true },
-      });
+  let checkedInToday = 0;
+  let checkInByClassId = new Map<string, number>();
 
-  const classIds = groupCheckIns
-    .map((g) => g.classroomId)
-    .filter((id): id is string => id != null);
-  const classNames =
-    classIds.length > 0
-      ? await prisma.classroom.findMany({
-          where: { id: { in: classIds } },
-          select: { id: true, name: true },
-        })
-      : [];
-  const nameById = new Map(classNames.map((c) => [c.id, c.name]));
+  if (seasonId && selectedCampDate) {
+    const checkInStats = await countCheckInsForCampDate(
+      seasonId,
+      selectedCampDate,
+      activeSeason!.multiDayCheckInEnabled,
+    );
+    checkedInToday = checkInStats.total;
+    checkInByClassId = checkInStats.byClassId;
+  } else if (seasonId) {
+    const legacy = await prisma.registration.groupBy({
+      by: ["classroomId"],
+      where: {
+        seasonId,
+        checkedInAt: { gte: dayStart, lte: dayEnd },
+        classroomId: { not: null },
+      },
+      _count: { _all: true },
+    });
+    for (const g of legacy) {
+      if (g.classroomId) checkInByClassId.set(g.classroomId, g._count._all);
+    }
+    checkedInToday = [...checkInByClassId.values()].reduce((a, b) => a + b, 0);
+  }
 
-  const topCheckInClassesToday = groupCheckIns
-    .map((g) => ({
-      classroomId: g.classroomId!,
-      name: nameById.get(g.classroomId!) ?? "Class",
-      count: g._count._all,
+  const topCheckInClassesToday = [...checkInByClassId.entries()]
+    .map(([classroomId, count]) => ({
+      classroomId,
+      name: classroomsWithCounts.find((c) => c.id === classroomId)?.name ?? "Class",
+      count,
     }))
     .sort((a, b) => b.count - a.count)
     .slice(0, 5);
@@ -317,19 +317,15 @@ export async function getDashboardSnapshot(): Promise<DashboardSnapshot> {
 
   const totalSeatCapacity = classroomsWithCounts.reduce((sum, c) => sum + c.capacity, 0);
 
-  const checkInByClassId = new Map(
-    groupCheckIns.map((g) => [g.classroomId as string, g._count._all]),
-  );
-
   const classAttendanceToday = classroomsWithCounts.map((c) => {
     const enrolled = c._count.registrations;
-    const checkedInToday = checkInByClassId.get(c.id) ?? 0;
-    const pctCheckedIn = enrolled > 0 ? Math.round((checkedInToday / enrolled) * 100) : 0;
+    const checkedInForDay = checkInByClassId.get(c.id) ?? 0;
+    const pctCheckedIn = enrolled > 0 ? Math.round((checkedInForDay / enrolled) * 100) : 0;
     return {
       classroomId: c.id,
       name: c.name,
       enrolled,
-      checkedInToday,
+      checkedInToday: checkedInForDay,
       pctCheckedIn,
     };
   });
@@ -341,6 +337,29 @@ export async function getDashboardSnapshot(): Promise<DashboardSnapshot> {
   const classAttendanceSorted = [...classAttendanceToday].sort(
     (a, b) => a.pctCheckedIn - b.pctCheckedIn || b.enrolled - a.enrolled,
   );
+
+  const attendanceView =
+    options?.includeCampDateOptions && attendanceContext && selectedCampDate
+      ? {
+          campDate: selectedCampDate,
+          campDateLabel:
+            attendanceContext.campDates.find((d) => d.key === selectedCampDate)?.label ??
+            selectedCampDate,
+          isToday: isTodayCampDate(selectedCampDate),
+          isHistorical: !isTodayCampDate(selectedCampDate),
+          campDates: attendanceContext.campDates,
+        }
+      : attendanceContext && selectedCampDate
+        ? {
+            campDate: selectedCampDate,
+            campDateLabel:
+              attendanceContext.campDates.find((d) => d.key === selectedCampDate)?.label ??
+              selectedCampDate,
+            isToday: isTodayCampDate(selectedCampDate),
+            isHistorical: !isTodayCampDate(selectedCampDate),
+            campDates: [] as CampDateOption[],
+          }
+        : null;
 
   return {
     activeSeason,
@@ -380,5 +399,6 @@ export async function getDashboardSnapshot(): Promise<DashboardSnapshot> {
     totalSeatCapacity,
     classAttendanceToday: classAttendanceSorted.slice(0, 12),
     classesNoCheckInToday: classesNoCheckInToday.slice(0, 8),
+    attendanceView,
   };
 }

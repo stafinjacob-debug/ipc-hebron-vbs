@@ -7,6 +7,7 @@ import {
 } from "@/lib/check-in-block";
 import {
   campDateKeyToUtcDate,
+  campDateLocalBounds,
   isPastCampDate,
   isTodayCampDate,
   localTodayCampDateKey,
@@ -63,12 +64,15 @@ export async function resolveCheckedInMap(
   if (registrationIds.length === 0) return out;
 
   if (!multiDayEnabled) {
+    const { start, end } = campDateLocalBounds(campDateKey);
     const rows = await prisma.registration.findMany({
       where: { id: { in: registrationIds } },
       select: { id: true, checkedInAt: true },
     });
     for (const row of rows) {
-      out.set(row.id, Boolean(row.checkedInAt));
+      const at = row.checkedInAt;
+      const onDay = Boolean(at && at >= start && at <= end);
+      out.set(row.id, onDay);
     }
     return out;
   }
@@ -275,6 +279,50 @@ export async function setRegistrationAttendance(input: {
   }
 
   return { ok: true, checkedIn: false, checkedInAt: null };
+}
+
+/** Count students who checked in on a camp day, grouped by classroom. */
+export async function countCheckInsForCampDate(
+  seasonId: string,
+  campDateKey: string,
+  multiDayEnabled: boolean,
+): Promise<{ total: number; byClassId: Map<string, number> }> {
+  const byClassId = new Map<string, number>();
+
+  if (multiDayEnabled) {
+    const campDate = campDateKeyToUtcDate(campDateKey);
+    const days = await prisma.registrationAttendanceDay.findMany({
+      where: {
+        campDate,
+        checkedInAt: { not: null },
+        registration: { seasonId, status: { not: "CANCELLED" } },
+      },
+      select: {
+        registration: { select: { classroomId: true } },
+      },
+    });
+    for (const day of days) {
+      const classId = day.registration.classroomId;
+      if (!classId) continue;
+      byClassId.set(classId, (byClassId.get(classId) ?? 0) + 1);
+    }
+    return { total: days.length, byClassId };
+  }
+
+  const { start, end } = campDateLocalBounds(campDateKey);
+  const rows = await prisma.registration.findMany({
+    where: {
+      seasonId,
+      status: { not: "CANCELLED" },
+      checkedInAt: { gte: start, lte: end },
+    },
+    select: { classroomId: true },
+  });
+  for (const row of rows) {
+    if (!row.classroomId) continue;
+    byClassId.set(row.classroomId, (byClassId.get(row.classroomId) ?? 0) + 1);
+  }
+  return { total: rows.length, byClassId };
 }
 
 export type AttendanceExportRow = {
