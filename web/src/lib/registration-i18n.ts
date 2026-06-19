@@ -8,6 +8,7 @@ import {
   DEFAULT_WAIVER_TITLE_ES,
   type WaiverDisplayContent,
 } from "@/lib/default-waiver-content";
+import { formatCalendarDateLong } from "@/lib/season-calendar-date";
 
 export type RegistrationLocale = "en" | "es";
 
@@ -463,11 +464,7 @@ export function translateServerMessage(locale: RegistrationLocale, message: stri
 }
 
 export function formatRegistrationDate(asOfDate: Date, locale: RegistrationLocale): string {
-  return asOfDate.toLocaleDateString(locale === "es" ? "es-US" : "en-US", {
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-  });
+  return formatCalendarDateLong(asOfDate, locale === "es" ? "es-US" : "en-US");
 }
 
 function normalizeWaiverText(s: string): string {

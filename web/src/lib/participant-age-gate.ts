@@ -1,9 +1,29 @@
-import { childAgeYearsOnDate } from "@/lib/class-assignment-shared";
+import {
+  formatCalendarDateLong,
+  parseCalendarDateInput,
+} from "@/lib/season-calendar-date";
 import {
   getVbsParticipantAgeAsOfDate,
   VBS_PARTICIPANT_MAX_YEARS,
   VBS_PARTICIPANT_MIN_YEARS,
 } from "@/lib/vbs-participant-age-gate";
+
+/** Parse a YYYY-MM-DD participant DOB or age-cutoff date (UTC calendar date). */
+export function parseParticipantCalendarDate(ymd: string): Date {
+  const d = parseCalendarDateInput(ymd);
+  if (!d) throw new Error("Invalid date");
+  return d;
+}
+
+/** Whole years between calendar dates stored at UTC midnight. */
+export function participantAgeYearsOnDate(dob: Date, asOfDate: Date): number {
+  let age = asOfDate.getUTCFullYear() - dob.getUTCFullYear();
+  const m = asOfDate.getUTCMonth() - dob.getUTCMonth();
+  if (m < 0 || (m === 0 && asOfDate.getUTCDate() < dob.getUTCDate())) {
+    age -= 1;
+  }
+  return age;
+}
 
 export type ParticipantAgeRules = {
   minimumYears: number;
@@ -43,15 +63,8 @@ export function resolveParticipantAgeRules(input: {
 }
 
 export function formatParticipantAgeAsOfLabel(asOfDate: Date, locale?: string | string[]): string {
-  return asOfDate.toLocaleDateString(locale ?? "en-US", {
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-  });
-}
-
-export function participantAgeYearsOnDate(dob: Date, asOfDate: Date): number {
-  return childAgeYearsOnDate(dob, asOfDate);
+  const loc = Array.isArray(locale) ? locale[0] : locale;
+  return formatCalendarDateLong(asOfDate, loc ?? "en-US");
 }
 
 export function validateParticipantAge(
