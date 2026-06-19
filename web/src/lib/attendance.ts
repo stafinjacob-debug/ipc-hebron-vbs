@@ -295,6 +295,7 @@ export async function countCheckInsForCampDate(
       where: {
         campDate,
         checkedInAt: { not: null },
+        checkedOutAt: null,
         registration: { seasonId, status: { not: "CANCELLED" } },
       },
       select: {
