@@ -17,6 +17,26 @@ const nextConfig: NextConfig = {
       bodySizeLimit: "12mb",
     },
   },
+  async rewrites() {
+    return [
+      { source: "/basketball", destination: "/register/basketball" },
+      { source: "/basketball/:path*", destination: "/register/basketball/:path*" },
+    ];
+  },
+  async redirects() {
+    return [
+      {
+        source: "/register/basketball-summer-camp-2026",
+        destination: "/basketball",
+        permanent: true,
+      },
+      {
+        source: "/register/basketball-summer-camp-2026/:path*",
+        destination: "/basketball/:path*",
+        permanent: true,
+      },
+    ];
+  },
 };
 
 export default nextConfig;

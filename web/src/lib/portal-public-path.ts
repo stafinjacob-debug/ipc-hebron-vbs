@@ -1,7 +1,16 @@
+/** Optional short public paths for share links (slug → path without /register). */
+const PORTAL_SHORT_PATHS: Record<string, string> = {
+  basketball: "/basketball",
+};
+
 /** Resolve the public signup base path for a program portal. */
 export function getPortalPublicPath(season: { publicRegistrationSlug: string | null | undefined }): string {
   const slug = season.publicRegistrationSlug?.trim();
-  if (slug) return `/register/${encodeURIComponent(slug)}`;
+  if (slug) {
+    const short = PORTAL_SHORT_PATHS[slug];
+    if (short) return short;
+    return `/register/${encodeURIComponent(slug)}`;
+  }
   return "/register";
 }
 

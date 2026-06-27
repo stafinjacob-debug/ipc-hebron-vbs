@@ -28,7 +28,8 @@ if (existsSync(resolve(webRoot, ".env.local"))) {
 
 const SEASON_NAME = "Basketball Summer Camp for Boys & Girls";
 const SEASON_YEAR = 2026;
-const SLUG = "basketball-summer-camp-2026";
+const SLUG = "basketball";
+const LEGACY_SLUG = "basketball-summer-camp-2026";
 const START_DATE = "2026-07-28";
 const END_DATE = "2026-07-30";
 const CLASS_CAPACITY = 15;
@@ -192,12 +193,27 @@ async function main() {
 
   try {
     const existing = await prisma.vbsSeason.findFirst({
-      where: { publicRegistrationSlug: SLUG },
-      select: { id: true, name: true },
+      where: {
+        OR: [
+          { publicRegistrationSlug: SLUG },
+          { publicRegistrationSlug: LEGACY_SLUG },
+          { name: SEASON_NAME },
+        ],
+      },
+      select: { id: true, name: true, publicRegistrationSlug: true },
     });
     if (existing) {
+      if (existing.publicRegistrationSlug !== SLUG) {
+        if (!dryRun) {
+          await prisma.vbsSeason.update({
+            where: { id: existing.id },
+            data: { publicRegistrationSlug: SLUG },
+          });
+        }
+        console.log(`Updated slug: ${existing.publicRegistrationSlug ?? "(none)"} → ${SLUG}`);
+      }
       console.log(`Season already exists: ${existing.name} [${existing.id}]`);
-      console.log(`Public URL: /register/${SLUG}`);
+      console.log(`Public URL: /basketball`);
       return;
     }
 
@@ -214,7 +230,7 @@ async function main() {
     if (dryRun) {
       console.log("Would create:");
       console.log(`  Season: ${SEASON_NAME} (${SEASON_YEAR})`);
-      console.log(`  Slug: ${SLUG}`);
+      console.log(`  Slug: ${SLUG} (public URL /basketball)`);
       console.log(`  Dates: ${START_DATE} – ${END_DATE}`);
       console.log(`  Classes: Boys (${CLASS_CAPACITY}), Girls (${CLASS_CAPACITY})`);
       console.log(`  Fee: $${FEE_CENTS / 100} per player`);
@@ -318,7 +334,7 @@ async function main() {
     });
 
     console.log(`Created season: ${SEASON_NAME} [${season.id}]`);
-    console.log(`Public registration: /register/${SLUG}`);
+    console.log(`Public registration: /basketball`);
     console.log(`Classes: Boys (${CLASS_CAPACITY}), Girls (${CLASS_CAPACITY}) — registration closes when full`);
     if (!openRegistration) {
       console.log("\nRegistration is closed. Re-run with --open or enable it in admin when ready.");
