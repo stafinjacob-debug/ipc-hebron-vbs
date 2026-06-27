@@ -519,6 +519,7 @@ export async function saveRegistrantSubmissionAction(
         childId: reg.childId,
         priorCustom,
         parsed,
+        seasonStartDate: reg.season.startDate,
       }),
     );
     if (!persistResult.ok) return { ok: false, message: persistResult.message };
@@ -584,6 +585,7 @@ export async function saveRegistrantSubmissionAction(
         childId: r.childId,
         customResponses: r.customResponses,
       })),
+      seasonStartDate: submission.season.startDate,
     }),
   );
   if (!persistResult.ok) return { ok: false, message: persistResult.message };

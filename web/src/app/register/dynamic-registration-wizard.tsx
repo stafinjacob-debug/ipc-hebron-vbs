@@ -28,7 +28,7 @@ import {
 import type { PortalBranding } from "@/lib/portal-branding";
 import type { WaiverSupplementalFieldDef } from "@/lib/waiver-merge-fields";
 import type { FormDefinitionV1, FormFieldDef, FormSectionDef } from "@/lib/registration-form-definition";
-import { RESERVED_CHILD_KEYS, sectionHasFillableFields, sortSections } from "@/lib/registration-form-definition";
+import { RESERVED_CHILD_KEYS, sectionHasFillableFields, sortSections, formIncludesChildDateOfBirth } from "@/lib/registration-form-definition";
 import { formatPhoneInput, phoneDigits } from "@/lib/phone-format";
 import {
   computeProcessingGrossUp,
@@ -1045,7 +1045,8 @@ function DynamicRegistrationWizardInner({
       setClassPlacementChecking(false);
       return;
     }
-    if (childrenPlacementPayload.some((c) => !c.childDateOfBirth.trim())) {
+    const formCollectsDob = def ? formIncludesChildDateOfBirth(def) : true;
+    if (formCollectsDob && childrenPlacementPayload.some((c) => !c.childDateOfBirth.trim())) {
       setClassPlacementMessage(null);
       setClassPlacementChecking(false);
       return;
@@ -1066,7 +1067,7 @@ function DynamicRegistrationWizardInner({
     return () => {
       cancelled = true;
     };
-  }, [step, reviewStepIndex, classPlacementCheckEnabled, seasonId, childrenPlacementPayload]);
+  }, [step, reviewStepIndex, classPlacementCheckEnabled, seasonId, childrenPlacementPayload, def]);
 
   useEffect(() => {
     if (!def) return;

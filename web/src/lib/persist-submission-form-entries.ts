@@ -1,5 +1,5 @@
 import type { Prisma } from "@/generated/prisma";
-import { parseLocalDate } from "@/lib/schemas/vbs-registration";
+import { resolveParticipantDateOfBirth } from "@/lib/participant-dob-resolve";
 import type { RegistrantEditParseResult } from "@/lib/registrant-edit-form";
 import { syncSubmissionPaymentExpectation } from "@/lib/sync-submission-payment-expectation";
 
@@ -19,6 +19,7 @@ export async function persistSubmissionFormEntries(
     priorGuardianResponses: Record<string, unknown>;
     parsed: ParsedSubmission;
     registrations: RegistrationRow[];
+    seasonStartDate: Date;
   },
 ): Promise<{ ok: true } | { ok: false; message: string }> {
   const childByRegId = new Map(args.parsed.children.map((c) => [c.registrationId, c]));
@@ -51,7 +52,11 @@ export async function persistSubmissionFormEntries(
     for (const reg of args.registrations) {
       const child = childByRegId.get(reg.id);
       if (!child) continue;
-      const childDob = parseLocalDate(child.childDateOfBirth);
+      const childDob = resolveParticipantDateOfBirth({
+        childDateOfBirth: child.childDateOfBirth,
+        custom: child.custom,
+        seasonStartDate: args.seasonStartDate,
+      });
       const priorCustom = (reg.customResponses as Record<string, unknown> | null) ?? {};
       await tx.registration.update({
         where: { id: reg.id },
@@ -84,6 +89,7 @@ export async function persistSingleRegistrationFormEntries(
     childId: string;
     priorCustom: Record<string, unknown>;
     parsed: ParsedSubmission;
+    seasonStartDate: Date;
   },
 ): Promise<{ ok: true } | { ok: false; message: string }> {
   const child = args.parsed.children[0];
@@ -92,7 +98,11 @@ export async function persistSingleRegistrationFormEntries(
   }
 
   try {
-    const childDob = parseLocalDate(child.childDateOfBirth);
+    const childDob = resolveParticipantDateOfBirth({
+      childDateOfBirth: child.childDateOfBirth,
+      custom: child.custom,
+      seasonStartDate: args.seasonStartDate,
+    });
     await tx.guardian.update({
       where: { id: args.guardianId },
       data: {

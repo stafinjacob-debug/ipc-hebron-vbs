@@ -5,6 +5,7 @@ import {
   fetchClassroomsForAutoAssign,
   resolveAutoClassAssignment,
 } from "@/lib/class-assignment";
+import { resolveParticipantDateOfBirth } from "@/lib/participant-dob-resolve";
 import type { ClassPlacementChildInput, ClassPlacementPreviewRow } from "@/lib/class-placement-gate";
 import { parseLocalDate } from "@/lib/schemas/vbs-registration";
 
@@ -69,7 +70,13 @@ export async function previewClassPlacementForChildren(
     const child = params.children[i]!;
     let dob: Date;
     try {
-      dob = parseLocalDate(child.childDateOfBirth);
+      dob = child.childDateOfBirth.trim()
+        ? parseLocalDate(child.childDateOfBirth)
+        : resolveParticipantDateOfBirth({
+            childDateOfBirth: child.childDateOfBirth,
+            custom: child.custom,
+            seasonStartDate: season.startDate,
+          });
     } catch {
       rows.push({
         index: i,

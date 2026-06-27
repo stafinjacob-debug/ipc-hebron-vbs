@@ -726,6 +726,7 @@ export async function updateSubmissionFormEntries(
         childId: r.childId,
         customResponses: r.customResponses,
       })),
+      seasonStartDate: submission.season.startDate,
     }),
   );
   if (!persistResult.ok) return persistResult;

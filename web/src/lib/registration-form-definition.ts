@@ -372,6 +372,15 @@ export function fieldsForAudience(def: FormDefinitionV1, audience: FormSectionDe
 }
 
 /** Per-child form fields usable for class auto-match (excludes section headers / static blocks). */
+export function formIncludesChildDateOfBirth(def: FormDefinitionV1): boolean {
+  return def.fields.some(
+    (f) =>
+      f.key === "childDateOfBirth" &&
+      f.type !== "sectionHeader" &&
+      f.type !== "staticText",
+  );
+}
+
 export function listChildAssignableFieldOptions(def: FormDefinitionV1): { key: string; label: string }[] {
   const out: { key: string; label: string }[] = [];
   for (const f of fieldsForAudience(def, "eachChild")) {

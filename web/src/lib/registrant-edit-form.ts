@@ -1,4 +1,5 @@
 import type { FormDefinitionV1, FormFieldDef } from "@/lib/registration-form-definition";
+import { formIncludesChildDateOfBirth } from "@/lib/registration-form-definition";
 import type { PublicRegistrationFieldRules } from "@/lib/public-registration";
 import { validateFieldValue } from "@/lib/registration-form-validate";
 
@@ -189,8 +190,18 @@ export function parseRegistrantEditForm(
       }
     }
 
-    if (!ctx.childFirstName?.trim() || !ctx.childLastName?.trim() || !ctx.childDateOfBirth?.trim()) {
-      return { ok: false, message: "Each child needs a name and date of birth." };
+    const requiresDob = formIncludesChildDateOfBirth(def);
+    if (
+      !ctx.childFirstName?.trim() ||
+      !ctx.childLastName?.trim() ||
+      (requiresDob && !ctx.childDateOfBirth?.trim())
+    ) {
+      return {
+        ok: false,
+        message: requiresDob
+          ? "Each child needs a name and date of birth."
+          : "Each child needs a first and last name.",
+      };
     }
 
     parsedChildren.push({

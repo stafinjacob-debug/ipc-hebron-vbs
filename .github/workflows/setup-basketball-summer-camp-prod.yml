@@ -1,0 +1,44 @@
+# Create/configure Basketball Summer Camp registration portal in production.
+name: Setup Basketball Summer Camp (Production)
+
+on:
+  workflow_dispatch:
+    inputs:
+      open_registration:
+        description: Open public registration after setup
+        type: boolean
+        default: true
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install dependencies
+        env:
+          DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
+        run: npm ci
+
+      - name: Create basketball camp season
+        env:
+          DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
+          VBS_HELP_EMAIL: ${{ secrets.VBS_HELP_EMAIL }}
+        run: |
+          ARGS="--database=vbs_production"
+          if [ "${{ inputs.open_registration }}" = "true" ]; then
+            ARGS="$ARGS --open"
+          fi
+          npx tsx scripts/setup-basketball-summer-camp.ts $ARGS

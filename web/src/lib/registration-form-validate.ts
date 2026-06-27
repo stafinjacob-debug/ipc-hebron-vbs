@@ -1,4 +1,5 @@
 import type { FormDefinitionV1, FormFieldDef } from "@/lib/registration-form-definition";
+import { formIncludesChildDateOfBirth } from "@/lib/registration-form-definition";
 
 export type GuardianExtract = {
   guardianFirstName: string;
@@ -397,8 +398,14 @@ export function parseDynamicRegistrationForm(
     });
   }
 
-  if (children.some((c) => !c.childFirstName || !c.childLastName || !c.childDateOfBirth)) {
-    return { ok: false, message: "Each child needs a name and date of birth." };
+  const requiresDob = formIncludesChildDateOfBirth(def);
+  if (children.some((c) => !c.childFirstName || !c.childLastName || (requiresDob && !c.childDateOfBirth))) {
+    return {
+      ok: false,
+      message: requiresDob
+        ? "Each child needs a name and date of birth."
+        : "Each child needs a first and last name.",
+    };
   }
 
   return { ok: true, guardian, children, guardianCustom };

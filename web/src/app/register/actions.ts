@@ -6,8 +6,9 @@ import {
   ensureRegistrationFormForSeason,
   isFormRegistrationOpen,
 } from "@/lib/ensure-registration-form";
-import { parseFormDefinitionJson } from "@/lib/registration-form-definition";
+import { parseFormDefinitionJson, formIncludesChildDateOfBirth } from "@/lib/registration-form-definition";
 import { parseDynamicRegistrationForm } from "@/lib/registration-form-validate";
+import { resolveParticipantDateOfBirth } from "@/lib/participant-dob-resolve";
 import { rulesFromDb } from "@/lib/public-registration";
 import {
   sendSubmissionPendingReviewEmail,
@@ -21,7 +22,6 @@ import {
 import { tryAutoApproveRegistrationsForSubmission } from "@/lib/auto-approve-registration";
 import {
   formatParticipantAgeAsOfLabel,
-  parseParticipantCalendarDate,
   resolveParticipantAgeRules,
   validateParticipantAge,
 } from "@/lib/participant-age-gate";
@@ -257,7 +257,13 @@ async function submitPublicRegistrationCore(
   const dobDates: Date[] = [];
   try {
     for (const c of data.children) {
-      dobDates.push(parseParticipantCalendarDate(c.childDateOfBirth));
+      dobDates.push(
+        resolveParticipantDateOfBirth({
+          childDateOfBirth: c.childDateOfBirth,
+          custom: c.custom,
+          seasonStartDate: season.startDate,
+        }),
+      );
     }
   } catch {
     return {
@@ -274,21 +280,23 @@ async function submitPublicRegistrationCore(
   });
   const participantLabel = "Participant";
 
-  for (let i = 0; i < dobDates.length; i++) {
-    const msg = validateParticipantAge(dobDates[i], ageRules, participantLabel, i);
-    if (msg) {
-      const cutoffLabel = formatParticipantAgeAsOfLabel(ageRules.asOfDate);
-      return {
-        ok: false,
-        message: msg,
-        fieldErrors: {
-          [`childDateOfBirth__${i}`]: [
-            msg.includes("at least")
-              ? `Must be at least ${ageRules.minimumYears} years old as of ${cutoffLabel} (whole years).`
-              : `Must be at most ${ageRules.maximumYears} years old as of ${cutoffLabel} (whole years).`,
-          ],
-        },
-      };
+  if (formIncludesChildDateOfBirth(def)) {
+    for (let i = 0; i < dobDates.length; i++) {
+      const msg = validateParticipantAge(dobDates[i], ageRules, participantLabel, i);
+      if (msg) {
+        const cutoffLabel = formatParticipantAgeAsOfLabel(ageRules.asOfDate);
+        return {
+          ok: false,
+          message: msg,
+          fieldErrors: {
+            [`childDateOfBirth__${i}`]: [
+              msg.includes("at least")
+                ? `Must be at least ${ageRules.minimumYears} years old as of ${cutoffLabel} (whole years).`
+                : `Must be at most ${ageRules.maximumYears} years old as of ${cutoffLabel} (whole years).`,
+            ],
+          },
+        };
+      }
     }
   }
 
