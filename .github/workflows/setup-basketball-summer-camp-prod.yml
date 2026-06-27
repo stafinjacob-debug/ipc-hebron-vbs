@@ -37,8 +37,8 @@ jobs:
           DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
           VBS_HELP_EMAIL: ${{ secrets.VBS_HELP_EMAIL }}
         run: |
-          ARGS="--database=vbs_production"
+          ARGS=""
           if [ "${{ inputs.open_registration }}" = "true" ]; then
-            ARGS="$ARGS --open"
+            ARGS="--open"
           fi
           npx tsx scripts/setup-basketball-summer-camp.ts $ARGS
