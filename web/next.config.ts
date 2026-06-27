@@ -2,13 +2,17 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   output: "standalone",
-  serverExternalPackages: ["@resvg/resvg-js"],
+  serverExternalPackages: ["@resvg/resvg-js", "sharp"],
   outputFileTracingIncludes: {
     "/api/mobile/v1/seasons/*/registrations/*/badge": [
       "./node_modules/dejavu-fonts-ttf/ttf/DejaVuSans.ttf",
       "./node_modules/dejavu-fonts-ttf/ttf/DejaVuSans-Bold.ttf",
       "./public/fonts/badge-print/DejaVuSans.ttf",
       "./public/fonts/badge-print/DejaVuSans-Bold.ttf",
+    ],
+    "/api/register/share-image/[slug]": [
+      "./node_modules/sharp/**/*",
+      "./node_modules/@img/**/*",
     ],
   },
   experimental: {

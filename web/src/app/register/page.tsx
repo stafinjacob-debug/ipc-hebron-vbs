@@ -10,11 +10,12 @@ import { RegisterPortalShell } from "./register-portal-shell";
 export const dynamic = "force-dynamic";
 
 export async function generateMetadata(): Promise<Metadata> {
-  const { branding } = await loadPublicRegistrationPortal({ mode: "legacy" });
+  const { branding, seasons } = await loadPublicRegistrationPortal({ mode: "legacy" });
   const effective = branding.headerLabel ? branding : legacyVbsBranding();
   return buildRegistrationPortalShareMetadata({
     branding: effective,
     shareImageSlug: "legacy",
+    shareBackgroundImageUrl: seasons[0]?.backgroundImageUrl ?? null,
   });
 }
 

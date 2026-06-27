@@ -55,6 +55,18 @@ if (existsSync(resvgRoot)) {
   }
 }
 
+const sharpRoot = join(root, "node_modules", "sharp");
+const standaloneSharpRoot = join(standalone, "node_modules", "sharp");
+if (existsSync(sharpRoot)) {
+  cpSync(sharpRoot, standaloneSharpRoot, { recursive: true });
+}
+
+const imgRoot = join(root, "node_modules", "@img");
+const standaloneImgRoot = join(standalone, "node_modules", "@img");
+if (existsSync(imgRoot)) {
+  cpSync(imgRoot, standaloneImgRoot, { recursive: true });
+}
+
 /** Azure App Service may run Oryx against package.json; avoid npm start → next start (wrong for standalone). */
 const pkgPath = join(standalone, "package.json");
 if (existsSync(pkgPath)) {
