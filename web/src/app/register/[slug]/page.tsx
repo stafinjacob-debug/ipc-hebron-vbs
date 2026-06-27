@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { resolvePublicRegistrationClosedDisplay } from "@/lib/public-registration-closed-display";
 import { loadPublicRegistrationPortal } from "@/lib/load-public-registration-portal";
 import { normalizePortalSlug } from "@/lib/portal-public-path";
+import { buildRegistrationPortalShareMetadata } from "@/lib/portal-share-metadata";
 import { DynamicRegistrationWizard } from "../dynamic-registration-wizard";
 import { RegisterPortalShell } from "../register-portal-shell";
 
@@ -18,15 +19,7 @@ export async function generateMetadata({
   const slug = normalizePortalSlug(raw);
   if (!slug) return { title: "Registration" };
   const { branding } = await loadPublicRegistrationPortal({ mode: "slug", slug });
-  return {
-    title: branding.pageTitle,
-    description: branding.pageDescription,
-    openGraph: {
-      title: branding.pageTitle,
-      description: branding.pageDescription,
-      ...(branding.logoUrl ? { images: [{ url: branding.logoUrl, alt: branding.headerLabel }] } : {}),
-    },
-  };
+  return buildRegistrationPortalShareMetadata({ branding, shareImageSlug: slug });
 }
 
 export default async function PortalRegisterPage({

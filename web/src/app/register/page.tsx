@@ -3,24 +3,20 @@ import type { Metadata } from "next";
 import { resolvePublicRegistrationClosedDisplay } from "@/lib/public-registration-closed-display";
 import { loadPublicRegistrationPortal } from "@/lib/load-public-registration-portal";
 import { legacyVbsBranding } from "@/lib/portal-branding";
+import { buildRegistrationPortalShareMetadata } from "@/lib/portal-share-metadata";
 import { DynamicRegistrationWizard } from "./dynamic-registration-wizard";
 import { RegisterPortalShell } from "./register-portal-shell";
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = {
-  title: "Register for VBS | IPC Hebron",
-  description: "Sign up your children for Vacation Bible School",
-  openGraph: {
-    title: "Register for VBS | IPC Hebron",
-    description: "Sign up your children for Vacation Bible School",
-    images: [{ url: "/vbsthemelogo.webp", alt: "IPC Hebron VBS" }],
-  },
-  twitter: {
-    card: "summary_large_image",
-    images: ["/vbsthemelogo.webp"],
-  },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const { branding } = await loadPublicRegistrationPortal({ mode: "legacy" });
+  const effective = branding.headerLabel ? branding : legacyVbsBranding();
+  return buildRegistrationPortalShareMetadata({
+    branding: effective,
+    shareImageSlug: "legacy",
+  });
+}
 
 export default async function PublicRegisterPage({
   searchParams,
