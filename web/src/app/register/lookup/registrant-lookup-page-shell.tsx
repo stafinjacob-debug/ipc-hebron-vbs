@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { CalendarDays, Clock, Mail } from "lucide-react";
+import { CalendarDays, Clock } from "lucide-react";
+import { RegistrationPublicContactPromo } from "@/components/registration-public-contact-promo";
 import { formatSeasonDateRange } from "@/lib/season-calendar-date";
 import { phoneDigits } from "@/lib/phone-format";
 import { RegistrationBackgroundMedia } from "../registration-background-media";
@@ -22,6 +23,7 @@ export type RegistrantLookupPageDisplay = {
   endDate: string | null;
   sessionTimeDescription: string | null;
   helpContactEmail: string | null;
+  helpContactName: string | null;
   backgroundImageUrl: string | null;
   backgroundVideoUrl: string | null;
   backgroundDimmingPercent: number;
@@ -31,6 +33,7 @@ export type RegistrantLookupPageDisplay = {
 
 export function RegistrantLookupPageShell({ display }: { display: RegistrantLookupPageDisplay }) {
   const effectiveContactEmail = display.helpContactEmail?.trim() || display.contactEmail.trim();
+  const effectiveContactName = display.helpContactName?.trim() || "";
   const title = display.formTitle?.trim() || display.seasonName?.trim() || "Registration lookup";
   const registerHref = display.registerPath ?? "/register";
   const dateRange =
@@ -97,17 +100,10 @@ export function RegistrantLookupPageShell({ display }: { display: RegistrantLook
                   "View or update your registration. We’ll verify your identity with a code sent to the email on file."}
               </p>
 
-              {effectiveContactEmail ? (
-                <p className="mx-auto mt-2 inline-flex items-center gap-1.5 text-xs font-semibold text-cyan-100/95">
-                  <Mail className="size-3.5 shrink-0" aria-hidden />
-                  <a
-                    href={`mailto:${effectiveContactEmail}`}
-                    className="underline decoration-cyan-100/50 underline-offset-2"
-                  >
-                    {effectiveContactEmail}
-                  </a>
-                </p>
-              ) : null}
+              <RegistrationPublicContactPromo
+                contactName={effectiveContactName}
+                contactEmail={effectiveContactEmail}
+              />
 
               <h2 className="mt-6 text-lg font-semibold text-white">Find your registration</h2>
             </div>

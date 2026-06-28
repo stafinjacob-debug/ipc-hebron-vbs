@@ -12,6 +12,7 @@ import {
   Mail,
   Search,
   Sparkles,
+  UserRound,
   Users,
 } from "lucide-react";
 import {
@@ -177,11 +178,21 @@ function EventCard({
             <div className="flex-1" />
           )}
 
-          {season.helpContactEmail ? (
-            <p className="mt-3 inline-flex items-center gap-1.5 text-xs font-medium text-stone-500">
-              <Mail className="size-3.5 shrink-0" aria-hidden />
-              <span className="truncate">{season.helpContactEmail}</span>
-            </p>
+          {(season.helpContactName || season.helpContactEmail) ? (
+            <div className="mt-3 space-y-1">
+              {season.helpContactName ? (
+                <p className="inline-flex items-center gap-1.5 text-sm font-semibold text-stone-700">
+                  <UserRound className="size-3.5 shrink-0" aria-hidden />
+                  <span className="truncate">{season.helpContactName}</span>
+                </p>
+              ) : null}
+              {season.helpContactEmail ? (
+                <p className="inline-flex items-center gap-1.5 text-xs font-medium text-stone-500">
+                  <Mail className="size-3.5 shrink-0" aria-hidden />
+                  <span className="truncate">{season.helpContactEmail}</span>
+                </p>
+              ) : null}
+            </div>
           ) : null}
 
           <div

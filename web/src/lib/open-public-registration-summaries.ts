@@ -64,6 +64,7 @@ export async function listOpenPublicRegistrationSummaries(): Promise<OpenPublicR
       endDateIso: calendarDateFromDate(s.endDate),
       sessionTimeDescription: s.publicRegistrationSettings?.sessionTimeDescription?.trim() || null,
       helpContactEmail: s.publicRegistrationSettings?.helpContactEmail?.trim() || null,
+      helpContactName: s.publicRegistrationSettings?.helpContactName?.trim() || null,
       formTitle: form.title,
       teaser,
       theme: s.theme ?? null,

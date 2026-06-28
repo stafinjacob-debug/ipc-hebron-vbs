@@ -134,6 +134,7 @@ export default async function RegistrationFormWorkspacePage({
           requireAllergiesNotes: publicRules.requireAllergiesNotes,
           welcomeMessage: publicWelcome,
           sessionTimeDescription: season.publicRegistrationSettings?.sessionTimeDescription ?? "",
+          helpContactName: season.publicRegistrationSettings?.helpContactName ?? "",
           helpContactEmail: season.publicRegistrationSettings?.helpContactEmail ?? "",
           publicContactFooterText: season.publicRegistrationSettings?.publicContactFooterText ?? "",
         }}

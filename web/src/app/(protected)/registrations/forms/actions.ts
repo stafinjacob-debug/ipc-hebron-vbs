@@ -227,6 +227,7 @@ export async function updateRegistrationFormSettings(
     /** Keys (guardian / consent / eachChild) to show in staff “Add unassigned” class picker. */
     unassignedClassPickerFieldKeys: string[];
     helpContactEmail: string | null;
+    helpContactName: string | null;
   },
 ): Promise<ActionState> {
   const session = await auth();
@@ -277,6 +278,7 @@ export async function updateRegistrationFormSettings(
   if (normalizedHelpEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedHelpEmail)) {
     return { ok: false, message: "Help email must be a valid email address." };
   }
+  const helpContactName = (data.helpContactName ?? "").trim() || null;
 
   let stripeAmountCents: number | null = null;
   const stripeSkipWhenFieldKey = data.stripeSkipWhenFieldKey?.trim() || null;
@@ -356,8 +358,8 @@ export async function updateRegistrationFormSettings(
     }),
     prisma.publicRegistrationSettings.upsert({
       where: { seasonId },
-      create: { seasonId, helpContactEmail: normalizedHelpEmail },
-      update: { helpContactEmail: normalizedHelpEmail },
+      create: { seasonId, helpContactEmail: normalizedHelpEmail, helpContactName },
+      update: { helpContactEmail: normalizedHelpEmail, helpContactName },
     }),
     prisma.registrationForm.update({
       where: { id: form.id },
@@ -859,6 +861,7 @@ export type FormWorkspacePayload = {
     welcomeMessage: string;
     sessionTimeDescription: string;
     helpContactEmail: string;
+    helpContactName: string;
     publicContactFooterText: string;
   };
   settingsInitial: {
@@ -1028,6 +1031,7 @@ export async function loadFormWorkspacePayload(
         requireAllergiesNotes: publicRules.requireAllergiesNotes,
         welcomeMessage: publicWelcome,
         sessionTimeDescription: season.publicRegistrationSettings?.sessionTimeDescription ?? "",
+        helpContactName: season.publicRegistrationSettings?.helpContactName ?? "",
         helpContactEmail: season.publicRegistrationSettings?.helpContactEmail ?? "",
         publicContactFooterText: season.publicRegistrationSettings?.publicContactFooterText ?? "",
       },

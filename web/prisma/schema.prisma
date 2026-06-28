@@ -328,6 +328,8 @@ model PublicRegistrationSettings {
   sessionTimeDescription String? @db.Text
   /// Help email shown on public cards and confirmation screens (e.g. vbs@ipchouston.com).
   helpContactEmail String? @db.Text
+  /// Contact person name shown on the public form header (e.g. "Jane Smith").
+  helpContactName String? @db.Text
   /// Optional footer on registration / thank-you screens (replaces auto “Questions? …” line when set).
   publicContactFooterText String? @db.Text
   /// Public URL or site-relative path (e.g. /uploads/...) for /register background when this season is selected.

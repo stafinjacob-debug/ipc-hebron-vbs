@@ -36,6 +36,7 @@ function fallbackDisplay(): RegistrantLookupPageDisplay {
     endDate: null,
     sessionTimeDescription: null,
     helpContactEmail: null,
+    helpContactName: null,
     backgroundImageUrl: null,
     backgroundVideoUrl: null,
     backgroundDimmingPercent: clampRegistrationBackgroundDimmingPercent(undefined),
@@ -87,6 +88,7 @@ export default async function RegistrantLookupPage() {
           settings?.helpContactEmail?.trim() ||
           process.env.VBS_HELP_EMAIL?.trim() ||
           DEFAULT_HELP_EMAIL,
+        helpContactName: settings?.helpContactName?.trim() || null,
         backgroundImageUrl: settings?.registrationBackgroundImageUrl ?? null,
         backgroundVideoUrl: settings?.registrationBackgroundVideoUrl ?? null,
         backgroundDimmingPercent: clampRegistrationBackgroundDimmingPercent(

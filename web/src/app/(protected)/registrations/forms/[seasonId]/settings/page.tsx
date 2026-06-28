@@ -134,6 +134,7 @@ export default async function RegistrationFormSettingsPage({
           waiverMergeFieldKeys: parseWaiverMergeFieldKeysFromDb(form.waiverMergeFieldKeys),
           waiverSupplementalFields: parseWaiverSupplementalDefsFromDb(form.waiverSupplementalFields),
           unassignedClassPickerFieldKeys: parseWaiverMergeFieldKeysFromDb(form.unassignedClassPickerFieldKeys),
+          helpContactName: season.publicRegistrationSettings?.helpContactName ?? null,
           helpContactEmail: season.publicRegistrationSettings?.helpContactEmail ?? null,
           settingsStamp: form.updatedAt.toISOString(),
         }}

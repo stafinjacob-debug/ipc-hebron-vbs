@@ -23,6 +23,8 @@ export type OpenPublicRegistrationSummary = {
   sessionTimeDescription: string | null;
   /** Optional help email shown on cards / public pages. */
   helpContactEmail: string | null;
+  /** Optional contact person name shown on cards / public pages. */
+  helpContactName: string | null;
   formTitle: string | null;
   teaser: string | null;
   theme: string | null;

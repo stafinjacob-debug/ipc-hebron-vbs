@@ -97,7 +97,8 @@ export function FormSettingsForm({
     waiverSupplementalFields?: WaiverSupplementalFieldDef[] | null;
     /** Form field keys shown in staff “Add unassigned student” class dropdown (same key set as waiver PDF merge). */
     unassignedClassPickerFieldKeys?: string[] | null;
-    /** Optional per-season public help email shown on cards / register / thank-you. */
+    /** Optional per-season public help contact shown on cards / register / thank-you. */
+    helpContactName?: string | null;
     helpContactEmail?: string | null;
     /** When set, parent can use as React `key` so defaults refresh after save (see form workspace embed). */
     settingsStamp?: string;
@@ -223,6 +224,7 @@ export function FormSettingsForm({
         const stripeProcessingFeeMode =
           String(fd.get("stripeProcessingFeeMode") ?? "") === "REQUIRED" ? "REQUIRED" : "OPTIONAL";
         const stripeProductLabel = String(fd.get("stripeProductLabel") ?? "").trim() || null;
+        const helpContactName = String(fd.get("helpContactName") ?? "").trim() || null;
         const helpContactEmail = String(fd.get("helpContactEmail") ?? "").trim() || null;
         const registrantLookupEnabled = fd.get("registrantLookupEnabled") === "on";
         const registrantLookupEmailFieldKey =
@@ -301,6 +303,7 @@ export function FormSettingsForm({
             registrantLookupEmailFieldKey,
             registrantLookupPhoneFieldKey,
             adminRegistrationEditEnabled,
+            helpContactName,
             helpContactEmail,
             waiverEnabled,
             waiverTitle: waiverTitle.trim() || null,
@@ -374,8 +377,21 @@ export function FormSettingsForm({
           />
         </div>
         <div>
+          <label htmlFor="helpContactName" className="block text-xs font-medium text-foreground/70">
+            Contact person name (shown on the registration form)
+          </label>
+          <input
+            id="helpContactName"
+            name="helpContactName"
+            type="text"
+            defaultValue={initial.helpContactName ?? ""}
+            placeholder="e.g. Boby Jacob"
+            className="mt-1 w-full rounded-md border border-foreground/15 bg-background px-3 py-2 text-sm"
+          />
+        </div>
+        <div>
           <label htmlFor="helpContactEmail" className="block text-xs font-medium text-foreground/70">
-            Help email (shown on landing / register / thank-you)
+            Contact email (shown on landing / register / thank-you)
           </label>
           <input
             id="helpContactEmail"

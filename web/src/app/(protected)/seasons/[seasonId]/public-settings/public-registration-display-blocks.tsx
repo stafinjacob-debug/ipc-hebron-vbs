@@ -340,29 +340,65 @@ export function PublicRegistrationSessionTimeField({
   return <div className="rounded-xl border border-foreground/10 p-4">{body}</div>;
 }
 
-/** Optional help email shown on public landing + registration pages. */
-export function PublicRegistrationHelpEmailField({
+/** Optional help contact shown on public landing + registration pages. */
+export function PublicRegistrationHelpContactFields({
+  helpContactName,
   helpContactEmail,
 }: {
+  helpContactName: string | null;
   helpContactEmail: string | null;
 }) {
   return (
-    <div className="rounded-xl border border-foreground/10 p-4">
-      <label htmlFor="helpContactEmail" className="text-sm font-semibold text-foreground/90">
-        Help email (optional)
-      </label>
-      <p className="mt-1 text-sm text-foreground/60">
-        Displayed on the public login card, registration form, and thank-you screen for parent questions.
-      </p>
-      <input
-        id="helpContactEmail"
-        name="helpContactEmail"
-        type="email"
-        defaultValue={helpContactEmail ?? ""}
-        placeholder="e.g. vbs@ipchouston.com"
-        className="mt-2 w-full rounded-md border border-foreground/15 bg-background px-3 py-2 text-sm text-foreground"
-      />
+    <div className="rounded-xl border border-foreground/10 p-4 space-y-4">
+      <div>
+        <label htmlFor="helpContactName" className="text-sm font-semibold text-foreground/90">
+          Contact person name (optional)
+        </label>
+        <p className="mt-1 text-sm text-foreground/60">
+          Shown on the registration form below the description, larger than the welcome text.
+        </p>
+        <input
+          id="helpContactName"
+          name="helpContactName"
+          type="text"
+          defaultValue={helpContactName ?? ""}
+          placeholder="e.g. Boby Jacob"
+          className="mt-2 w-full rounded-md border border-foreground/15 bg-background px-3 py-2 text-sm text-foreground"
+        />
+      </div>
+      <div>
+        <label htmlFor="helpContactEmail" className="text-sm font-semibold text-foreground/90">
+          Contact email (optional)
+        </label>
+        <p className="mt-1 text-sm text-foreground/60">
+          Shown under the contact name on the public form, landing cards, and thank-you screen.
+        </p>
+        <input
+          id="helpContactEmail"
+          name="helpContactEmail"
+          type="email"
+          defaultValue={helpContactEmail ?? ""}
+          placeholder="e.g. vbs@ipchouston.com"
+          className="mt-2 w-full rounded-md border border-foreground/15 bg-background px-3 py-2 text-sm text-foreground"
+        />
+      </div>
     </div>
+  );
+}
+
+/** @deprecated Use PublicRegistrationHelpContactFields */
+export function PublicRegistrationHelpEmailField({
+  helpContactEmail,
+  helpContactName,
+}: {
+  helpContactEmail: string | null;
+  helpContactName?: string | null;
+}) {
+  return (
+    <PublicRegistrationHelpContactFields
+      helpContactName={helpContactName ?? null}
+      helpContactEmail={helpContactEmail}
+    />
   );
 }
 
@@ -409,7 +445,7 @@ export function PublicRegistrationWelcomeField({ welcomeMessage }: { welcomeMess
         rows={6}
         defaultValue={welcomeMessage}
         className="mt-2 w-full rounded-md border border-foreground/15 bg-background px-3 py-2 text-sm text-foreground"
-        placeholder={"e.g. Dates, drop-off time\nGrades 5–12 · $15 per participant\nContact: Jane Smith"}
+        placeholder={"e.g. Dates, drop-off time\nGrades 5–12 · $15 per participant"}
       />
     </div>
   );

@@ -26,6 +26,7 @@ type Props = {
   seasonStartDate: Date;
   seasonEndDate: Date;
   sessionTimeDescription: string | null;
+  helpContactName: string | null;
   helpContactEmail: string | null;
   publicContactFooterText: string | null;
   registrationBackgroundImageUrl: string | null;
@@ -109,7 +110,10 @@ export function PublicRegistrationSettingsForm(p: Props) {
         registerPath={p.registerPath}
       />
 
-      <PublicRegistrationHelpEmailField helpContactEmail={p.helpContactEmail} />
+      <PublicRegistrationHelpEmailField
+        helpContactName={p.helpContactName}
+        helpContactEmail={p.helpContactEmail}
+      />
 
       <PublicRegistrationContactFooterField publicContactFooterText={p.publicContactFooterText} />
 

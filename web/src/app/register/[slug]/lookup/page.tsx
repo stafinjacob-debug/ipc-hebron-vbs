@@ -48,6 +48,7 @@ function fallbackDisplay(headerLabel: string): RegistrantLookupPageDisplay {
     endDate: null,
     sessionTimeDescription: null,
     helpContactEmail: null,
+    helpContactName: null,
     backgroundImageUrl: null,
     backgroundVideoUrl: null,
     backgroundDimmingPercent: clampRegistrationBackgroundDimmingPercent(undefined),
@@ -99,6 +100,7 @@ export default async function PortalRegistrantLookupPage({
       endDate: calendarDateFromDate(season.endDate),
       sessionTimeDescription: settings?.sessionTimeDescription?.trim() || null,
       helpContactEmail: branding.contactEmail,
+      helpContactName: branding.contactName || null,
       backgroundImageUrl: settings?.registrationBackgroundImageUrl ?? null,
       backgroundVideoUrl: settings?.registrationBackgroundVideoUrl ?? null,
       backgroundDimmingPercent: clampRegistrationBackgroundDimmingPercent(

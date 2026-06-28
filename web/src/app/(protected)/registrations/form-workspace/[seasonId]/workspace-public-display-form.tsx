@@ -33,6 +33,7 @@ export function WorkspacePublicDisplayForm({
   requireAllergiesNotes,
   welcomeMessage,
   sessionTimeDescription,
+  helpContactName,
   helpContactEmail,
   publicContactFooterText,
 }: {
@@ -49,6 +50,7 @@ export function WorkspacePublicDisplayForm({
   requireAllergiesNotes: boolean;
   welcomeMessage: string;
   sessionTimeDescription: string;
+  helpContactName: string;
   helpContactEmail: string;
   publicContactFooterText: string;
 }) {
@@ -99,7 +101,10 @@ export function WorkspacePublicDisplayForm({
 
       <PublicRegistrationSessionTimeField sessionTimeDescription={sessionTimeDescription} />
 
-      <PublicRegistrationHelpEmailField helpContactEmail={helpContactEmail} />
+      <PublicRegistrationHelpEmailField
+        helpContactName={helpContactName}
+        helpContactEmail={helpContactEmail}
+      />
 
       <PublicRegistrationContactFooterField publicContactFooterText={publicContactFooterText || null} />
 

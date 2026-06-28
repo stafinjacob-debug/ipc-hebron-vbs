@@ -57,6 +57,7 @@ import { submitPublicRegistration, type PublicRegisterState } from "./actions";
 import { checkClassPlacementAction } from "./class-placement-actions";
 import { shouldBlockRegistrationWithoutClassPlacement } from "@/lib/class-placement-gate";
 import { RegistrationContactFooter } from "@/components/registration-contact-footer";
+import { RegistrationPublicContactPromo } from "@/components/registration-public-contact-promo";
 import {
   formatRegistrationDate,
   translateAllergyPreset,
@@ -126,6 +127,8 @@ export type PublicSeasonOption = {
   sessionTimeDescription: string | null;
   /** Optional per-season help email shown in public UI. */
   helpContactEmail: string | null;
+  /** Optional contact person name shown on the form header. */
+  helpContactName: string | null;
   /** Custom thank-you / form footer; replaces auto Questions? line when set. */
   contactFooterText: string | null;
   lookupPath: string;
@@ -769,6 +772,7 @@ function DynamicRegistrationWizardInner({
   const def = current?.definition;
   const rules = current?.rules ?? defaultPublicFieldRules;
   const effectiveContactEmail = (current?.helpContactEmail?.trim() || contactEmail?.trim() || "") || "";
+  const effectiveContactName = current?.helpContactName?.trim() || "";
   const effectiveContactFooterText =
     current?.contactFooterText?.trim() || portalBranding?.contactFooterText?.trim() || null;
   const participantAgeRules = useMemo(() => {
@@ -1504,14 +1508,10 @@ function DynamicRegistrationWizardInner({
           <p className="mx-auto mt-3 max-w-md whitespace-pre-line text-sm leading-relaxed text-neutral-200/85 lg:mt-3 lg:text-sm">
             {season.welcomeMessage?.trim() || t("welcomeFallback", { eventName: season.name })}
           </p>
-          {effectiveContactEmail ? (
-            <p className="mx-auto mt-2 inline-flex items-center gap-1.5 text-xs font-semibold text-cyan-100/95">
-              <Mail className="size-3.5 shrink-0" aria-hidden />
-              <a href={`mailto:${effectiveContactEmail}`} className="underline decoration-cyan-100/50 underline-offset-2">
-                {effectiveContactEmail}
-              </a>
-            </p>
-          ) : null}
+          <RegistrationPublicContactPromo
+            contactName={effectiveContactName}
+            contactEmail={effectiveContactEmail}
+          />
           {season.registrantLookupEnabled ? (
             <div className="mx-auto mt-4 max-w-md px-1">
               <Link

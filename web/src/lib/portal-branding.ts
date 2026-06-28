@@ -9,6 +9,8 @@ export type PortalBranding = {
   churchDisplayName: string;
   contactEmail: string;
   contactPhone: string;
+  /** Display name for the program contact person on public forms. */
+  contactName: string;
   /** Custom “Questions?” footer; when empty, email/phone/church fallback is used. */
   contactFooterText: string | null;
   contactSectionLabel: string;
@@ -30,6 +32,7 @@ const VBS_DEFAULTS: PortalBranding = {
   churchDisplayName: CHURCH_DISPLAY_NAME,
   contactEmail: DEFAULT_HELP_EMAIL,
   contactPhone: "",
+  contactName: "",
   contactFooterText: null,
   contactSectionLabel: "Parent / guardian",
   participantSectionLabel: "Children attending VBS",
@@ -47,6 +50,7 @@ type SettingsSlice = Pick<
   | "publicFooterNote"
   | "publicLogoUrl"
   | "helpContactEmail"
+  | "helpContactName"
   | "helpContactPhone"
   | "publicContactFooterText"
   | "contactSectionLabel"
@@ -97,6 +101,7 @@ export function resolvePortalBranding(
     churchDisplayName: CHURCH_DISPLAY_NAME,
     contactEmail,
     contactPhone,
+    contactName: settings?.helpContactName?.trim() || "",
     contactFooterText: settings?.publicContactFooterText?.trim() || null,
     contactSectionLabel: settings?.contactSectionLabel?.trim() || base.contactSectionLabel,
     participantSectionLabel: settings?.participantSectionLabel?.trim() || base.participantSectionLabel,

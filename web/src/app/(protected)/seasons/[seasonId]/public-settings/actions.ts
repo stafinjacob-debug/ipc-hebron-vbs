@@ -105,6 +105,8 @@ export async function savePublicRegistrationSettings(
   if (helpEmailRaw.trim() && !helpContactEmail) {
     return { ok: false, message: "Help email must be a valid email address." };
   }
+  const helpContactNameRaw = str(formData, "helpContactName").trim();
+  const helpContactName = helpContactNameRaw.length > 0 ? helpContactNameRaw : null;
   const publicContactFooterRaw = str(formData, "publicContactFooterText").trim();
   const publicContactFooterText = publicContactFooterRaw.length > 0 ? publicContactFooterRaw : null;
   const registrationBackgroundDimmingPercent = clampRegistrationBackgroundDimmingPercent(
@@ -151,6 +153,7 @@ export async function savePublicRegistrationSettings(
       welcomeMessage,
       sessionTimeDescription,
       helpContactEmail,
+      helpContactName,
       publicContactFooterText,
       registrationBackgroundImageUrl,
       registrationBackgroundVideoUrl,
@@ -164,6 +167,7 @@ export async function savePublicRegistrationSettings(
       welcomeMessage,
       sessionTimeDescription,
       helpContactEmail,
+      helpContactName,
       publicContactFooterText,
       registrationBackgroundImageUrl,
       registrationBackgroundVideoUrl,

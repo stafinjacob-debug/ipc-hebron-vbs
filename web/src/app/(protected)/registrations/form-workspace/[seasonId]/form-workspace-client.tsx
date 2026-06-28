@@ -262,6 +262,7 @@ export function FormWorkspacePanel({
                   requireAllergiesNotes={publicDisplayInitial.requireAllergiesNotes}
                   welcomeMessage={publicDisplayInitial.welcomeMessage}
                   sessionTimeDescription={publicDisplayInitial.sessionTimeDescription}
+                  helpContactName={publicDisplayInitial.helpContactName}
                   helpContactEmail={publicDisplayInitial.helpContactEmail}
                   publicContactFooterText={publicDisplayInitial.publicContactFooterText}
                 />

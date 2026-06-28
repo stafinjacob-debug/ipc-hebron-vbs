@@ -226,6 +226,7 @@ async function main() {
       "Basketball Summer Camp for Boys & Girls\n" +
       "July 28–30, 2026 · 3:30 PM – 6:30 PM\n" +
       "Grades 5–12 · $15 per participant · 30 spots total";
+    const helpContactName = "Boby Jacob";
 
     if (dryRun) {
       console.log("Would create:");
@@ -266,7 +267,8 @@ async function main() {
         requireAllergiesNotes: false,
         welcomeMessage,
         sessionTimeDescription: "3:30 PM – 6:30 PM daily",
-        helpContactEmail: process.env.VBS_HELP_EMAIL?.trim() || "vbs@ipchouston.com",
+        helpContactName,
+        helpContactEmail: process.env.VBS_HELP_EMAIL?.trim() || "bobojacob@gmail.com",
         publicHeaderLabel: SEASON_NAME,
         publicPageTitle: `${SEASON_NAME} | Registration`,
         publicPageDescription: "Register for the Basketball Summer Camp (grades 5–12).",
