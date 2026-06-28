@@ -92,9 +92,9 @@ export function RegistrantLookupPageShell({ display }: { display: RegistrantLook
                 </div>
               ) : null}
 
-              <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-neutral-200/85">
+              <p className="mx-auto mt-3 max-w-md whitespace-pre-line text-sm leading-relaxed text-neutral-200/85">
                 {display.welcomeMessage?.trim() ||
-                  "View or update your VBS registration. We’ll verify your identity with a code sent to the email on file."}
+                  "View or update your registration. We’ll verify your identity with a code sent to the email on file."}
               </p>
 
               {effectiveContactEmail ? (

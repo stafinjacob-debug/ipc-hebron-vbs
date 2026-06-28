@@ -401,15 +401,15 @@ export function PublicRegistrationWelcomeField({ welcomeMessage }: { welcomeMess
         Welcome message (optional)
       </label>
       <p className="mt-1 text-sm text-foreground/60">
-        Shown at the top of the public form when this season is selected.
+        Shown at the top of the public form when this season is selected. Press Enter for a new line.
       </p>
       <textarea
         id="publicWelcomeMessage"
         name="welcomeMessage"
-        rows={5}
+        rows={6}
         defaultValue={welcomeMessage}
         className="mt-2 w-full rounded-md border border-foreground/15 bg-background px-3 py-2 text-sm text-foreground"
-        placeholder="e.g. Dates, drop-off time, what to bring…"
+        placeholder={"e.g. Dates, drop-off time\nGrades 5–12 · $15 per participant\nContact: Jane Smith"}
       />
     </div>
   );

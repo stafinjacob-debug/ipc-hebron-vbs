@@ -42,3 +42,39 @@ body {
   color: var(--foreground);
   font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
 }
+
+@keyframes event-card-float {
+  0%,
+  100% {
+    transform: translateY(0) rotateX(0deg) rotateY(0deg);
+  }
+  50% {
+    transform: translateY(-6px) rotateX(2deg) rotateY(-1deg);
+  }
+}
+
+.event-card-3d {
+  transform-style: preserve-3d;
+  transition:
+    transform 0.4s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform;
+}
+
+.event-card-3d:hover {
+  transform: translateY(-12px) rotateX(5deg) rotateY(-2deg) scale(1.02);
+}
+
+.event-card-float {
+  animation: event-card-float 6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .event-card-float {
+    animation: none;
+  }
+
+  .event-card-3d:hover {
+    transform: translateY(-4px);
+  }
+}

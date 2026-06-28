@@ -338,10 +338,13 @@ export function FormSettingsForm({
           <label htmlFor="welcomeMessage" className="block text-xs font-medium text-foreground/70">
             Welcome text (shown under the title; can override season default)
           </label>
+          <p className="mt-0.5 text-[11px] text-foreground/50">
+            Press Enter for a new line — line breaks appear on the public form.
+          </p>
           <textarea
             id="welcomeMessage"
             name="welcomeMessage"
-            rows={3}
+            rows={5}
             defaultValue={initial.welcomeMessage ?? ""}
             className="mt-1 w-full rounded-md border border-foreground/15 bg-background px-3 py-2 text-sm"
           />

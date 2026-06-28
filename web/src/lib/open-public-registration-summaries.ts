@@ -44,9 +44,7 @@ export async function listOpenPublicRegistrationSummaries(): Promise<OpenPublicR
     if (!form || form.status !== "PUBLISHED" || !isFormRegistrationOpen(form)) continue;
 
     const welcome = form.welcomeMessage ?? s.publicRegistrationSettings?.welcomeMessage ?? null;
-    const teaser = welcome
-      ? (welcome.split(/\r?\n/).map((l) => l.trim()).find((l) => l.length > 0) ?? null)
-      : null;
+    const teaser = welcome?.trim() || null;
 
     const registrationCount = await countActiveRegistrationsForSeason(s.id);
     const statusBadge = computeBadge({

@@ -8,14 +8,24 @@ import { LoginPageClient } from "./login-page-client";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Register for VBS | IPC Hebron",
-  description: "Sign up your children for Vacation Bible School — open programs and staff access",
+  title: "Event Registration | IPC Hebron",
+  description: "Browse and register for open IPC Hebron programs and events.",
 };
 
 export default async function LoginPage() {
-  const [seasons, lookupOpen] = await Promise.all([
-    listOpenPublicRegistrationSummaries(),
-    hasPublicRegistrantLookupOpen(),
-  ]);
-  return <LoginPageClient seasons={seasons} lookupOpen={lookupOpen} />;
+  let seasons: Awaited<ReturnType<typeof listOpenPublicRegistrationSummaries>> = [];
+  let lookupOpen = false;
+  let dbUnavailable = false;
+  try {
+    [seasons, lookupOpen] = await Promise.all([
+      listOpenPublicRegistrationSummaries(),
+      hasPublicRegistrantLookupOpen(),
+    ]);
+  } catch (err) {
+    dbUnavailable = true;
+    console.error("[LoginPage] database unavailable", err);
+  }
+  return (
+    <LoginPageClient seasons={seasons} lookupOpen={lookupOpen} dbUnavailable={dbUnavailable} />
+  );
 }

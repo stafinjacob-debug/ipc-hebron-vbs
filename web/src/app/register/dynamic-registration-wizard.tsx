@@ -1501,7 +1501,7 @@ function DynamicRegistrationWizardInner({
               </p>
             ) : null}
           </div>
-          <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-neutral-200/85 lg:mt-3 lg:text-sm">
+          <p className="mx-auto mt-3 max-w-md whitespace-pre-line text-sm leading-relaxed text-neutral-200/85 lg:mt-3 lg:text-sm">
             {season.welcomeMessage?.trim() || t("welcomeFallback", { eventName: season.name })}
           </p>
           {effectiveContactEmail ? (
