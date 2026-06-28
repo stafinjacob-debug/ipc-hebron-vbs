@@ -212,8 +212,25 @@ async function main() {
         }
         console.log(`Updated slug: ${existing.publicRegistrationSlug ?? "(none)"} → ${SLUG}`);
       }
+      const helpContactName = "Boby Jacob";
+      const helpContactEmail = process.env.VBS_HELP_EMAIL?.trim() || "bobojacob@gmail.com";
+      if (!dryRun) {
+        await prisma.publicRegistrationSettings.upsert({
+          where: { seasonId: existing.id },
+          create: {
+            seasonId: existing.id,
+            helpContactName,
+            helpContactEmail,
+          },
+          update: {
+            helpContactName,
+            helpContactEmail,
+          },
+        });
+      }
       console.log(`Season already exists: ${existing.name} [${existing.id}]`);
       console.log(`Public URL: /basketball`);
+      console.log(`Contact: ${helpContactName} · ${helpContactEmail}`);
       return;
     }
 
