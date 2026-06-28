@@ -48,7 +48,7 @@ Configure in the repository: **Settings → Secrets and variables → Actions**.
 |-------------|---------|-------------|
 | `DATABASE_URL` | Workflow: `prisma migrate deploy`, `next build` | **Production** Postgres URL (TLS). Must use the **`vbs_production`** database name on the flexible server (not `vbs`). Same URL the App Service uses. |
 | `AUTH_SECRET` | Workflow: `next build` | Same value you set in Azure for production (or a build-time-only secret if you rotate separately—prefer one production secret). |
-| `AUTH_URL` | Workflow: `next build` | Public HTTPS origin of the site, e.g. `https://your-app.azurewebsites.net` (no trailing slash). |
+| `AUTH_URL` | Workflow: `next build` | Public HTTPS origin of the site, e.g. `https://events.ipchouston.com` (no trailing slash). |
 | `AZURE_WEBAPP_PUBLISH_PROFILE` | `azure/webapps-deploy` | Contents of the App Service **Download publish profile** file (XML). **Alternative:** use OpenID Connect (OIDC) with Azure login instead of this secret (see below). |
 | `AZURE_WEBAPP_NAME` | Deploy step | App Service resource name (short name, e.g. `ipc-hebron-vbs`). |
 
@@ -169,7 +169,7 @@ No entries in GitHub Secrets or Azure App Service are required for the default d
 
 | Item | Configuration |
 |------|----------------|
-| **Portal / API URL** | Production `AUTH_URL` (e.g. `https://your-app.azurewebsites.net`). Native app: `EXPO_PUBLIC_API_URL` must match. |
+| **Portal / API URL** | Production `https://events.ipchouston.com`. Native app: `EXPO_PUBLIC_API_URL` must match. |
 | **Staff login** | Check-in volunteers need accounts with a role that includes check-in (`CHECK_IN_VOLUNTEER`, `TEACHER`, or admin roles). |
 | **Printer** | Pair or join the thermal printer to the iPad per manufacturer instructions (USB adapter, Bluetooth, or Wi‑Fi). Prefer **AirPrint** for the native app or Safari. |
 | **Label stock** | Physical labels must match the admin **label size** setting under Season → Badge printing. |

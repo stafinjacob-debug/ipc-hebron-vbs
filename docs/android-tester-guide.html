@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Anchor Check Ins — Android Tester Guide</title>
+  <style>
+    @page { margin: 0.75in; size: letter; }
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: #1a1a1a;
+      line-height: 1.55;
+      max-width: 7.5in;
+      margin: 0 auto;
+      padding: 24px 32px 48px;
+      font-size: 11pt;
+    }
+    h1 { font-size: 22pt; margin: 0 0 6px; color: #0f3d7a; }
+    h2 {
+      font-size: 14pt;
+      margin: 28px 0 10px;
+      padding-bottom: 4px;
+      border-bottom: 2px solid #1e6fd9;
+      color: #0f3d7a;
+      page-break-after: avoid;
+    }
+    h3 { font-size: 12pt; margin: 18px 0 8px; color: #333; page-break-after: avoid; }
+    p, li { margin: 0 0 8px; }
+    ul, ol { margin: 0 0 12px; padding-left: 22px; }
+    .subtitle { color: #555; font-size: 12pt; margin-bottom: 20px; }
+    .cover-box {
+      background: #f0f6ff;
+      border: 1px solid #c5daf5;
+      border-radius: 10px;
+      padding: 16px 20px;
+      margin: 16px 0 24px;
+    }
+    .cover-box strong { color: #0f3d7a; }
+    .link {
+      word-break: break-all;
+      color: #1e6fd9;
+      font-weight: 600;
+    }
+    .step {
+      display: flex;
+      gap: 14px;
+      margin: 14px 0;
+      page-break-inside: avoid;
+    }
+    .step-num {
+      flex: 0 0 32px;
+      height: 32px;
+      background: #1e6fd9;
+      color: #fff;
+      border-radius: 50%;
+      text-align: center;
+      line-height: 32px;
+      font-weight: 700;
+      font-size: 13pt;
+    }
+    .step-body { flex: 1; }
+    .note {
+      background: #fff8e6;
+      border-left: 4px solid #e6a800;
+      padding: 10px 14px;
+      margin: 12px 0;
+      font-size: 10.5pt;
+      page-break-inside: avoid;
+    }
+    .tip {
+      background: #eefbf0;
+      border-left: 4px solid #2e9e44;
+      padding: 10px 14px;
+      margin: 12px 0;
+      font-size: 10.5pt;
+      page-break-inside: avoid;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 12px 0 16px;
+      font-size: 10.5pt;
+      page-break-inside: avoid;
+    }
+    th, td {
+      border: 1px solid #ccc;
+      padding: 8px 10px;
+      text-align: left;
+      vertical-align: top;
+    }
+    th { background: #f0f6ff; }
+    .footer {
+      margin-top: 32px;
+      padding-top: 12px;
+      border-top: 1px solid #ddd;
+      font-size: 9.5pt;
+      color: #666;
+    }
+    @media print {
+      body { padding: 0; }
+      a { color: #1e6fd9; text-decoration: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Anchor Check Ins</h1>
+  <p class="subtitle">Android app — guide for internal testers (staff, volunteers &amp; teachers)</p>
+
+  <div class="cover-box">
+    <p><strong>App name:</strong> Anchor Check Ins</p>
+    <p><strong>Who this is for:</strong> IPC Hebron VBS staff with a login on the admin website</p>
+    <p><strong>Internal test invite link:</strong><br />
+      <span class="link">https://play.google.com/apps/internaltest/4701595538991636552</span>
+    </p>
+    <p><strong>Website (same login):</strong> https://events.ipchouston.com</p>
+  </div>
+
+  <h2>Part 1 — Install the app (one-time setup)</h2>
+
+  <div class="note">
+    <strong>Important:</strong> You must use an <strong>Android phone or tablet</strong> and the
+    <strong>same Google account</strong> your church admin added to the tester list. The link will
+    not work on iPhone/iPad (use TestFlight for Apple devices).
+  </div>
+
+  <div class="step">
+    <div class="step-num">1</div>
+    <div class="step-body">
+      <strong>Open the invite link on your Android device.</strong><br />
+      Tap or paste this link in Chrome (recommended):<br />
+      <span class="link">https://play.google.com/apps/internaltest/4701595538991636552</span>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-num">2</div>
+    <div class="step-body">
+      <strong>Sign in to Google</strong> if prompted. Use the Gmail account your admin registered
+      for testing.
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-num">3</div>
+    <div class="step-body">
+      <strong>Become a tester.</strong> On the Play Store page, tap
+      <strong>Become a tester</strong> (or <strong>Accept invite</strong>), then confirm.
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-num">4</div>
+    <div class="step-body">
+      <strong>Install the app.</strong> Tap <strong>Download it on Google Play</strong> or
+      <strong>Install</strong>. Wait for the download to finish.
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-num">5</div>
+    <div class="step-body">
+      <strong>Open Anchor Check Ins</strong> from your home screen or app drawer. The icon may show
+      the church logo once the Play Store listing is fully reviewed; the app name is
+      <strong>Anchor Check Ins</strong>.
+    </div>
+  </div>
+
+  <div class="tip">
+    <strong>Can’t install?</strong> Ask your admin to confirm your Gmail address is on the internal
+    tester list. Uninstall any old test copy first, then open the invite link again.
+  </div>
+
+  <h2>Part 2 — Sign in &amp; choose your VBS program</h2>
+
+  <div class="step">
+    <div class="step-num">1</div>
+    <div class="step-body">
+      <strong>Sign in</strong> with the same <strong>email and password</strong> you use on the
+      VBS admin website (https://events.ipchouston.com).
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-num">2</div>
+    <div class="step-body">
+      <strong>Choose your VBS season/program</strong> if asked. Pick the current year’s VBS event.
+      If you only have access to one program, the app may select it automatically.
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-num">3</div>
+    <div class="step-body">
+      <strong>Face ID / fingerprint lock (optional).</strong> You can turn on biometric lock under
+      <strong>More → Security</strong> so the app asks for your fingerprint when you return to it.
+    </div>
+  </div>
+
+  <div class="note">
+    If you see <strong>“No program assigned”</strong>, contact your admin. They need to assign your
+    account to the correct VBS program under <strong>Settings → Users</strong> on the website.
+  </div>
+
+  <h2>Part 3 — What you see (depends on your role)</h2>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Your role</th>
+        <th>What you can do in the app</th>
+        <th>Main tabs</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Teacher / class leader</strong></td>
+        <td>
+          View your class roster, see who is checked in <strong>today</strong>, view student details
+          (read-only). You cannot check students in or print badges.
+        </td>
+        <td>Home, My class, News, More</td>
+      </tr>
+      <tr>
+        <td><strong>Check-in volunteer</strong></td>
+        <td>
+          Scan QR codes, search by name, check students in/out, print badges (on supported iPad
+          stations; Android may use system print where available).
+        </td>
+        <td>Home, Check-In, Classes, News, More</td>
+      </tr>
+      <tr>
+        <td><strong>Admin / registration staff</strong></td>
+        <td>
+          Full check-in desk access, all classes, announcements, and dashboard counts for the day.
+        </td>
+        <td>All tabs</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>Part 4 — Using the app day-to-day</h2>
+
+  <h3>Home</h3>
+  <ul>
+    <li>Shows <strong>Checked in</strong> and <strong>Expected</strong> counts for <strong>today’s camp day</strong>.</li>
+    <li>Lists your classes with today’s attendance.</li>
+    <li>Teachers: quick link to <strong>My class</strong> (no check-in button).</li>
+  </ul>
+
+  <h3>My class / Classes (teachers &amp; staff)</h3>
+  <ul>
+    <li>Tap a student to view their details.</li>
+    <li>For multi-day VBS, use the <strong>day chips</strong> at the top to switch camp days.</li>
+    <li>Teachers with one class stay on the roster tab — use the bottom tabs to switch screens.</li>
+  </ul>
+
+  <h3>Check-In (volunteers &amp; admins only)</h3>
+  <ol>
+    <li>Open the <strong>Check-In</strong> tab.</li>
+    <li>Scan a family’s QR code <strong>or</strong> search by child name / registration number.</li>
+    <li>Confirm the match and tap to check in.</li>
+    <li>Print a badge if your station is configured for printing.</li>
+  </ol>
+
+  <h3>News</h3>
+  <ul>
+    <li>Read season announcements from your VBS leaders.</li>
+  </ul>
+
+  <h3>More</h3>
+  <ul>
+    <li>View your profile and role.</li>
+    <li>Switch VBS season (if you have access to more than one program).</li>
+    <li>Sign out when you are done.</li>
+  </ul>
+
+  <h2>Part 5 — Troubleshooting</h2>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Problem</th>
+        <th>What to try</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Invite link says I’m not a tester</td>
+        <td>Confirm the correct Gmail is signed in on the device. Ask admin to add your email to the internal tester list.</td>
+      </tr>
+      <tr>
+        <td>Sign-in fails</td>
+        <td>Verify email/password on the website first. Password reset is done on the website, not in the app.</td>
+      </tr>
+      <tr>
+        <td>“No program assigned”</td>
+        <td>Admin must assign your user to the VBS program (and class, if you’re a teacher) on the website.</td>
+      </tr>
+      <tr>
+        <td>Wrong class or empty roster</td>
+        <td>Confirm you’re on the correct VBS season (<strong>More → Switch season</strong>). Teachers: admin must link you as class leader.</td>
+      </tr>
+      <tr>
+        <td>App won’t load data</td>
+        <td>Check Wi‑Fi or cellular data. Pull down to refresh. Force-quit and reopen the app.</td>
+      </tr>
+      <tr>
+        <td>Need an update</td>
+        <td>Open the Play Store → <strong>Anchor Check Ins</strong> → <strong>Update</strong>. Internal testers receive updates through the same Play listing.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>Need help?</h2>
+  <p>
+    Contact your VBS tech coordinator or church admin. Have ready: your login email, role
+    (teacher / volunteer / admin), device type (Android), and a screenshot of any error message.
+  </p>
+
+  <div class="footer">
+    Anchor Check Ins · IPC Hebron VBS · Internal testing guide · June 2026<br />
+    Install link: https://play.google.com/apps/internaltest/4701595538991636552
+  </div>
+
+</body>
+</html>

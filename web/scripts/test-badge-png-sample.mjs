@@ -40,7 +40,7 @@ function badgePrintFontDir() {
 
 const w = 609;
 const h = 406;
-const qrDataUrl = await QRCode.toDataURL("https://vbs.ipchouston.com/ticket/test", {
+const qrDataUrl = await QRCode.toDataURL("https://events.ipchouston.com/ticket/test", {
   width: 240,
   margin: 1,
   color: { dark: "#0f172a", light: "#ffffff" },

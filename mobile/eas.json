@@ -37,7 +37,7 @@
       },
       "channel": "production",
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://vbs.ipchouston.com"
+        "EXPO_PUBLIC_API_URL": "https://events.ipchouston.com"
       }
     }
   },
