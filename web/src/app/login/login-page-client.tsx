@@ -179,15 +179,20 @@ function EventCard({
           )}
 
           {(season.helpContactName || season.helpContactEmail) ? (
-            <div className="mt-3 space-y-1">
+            <div className="mt-3">
               {season.helpContactName ? (
-                <p className="inline-flex items-center gap-1.5 text-sm font-semibold text-stone-700">
-                  <UserRound className="size-3.5 shrink-0" aria-hidden />
-                  <span className="truncate">{season.helpContactName}</span>
-                </p>
+                <div className="space-y-0.5">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-stone-500">Contact person</p>
+                  <p className="inline-flex items-center gap-1.5 text-sm font-semibold text-stone-700">
+                    <UserRound className="size-3.5 shrink-0" aria-hidden />
+                    <span className="truncate">{season.helpContactName}</span>
+                  </p>
+                </div>
               ) : null}
               {season.helpContactEmail ? (
-                <p className="inline-flex items-center gap-1.5 text-xs font-medium text-stone-500">
+                <p
+                  className={`inline-flex items-center gap-1.5 text-xs font-medium text-stone-500 ${season.helpContactName ? "mt-3" : ""}`}
+                >
                   <Mail className="size-3.5 shrink-0" aria-hidden />
                   <span className="truncate">{season.helpContactEmail}</span>
                 </p>
