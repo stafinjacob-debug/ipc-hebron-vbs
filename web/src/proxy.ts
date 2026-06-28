@@ -22,8 +22,10 @@ const PROTECTED_PREFIXES = [
 ] as const;
 
 export default auth((req) => {
-  const host = req.headers.get("host")?.split(":")[0]?.toLowerCase();
-  if (host && (LEGACY_PUBLIC_HOSTS as readonly string[]).includes(host)) {
+  const hostHeader =
+    req.headers.get("x-forwarded-host")?.split(",")[0]?.trim().split(":")[0]?.toLowerCase() ??
+    req.headers.get("host")?.split(":")[0]?.toLowerCase();
+  if (hostHeader && (LEGACY_PUBLIC_HOSTS as readonly string[]).includes(hostHeader)) {
     const destination = new URL(req.nextUrl.pathname + req.nextUrl.search, CANONICAL_PUBLIC_ORIGIN);
     return NextResponse.redirect(destination, 308);
   }
