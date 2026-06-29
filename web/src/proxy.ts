@@ -1,7 +1,6 @@
 import NextAuth from "next-auth";
 import { NextResponse } from "next/server";
 import authConfig from "@/auth.config";
-import { CANONICAL_PUBLIC_ORIGIN, LEGACY_PUBLIC_HOSTS } from "@/lib/public-app-url";
 
 const { auth } = NextAuth(authConfig);
 
@@ -22,14 +21,6 @@ const PROTECTED_PREFIXES = [
 ] as const;
 
 export default auth((req) => {
-  const hostHeader =
-    req.headers.get("x-forwarded-host")?.split(",")[0]?.trim().split(":")[0]?.toLowerCase() ??
-    req.headers.get("host")?.split(":")[0]?.toLowerCase();
-  if (hostHeader && (LEGACY_PUBLIC_HOSTS as readonly string[]).includes(hostHeader)) {
-    const destination = new URL(req.nextUrl.pathname + req.nextUrl.search, CANONICAL_PUBLIC_ORIGIN);
-    return NextResponse.redirect(destination, 308);
-  }
-
   const { pathname } = req.nextUrl;
 
   if (pathname === "/registration-forms" || pathname.startsWith("/registration-forms/")) {

@@ -1,8 +1,11 @@
 /** Public production hostname for registration links, emails, and share previews. */
 export const CANONICAL_PUBLIC_ORIGIN = "https://events.ipchouston.com";
 
-/** Hostnames that should redirect to {@link CANONICAL_PUBLIC_ORIGIN}. */
-export const LEGACY_PUBLIC_HOSTS = ["vbs.ipchouston.com"] as const;
+/** Hostnames that remain valid public entry points (e.g. legacy bookmarks). */
+export const ALTERNATE_PUBLIC_HOSTS = ["vbs.ipchouston.com"] as const;
+
+/** @deprecated Use {@link ALTERNATE_PUBLIC_HOSTS} */
+export const LEGACY_PUBLIC_HOSTS = ALTERNATE_PUBLIC_HOSTS;
 
 function trimTrailingSlash(value: string | undefined): string | undefined {
   return value?.replace(/\/$/, "");
