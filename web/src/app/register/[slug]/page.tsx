@@ -18,12 +18,8 @@ export async function generateMetadata({
   const { slug: raw } = await params;
   const slug = normalizePortalSlug(raw);
   if (!slug) return { title: "Registration" };
-  const { branding, seasons } = await loadPublicRegistrationPortal({ mode: "slug", slug });
-  return buildRegistrationPortalShareMetadata({
-    branding,
-    shareImageSlug: slug,
-    shareBackgroundImageUrl: seasons[0]?.backgroundImageUrl ?? null,
-  });
+  const { branding } = await loadPublicRegistrationPortal({ mode: "slug", slug });
+  return buildRegistrationPortalShareMetadata({ branding });
 }
 
 export default async function PortalRegisterPage({

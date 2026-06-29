@@ -21,11 +21,9 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     siteName: "IPC Hebron VBS",
-    images: [{ url: "/vbsthemelogo.webp", alt: "IPC Hebron VBS" }],
   },
   twitter: {
-    card: "summary_large_image",
-    images: ["/vbsthemelogo.webp"],
+    card: "summary",
   },
 };
 
