@@ -70,6 +70,12 @@ const CARD_ACCENTS = [
 
 function statusBadgeUI(badge: PublicRegistrationCardBadge): { label: string; className: string } {
   switch (badge) {
+    case "closed":
+      return {
+        label: "Registration closed",
+        className:
+          "rounded-full border border-stone-400/50 bg-stone-100 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-stone-700",
+      };
     case "closing_soon":
       return {
         label: "Closing soon",
@@ -117,7 +123,116 @@ function EventCard({
   const badge = statusBadgeUI(season.statusBadge);
   const ageLine = formatAgeRangeForCard(season);
   const themeTag = displayThemeTag(season.theme);
-  const canRegister = season.statusBadge === "open" || season.statusBadge === "closing_soon" || season.statusBadge === "waitlist";
+  const isClosed = !season.publicRegistrationOpen;
+  const canRegister =
+    !isClosed &&
+    (season.statusBadge === "open" ||
+      season.statusBadge === "closing_soon" ||
+      season.statusBadge === "waitlist");
+
+  if (isClosed) {
+    return (
+      <li
+        className={`event-card-3d ${reduceMotion ? "" : "event-card-float"}`}
+        style={reduceMotion ? undefined : { animationDelay: `${index * 0.75}s` }}
+      >
+        <article
+          className={`relative flex h-full flex-col overflow-hidden rounded-2xl border border-stone-200/80 bg-white/90 shadow-[0_8px_32px_-8px_rgba(15,23,42,0.1),0_2px_8px_-2px_rgba(15,23,42,0.05)] ring-1 ${accent.ring} backdrop-blur-sm`}
+          aria-label={`${season.name} — registration closed`}
+        >
+          <div className={`h-1.5 w-full bg-gradient-to-r ${accent.strip} opacity-60`} aria-hidden />
+          <div className={`pointer-events-none absolute -right-8 -top-8 size-32 rounded-full ${accent.glow} blur-2xl opacity-70`} aria-hidden />
+
+          <div className="relative flex flex-1 flex-col p-5 sm:p-6">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0 flex-1 space-y-2">
+                {themeTag ? (
+                  <p className="inline-flex max-w-full items-center gap-1 rounded-full border border-violet-200/70 bg-violet-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-violet-800">
+                    <Sparkles className="size-3 shrink-0 text-amber-500" aria-hidden />
+                    <span className="line-clamp-1">{themeTag}</span>
+                  </p>
+                ) : null}
+                <h3 className={`${displayFont.className} text-xl font-semibold leading-tight tracking-tight text-stone-900 sm:text-[1.35rem]`}>
+                  {season.name}
+                </h3>
+                {season.formTitle && season.formTitle !== season.name ? (
+                  <p className="text-sm font-medium leading-snug text-stone-600">{season.formTitle}</p>
+                ) : null}
+              </div>
+              <span className={`shrink-0 ${badge.className}`}>{badge.label}</span>
+            </div>
+
+            <div className="mt-4 space-y-2 text-sm font-medium text-stone-700">
+              <p className="inline-flex items-center gap-2">
+                <CalendarDays className="size-4 shrink-0 text-teal-600" aria-hidden />
+                <span>{formatSeasonDateRangeCompact(season.startDateIso, season.endDateIso)}</span>
+              </p>
+              {season.sessionTimeDescription?.trim() ? (
+                <p className="flex items-start gap-2">
+                  <Clock className="mt-0.5 size-4 shrink-0 text-teal-600" aria-hidden />
+                  <span className="min-w-0 whitespace-pre-line">{season.sessionTimeDescription.trim()}</span>
+                </p>
+              ) : null}
+              {ageLine ? (
+                <p className="inline-flex items-center gap-2">
+                  <Users className="size-4 shrink-0 text-fuchsia-600" aria-hidden />
+                  <span>{ageLine}</span>
+                </p>
+              ) : null}
+            </div>
+
+            <p className="mt-4 rounded-xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm leading-relaxed text-stone-700">
+              Registration is closed for this event. We are no longer accepting new signups.
+            </p>
+
+            {season.teaser ? (
+              <p className="mt-3 line-clamp-3 flex-1 whitespace-pre-line text-sm leading-relaxed text-stone-600">
+                {season.teaser}
+              </p>
+            ) : (
+              <div className="flex-1" />
+            )}
+
+            {(season.helpContactName || season.helpContactEmail) ? (
+              <div className="mt-3">
+                {season.helpContactName ? (
+                  <div className="space-y-0.5">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-stone-500">Contact person</p>
+                    <p className="inline-flex items-center gap-1.5 text-sm font-semibold text-stone-700">
+                      <UserRound className="size-3.5 shrink-0" aria-hidden />
+                      <span className="truncate">{season.helpContactName}</span>
+                    </p>
+                  </div>
+                ) : null}
+                {season.helpContactEmail ? (
+                  <p
+                    className={`inline-flex items-center gap-1.5 text-xs font-medium text-stone-500 ${season.helpContactName ? "mt-3" : ""}`}
+                  >
+                    <Mail className="size-3.5 shrink-0" aria-hidden />
+                    <span className="truncate">{season.helpContactEmail}</span>
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
+
+            {season.registrantLookupEnabled ? (
+              <Link
+                href={season.lookupPath}
+                className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-stone-300 bg-white px-4 py-3 text-sm font-semibold text-stone-800 shadow-sm transition hover:border-brand/40 hover:text-brand"
+              >
+                <Search className="size-4" aria-hidden />
+                Look up your registration
+              </Link>
+            ) : (
+              <div className="mt-5 inline-flex w-full items-center justify-center rounded-xl border border-stone-200 bg-stone-100 px-4 py-3 text-sm font-semibold text-stone-500">
+                Registration closed
+              </div>
+            )}
+          </div>
+        </article>
+      </li>
+    );
+  }
 
   return (
     <li
@@ -266,7 +381,7 @@ export function LoginPageClient({
               <h1 className={`${displayFont.className} text-xl font-semibold tracking-tight text-stone-900 sm:text-2xl`}>
                 Event Registration
               </h1>
-              <p className="mt-0.5 text-sm text-stone-600">Choose an open program below to get started.</p>
+              <p className="mt-0.5 text-sm text-stone-600">Browse programs below — open events accept new signups.</p>
             </div>
           </div>
           <button
@@ -348,10 +463,11 @@ export function LoginPageClient({
           <div style={{ perspective: "1200px" }}>
             <div className="mb-8 text-center sm:mb-10">
               <h2 className={`${displayFont.className} text-2xl font-semibold tracking-tight text-stone-900 sm:text-3xl`}>
-                Open programs
+                Programs
               </h2>
               <p className="mx-auto mt-2 max-w-xl text-sm text-stone-600 sm:text-base">
-                Select an event to register. Each program has its own secure signup form — takes about 2–3 minutes.
+                Select an open event to register. Closed events are shown for reference — you can still look up an
+                existing registration when that option is available.
               </p>
             </div>
 

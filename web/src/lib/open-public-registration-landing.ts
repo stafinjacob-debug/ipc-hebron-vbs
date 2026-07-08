@@ -10,7 +10,7 @@ import {
 import { parseCalendarDateInput } from "@/lib/season-calendar-date";
 
 /** Visual status for the public landing card (UX scan). */
-export type PublicRegistrationCardBadge = "open" | "closing_soon" | "waitlist" | "full";
+export type PublicRegistrationCardBadge = "open" | "closing_soon" | "waitlist" | "full" | "closed";
 
 /** Serialized season row for the login landing (built on the server). */
 export type OpenPublicRegistrationSummary = {
@@ -39,7 +39,12 @@ export type OpenPublicRegistrationSummary = {
   waitlistEnabled: boolean;
   /** Public signup path (e.g. /register or /register/soccer). */
   registerPath: string;
+  /** Public lookup path when family self-service is enabled. */
+  lookupPath: string;
   publicRegistrationSlug: string | null;
+  /** False when admin has turned off "Accept new registrations". */
+  publicRegistrationOpen: boolean;
+  registrantLookupEnabled: boolean;
 };
 
 export function formatAgeRangeForCard(summary: OpenPublicRegistrationSummary): string | null {

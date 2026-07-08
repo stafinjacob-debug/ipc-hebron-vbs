@@ -33,11 +33,12 @@ export function PublicRegistrationAccessFields({
             <span>
               <span className="font-medium text-foreground">Accept new registrations</span>
               <span className="mt-0.5 block text-sm text-foreground/60">
-                When off, this season is hidden from{" "}
+                When off, families cannot sign up at{" "}
                 <Link href={registerPath} className="font-medium text-foreground underline">
                   {registerPath}
-                </Link>{" "}
-                and families cannot sign up. Use this when you are no longer accepting signups.
+                </Link>
+                . If &ldquo;Show on public landing page&rdquo; is on, the event still appears on the home page with a
+                registration-closed message.
               </span>
             </span>
           </label>
