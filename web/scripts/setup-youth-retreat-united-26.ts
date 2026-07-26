@@ -25,7 +25,7 @@ import { config } from "dotenv";
 import { existsSync } from "fs";
 import { dirname, resolve } from "path";
 import { fileURLToPath } from "url";
-import { PrismaClient } from "../src/generated/prisma";
+import { PrismaClient, Prisma } from "../src/generated/prisma";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
 import { fromDatetimeLocalValueInAppTz } from "../src/lib/app-timezone";
@@ -58,12 +58,9 @@ const REGISTRATION_CLOSES_LOCAL = "2026-08-31T23:59";
 const SESSION_TIME_DESCRIPTION =
   "Eligible: 9th–12th grade & HYA (College) · Fees: $152 per participant";
 
-const SCHOLARSHIP_PERCENT_KEY = "scholarshipPercent";
-const SCHOLARSHIP_PERCENT_VALUES = ["25", "50", "75"];
-const SCHOLARSHIP_PAY_LATER_MESSAGE =
-  "You requested a scholarship. Your registration is saved without paying online now. " +
-  "The church office will follow up about the scholarship amount and any remaining balance. " +
-  "You can also pay online later from the confirmation email or registrant lookup link.";
+const PAY_LATER_MESSAGE =
+  "You chose to pay later. You can pay by card online anytime before the retreat, or arrange payment with the registration managers. " +
+  "If finances are a barrier, please contact Pastor Danny Varghese privately — scholarships may be available.";
 
 /** One contact per line — rendered as multiple “Contact persons” on the public form. */
 const HELP_CONTACT_NAME =
@@ -176,7 +173,8 @@ function buildFormDefinition(): FormDefinitionV1 {
         order: 0,
         helperText:
           "Church Bus leaves Friday ~5:15 PM from IPC Hebron and returns Sunday 3:30 PM. " +
-          "No student will be turned away due to cost — contact Pastor Danny privately about 25%, 50%, or 75% scholarships.",
+          "No student will be turned away due to cost — if finances are a barrier, please contact Pastor Danny Varghese privately. " +
+          "You may also choose Pay later at checkout if needed.",
       },
       {
         id: "f_g_fn",
@@ -367,44 +365,13 @@ function buildFormDefinition(): FormDefinitionV1 {
         options: [...TSHIRT_OPTIONS],
       },
       {
-        id: "f_c_need_schol",
-        sectionId: "sec_child",
-        key: "needsScholarship",
-        type: "select",
-        label: "Do you need a scholarship?",
-        required: true,
-        order: 14,
-        helperText:
-          "No student will be turned away due to cost. If finances are a barrier, select Yes and choose a scholarship amount. Pastor Danny can also be contacted privately.",
-        options: [
-          { value: "No", label: "No" },
-          { value: "Yes", label: "Yes" },
-        ],
-      },
-      {
-        id: "f_c_schol_pct",
-        sectionId: "sec_child",
-        key: SCHOLARSHIP_PERCENT_KEY,
-        type: "select",
-        label: "Scholarship amount",
-        required: true,
-        order: 15,
-        helperText: "Selecting a scholarship submits your registration without paying online now (pay later).",
-        showWhen: { fieldKey: "needsScholarship", equals: "Yes" },
-        options: [
-          { value: "25", label: "25%" },
-          { value: "50", label: "50%" },
-          { value: "75", label: "75%" },
-        ],
-      },
-      {
         id: "f_c_notes",
         sectionId: "sec_child",
         key: "additionalNotes",
         type: "textarea",
         label: "Anything else you would like for us to know before camp?",
         required: false,
-        order: 16,
+        order: 14,
         placeholder: "Optional",
       },
     ],
@@ -474,11 +441,13 @@ async function main() {
             stripeAmountCents: FEE_CENTS,
             stripePricingUnit: "PER_CHILD",
             stripePayLaterEnabled: true,
-            stripePayLaterMessage: SCHOLARSHIP_PAY_LATER_MESSAGE,
-            stripeAutoPayLaterWhenFieldKey: SCHOLARSHIP_PERCENT_KEY,
-            stripeAutoPayLaterWhenFieldValues: SCHOLARSHIP_PERCENT_VALUES,
+            stripePayLaterMessage: PAY_LATER_MESSAGE,
+            stripeAutoPayLaterWhenFieldKey: null,
+            stripeAutoPayLaterWhenFieldValues: Prisma.DbNull,
             minimumParticipantAgeYears: null,
             maximumParticipantAgeYears: null,
+            welcomeMessage: buildWelcomeMessage(),
+            instructions: buildInstructions(),
           },
         });
         await prisma.publicRegistrationSettings.update({
@@ -487,6 +456,7 @@ async function main() {
             sessionTimeDescription: SESSION_TIME_DESCRIPTION,
             helpContactName: HELP_CONTACT_NAME,
             helpContactPhone: HELP_CONTACT_PHONE,
+            welcomeMessage: buildWelcomeMessage(),
           },
         });
       }
@@ -495,9 +465,7 @@ async function main() {
       console.log(`Dates: ${START_DATE} – ${END_DATE}`);
       console.log(`Session line: ${SESSION_TIME_DESCRIPTION}`);
       console.log("Contact persons: Pastor Danny, Jessena Varghese, Joyce John (with phones)");
-      console.log(
-        "Scholarship: needsScholarship + scholarshipPercent → auto pay later (no pay-later radio).",
-      );
+      console.log("Pay later: enabled for everyone (scholarship dropdowns removed).");
       console.log("Waiver enabled: General Liability + Challenge Course (combined digital signature).");
       return;
     }
@@ -591,9 +559,9 @@ async function main() {
         stripeProductLabel: "Youth Retreat United '26 registration",
         stripeProcessingFeeMode: "OPTIONAL",
         stripePayLaterEnabled: true,
-        stripePayLaterMessage: SCHOLARSHIP_PAY_LATER_MESSAGE,
-        stripeAutoPayLaterWhenFieldKey: SCHOLARSHIP_PERCENT_KEY,
-        stripeAutoPayLaterWhenFieldValues: SCHOLARSHIP_PERCENT_VALUES,
+        stripePayLaterMessage: PAY_LATER_MESSAGE,
+        stripeAutoPayLaterWhenFieldKey: null,
+        stripeAutoPayLaterWhenFieldValues: Prisma.DbNull,
         minimumParticipantAgeYears: null,
         maximumParticipantAgeYears: null,
         autoApproveWhenClassAssignedAndPaid: false,
@@ -611,9 +579,7 @@ async function main() {
     console.log(`Public registration: /register/${SLUG}`);
     console.log(`Fee: $${FEE_CENTS / 100} per participant · closes ${REGISTRATION_CLOSES_LOCAL} CT`);
     console.log("Waiver enabled: General Liability + Challenge Course (combined digital signature).");
-    console.log(
-      "Scholarship: needsScholarship + scholarshipPercent → auto pay later (no pay-later radio).",
-    );
+    console.log("Pay later: enabled for everyone (contact Pastor Danny privately for scholarship help).");
     console.log("Event dates set — update in Programs if they change.");
     if (!openRegistration) {
       console.log("\nRegistration is closed. Re-run with --open or enable it in admin when ready.");
