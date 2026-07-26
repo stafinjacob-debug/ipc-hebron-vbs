@@ -42,7 +42,8 @@ if (existsSync(resolve(webRoot, ".env.local"))) {
 
 const SEASON_NAME = "IPC Hebron Youth Retreat, United '26";
 const SEASON_YEAR = 2026;
-const SLUG = "united-26";
+const SLUG = "retreat";
+const LEGACY_SLUG = "united-26";
 const THEME = "United '26";
 /** Placeholder Fri–Sun weekend after registration deadline — edit in admin when confirmed. */
 const START_DATE = "2026-09-11";
@@ -363,14 +364,28 @@ async function main() {
   try {
     const existing = await prisma.vbsSeason.findFirst({
       where: {
-        OR: [{ publicRegistrationSlug: SLUG }, { name: SEASON_NAME }],
+        OR: [
+          { publicRegistrationSlug: SLUG },
+          { publicRegistrationSlug: LEGACY_SLUG },
+          { name: SEASON_NAME },
+        ],
       },
       select: { id: true, name: true, publicRegistrationSlug: true },
     });
     if (existing) {
+      if (existing.publicRegistrationSlug !== SLUG) {
+        if (!dryRun) {
+          await prisma.vbsSeason.update({
+            where: { id: existing.id },
+            data: { publicRegistrationSlug: SLUG },
+          });
+        }
+        console.log(
+          `Updated slug: ${existing.publicRegistrationSlug ?? "(none)"} → ${SLUG}`,
+        );
+      }
       console.log(`Season already exists: ${existing.name} [${existing.id}]`);
-      console.log(`Public URL: /${existing.publicRegistrationSlug ?? SLUG}`);
-      console.log("No changes made. Edit the form in admin if you need updates.");
+      console.log(`Public URL: /register/${SLUG}`);
       return;
     }
 
