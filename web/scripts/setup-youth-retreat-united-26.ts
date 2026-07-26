@@ -34,6 +34,11 @@ import {
   type FormDefinitionV1,
 } from "../src/lib/registration-form-definition";
 import { parseLocalDate } from "../src/lib/schemas/vbs-registration";
+import {
+  YOUTH_RETREAT_WAIVER_BODY,
+  YOUTH_RETREAT_WAIVER_DESCRIPTION,
+  YOUTH_RETREAT_WAIVER_TITLE,
+} from "./youth-retreat-waiver-content";
 
 const webRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 if (existsSync(resolve(webRoot, ".env.local"))) {
@@ -50,6 +55,20 @@ const START_DATE = "2026-09-11";
 const END_DATE = "2026-09-13";
 const FEE_CENTS = 15200;
 const REGISTRATION_CLOSES_LOCAL = "2026-08-31T23:59";
+
+const WAIVER_MERGE_FIELD_KEYS = [
+  "guardianFirstName",
+  "guardianLastName",
+  "guardianEmail",
+  "guardianPhone",
+  "childFirstName",
+  "childLastName",
+  "childDateOfBirth",
+  "registrantPhone",
+  "registrantEmail",
+  "participantGender",
+  "participantGroup",
+];
 
 const TSHIRT_OPTIONS = [
   { value: "S", label: "S" },
@@ -384,8 +403,21 @@ async function main() {
           `Updated slug: ${existing.publicRegistrationSlug ?? "(none)"} → ${SLUG}`,
         );
       }
+      if (!dryRun) {
+        await prisma.registrationForm.update({
+          where: { seasonId: existing.id },
+          data: {
+            waiverEnabled: true,
+            waiverTitle: YOUTH_RETREAT_WAIVER_TITLE,
+            waiverDescription: YOUTH_RETREAT_WAIVER_DESCRIPTION,
+            waiverBody: YOUTH_RETREAT_WAIVER_BODY,
+            waiverMergeFieldKeys: WAIVER_MERGE_FIELD_KEYS,
+          },
+        });
+      }
       console.log(`Season already exists: ${existing.name} [${existing.id}]`);
       console.log(`Public URL: /register/${SLUG}`);
+      console.log("Waiver enabled: General Liability + Challenge Course (combined digital signature).");
       return;
     }
 
@@ -407,7 +439,7 @@ async function main() {
       console.log(`  Fee: $${FEE_CENTS / 100} per participant`);
       console.log(`  Registration closes: ${REGISTRATION_CLOSES_LOCAL} America/Chicago`);
       console.log(`  Classrooms: disabled (gender + group as form fields only)`);
-      console.log(`  Waiver: disabled (paste camp + challenge-course text in admin later)`);
+      console.log(`  Waiver: enabled (General Liability + Challenge Course combined)`);
       console.log(`  Contact: ${helpContactName} · ${helpContactPhone} · ${helpContactEmail}`);
       console.log(`  Open registration: ${openRegistration}`);
       console.log(`  Form fields: ${formDef.fields.length}`);
@@ -481,14 +513,18 @@ async function main() {
         autoApproveWhenClassAssignedAndPaid: false,
         registrantLookupEnabled: true,
         adminRegistrationEditEnabled: true,
-        waiverEnabled: false,
+        waiverEnabled: true,
+        waiverTitle: YOUTH_RETREAT_WAIVER_TITLE,
+        waiverDescription: YOUTH_RETREAT_WAIVER_DESCRIPTION,
+        waiverBody: YOUTH_RETREAT_WAIVER_BODY,
+        waiverMergeFieldKeys: WAIVER_MERGE_FIELD_KEYS,
       },
     });
 
     console.log(`Created season: ${SEASON_NAME} [${season.id}]`);
-    console.log(`Public registration: /${SLUG}`);
+    console.log(`Public registration: /register/${SLUG}`);
     console.log(`Fee: $${FEE_CENTS / 100} per participant · closes ${REGISTRATION_CLOSES_LOCAL} CT`);
-    console.log("Waiver disabled — paste combined camp + challenge-course text in Form settings when ready.");
+    console.log("Waiver enabled: General Liability + Challenge Course (combined digital signature).");
     console.log("Placeholder event dates set — update start/end dates in Programs when confirmed.");
     if (!openRegistration) {
       console.log("\nRegistration is closed. Re-run with --open or enable it in admin when ready.");
