@@ -1676,7 +1676,7 @@ function DynamicRegistrationWizardInner({
             )),
           )}
 
-          {state && !state.ok && !hasFieldErrors(state) && (
+          {state && !state.ok && !hasFieldErrors(state) && step !== reviewStepIndex && (
             <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-100">
               {translateServerMessage(locale, state.message)}
             </div>
@@ -1684,8 +1684,8 @@ function DynamicRegistrationWizardInner({
           {state &&
             !state.ok &&
             hasFieldErrors(state) &&
+            step !== reviewStepIndex &&
             !(
-              step === reviewStepIndex &&
               state.fieldErrors &&
               Object.keys(state.fieldErrors).length > 0 &&
               Object.keys(state.fieldErrors).every((k) => /^childDateOfBirth__\d+$/.test(k))
@@ -1694,7 +1694,7 @@ function DynamicRegistrationWizardInner({
                 {translateServerMessage(locale, state.message)}
               </div>
             )}
-          {localError && (
+          {localError && step !== reviewStepIndex && (
             <div
               className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-100"
               role="alert"
@@ -2184,28 +2184,6 @@ function DynamicRegistrationWizardInner({
           {step === reviewStepIndex && (
             <div className={sectionCard}>
               <SectionHeader title={t("reviewSubmit")} description={t("reviewSubmitDesc")} />
-              <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-white/15 bg-white/10 px-4 py-4">
-                <input
-                  type="checkbox"
-                  checked={confirmAccurate}
-                  onChange={(e) => setConfirmAccurate(e.target.checked)}
-                  className="mt-1 size-5 accent-brand"
-                />
-                <span className="text-sm leading-relaxed text-neutral-100">
-                  {t("confirmAccurate", { eventName })}
-                </span>
-              </label>
-              <label className="mt-3 flex cursor-pointer items-start gap-3 rounded-xl border border-white/15 bg-white/10 px-4 py-4">
-                <input
-                  type="checkbox"
-                  checked={smsConsent}
-                  onChange={(e) => setSmsConsent(e.target.checked)}
-                  className="mt-1 size-5 accent-brand"
-                />
-                <span className="text-sm leading-relaxed text-neutral-100">
-                  {t("smsConsent", { eventName })}
-                </span>
-              </label>
               <div className="space-y-4 text-sm">
                 <div>
                   <p className="text-xs font-bold uppercase text-neutral-400">{reviewContactLabel}</p>
@@ -2351,7 +2329,11 @@ function DynamicRegistrationWizardInner({
                             <span className="mt-1 block text-neutral-300/90">
                               {isLegacyVbs
                                 ? t("payLaterDetailVbs")
-                                : t("payLaterDetailEvent", { eventName: current?.name ?? "the event" })}
+                                : current?.publicRegistrationSlug === "retreat"
+                                  ? "Register now; pay by card online by August 31, 2026, or arrange payment with the registration managers."
+                                  : t("payLaterDetailEvent", {
+                                      eventName: current?.name ?? "the event",
+                                    })}
                             </span>
                           </span>
                         </label>
@@ -2430,6 +2412,55 @@ function DynamicRegistrationWizardInner({
                   </div>
                 ) : null}
               </div>
+              <div className="mt-5 space-y-3">
+                <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-white/15 bg-white/10 px-4 py-4">
+                  <input
+                    type="checkbox"
+                    checked={confirmAccurate}
+                    onChange={(e) => {
+                      setConfirmAccurate(e.target.checked);
+                      if (e.target.checked) setLocalError(null);
+                    }}
+                    className="mt-1 size-5 accent-brand"
+                  />
+                  <span className="text-sm leading-relaxed text-neutral-100">
+                    {t("confirmAccurate", { eventName })}
+                  </span>
+                </label>
+                <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-white/15 bg-white/10 px-4 py-4">
+                  <input
+                    type="checkbox"
+                    checked={smsConsent}
+                    onChange={(e) => setSmsConsent(e.target.checked)}
+                    className="mt-1 size-5 accent-brand"
+                  />
+                  <span className="text-sm leading-relaxed text-neutral-100">
+                    {t("smsConsent", { eventName })}
+                  </span>
+                </label>
+                {(localError ||
+                  (state &&
+                    !state.ok &&
+                    !(
+                      state.fieldErrors &&
+                      Object.keys(state.fieldErrors).length > 0 &&
+                      Object.keys(state.fieldErrors).every((k) => /^childDateOfBirth__\d+$/.test(k))
+                    ) &&
+                    (state.message || state.fieldErrors?.confirmedAccurate?.[0]))) && (
+                  <div
+                    className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-100"
+                    role="alert"
+                  >
+                    <X className="mt-0.5 size-4 shrink-0" aria-hidden />
+                    <span>
+                      {localError ||
+                        (state?.fieldErrors?.confirmedAccurate?.[0]
+                          ? t("confirmAccurateRequired")
+                          : translateServerMessage(locale, state?.message ?? ""))}
+                    </span>
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
@@ -2474,6 +2505,12 @@ function DynamicRegistrationWizardInner({
                   aria-label={primarySubmitLabel}
                   onClick={() => {
                     if (step !== reviewStepIndex) return;
+                    const err = validateStep(step);
+                    if (err) {
+                      setLocalError(err);
+                      return;
+                    }
+                    setLocalError(null);
                     nativeSubmitRef.current?.click();
                   }}
                   className="inline-flex min-h-11 rounded-xl bg-brand px-6 py-2.5 text-sm font-semibold text-brand-foreground disabled:opacity-50"
@@ -2514,6 +2551,12 @@ function DynamicRegistrationWizardInner({
                   aria-label={primarySubmitLabel}
                   onClick={() => {
                     if (step !== reviewStepIndex) return;
+                    const err = validateStep(step);
+                    if (err) {
+                      setLocalError(err);
+                      return;
+                    }
+                    setLocalError(null);
                     nativeSubmitRef.current?.click();
                   }}
                   className="inline-flex min-h-12 flex-[2] items-center justify-center rounded-xl bg-brand text-sm font-semibold text-brand-foreground disabled:opacity-50"

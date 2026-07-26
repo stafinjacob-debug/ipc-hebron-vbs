@@ -59,8 +59,13 @@ const SESSION_TIME_DESCRIPTION =
   "Eligible: 9th–12th grade & HYA (College) · Fees: $152 per participant";
 
 const PAY_LATER_MESSAGE =
-  "You chose to pay later. You can pay by card online anytime before the retreat, or arrange payment with the registration managers. " +
-  "If finances are a barrier, please contact Pastor Danny Varghese privately — scholarships may be available.";
+  "You chose to pay later. Please complete payment by August 31, 2026 — you can pay by card online by then, or arrange payment with the registration managers.\n\n" +
+  "No student will be turned away due to cost. We believe every student should have the opportunity to encounter God this weekend. " +
+  "If finances are a barrier, please reach out to Pastor Danny privately — scholarships covering 25%, 50%, and 75% are available. " +
+  "We don't want finances to be the reason you miss what God has in store for you — we want you there!";
+
+const PAYMENT_DEADLINE_NOTICE =
+  "To finalize your Youth Retreat registration, payment must be received by August 31, 2026. Unpaid registrations may not be eligible to attend.";
 
 /** One contact per line — rendered as multiple “Contact persons” on the public form. */
 const HELP_CONTACT_NAME =
@@ -173,8 +178,10 @@ function buildFormDefinition(): FormDefinitionV1 {
         order: 0,
         helperText:
           "Church Bus leaves Friday ~5:15 PM from IPC Hebron and returns Sunday 3:30 PM. " +
-          "No student will be turned away due to cost — if finances are a barrier, please contact Pastor Danny Varghese privately. " +
-          "You may also choose Pay later at checkout if needed.",
+          "No student will be turned away due to cost. We believe every student should have the opportunity to encounter God this weekend. " +
+          "If finances are a barrier, please reach out to Pastor Danny privately — scholarships covering 25%, 50%, and 75% are available. " +
+          "We don't want finances to be the reason you miss what God has in store for you — we want you there! " +
+          "You may also choose Pay later at checkout (payment due by August 31, 2026).",
       },
       {
         id: "f_g_fn",
@@ -442,6 +449,7 @@ async function main() {
             stripePricingUnit: "PER_CHILD",
             stripePayLaterEnabled: true,
             stripePayLaterMessage: PAY_LATER_MESSAGE,
+            stripePaymentDeadlineNotice: PAYMENT_DEADLINE_NOTICE,
             stripeAutoPayLaterWhenFieldKey: null,
             stripeAutoPayLaterWhenFieldValues: Prisma.DbNull,
             minimumParticipantAgeYears: null,
@@ -560,6 +568,7 @@ async function main() {
         stripeProcessingFeeMode: "OPTIONAL",
         stripePayLaterEnabled: true,
         stripePayLaterMessage: PAY_LATER_MESSAGE,
+        stripePaymentDeadlineNotice: PAYMENT_DEADLINE_NOTICE,
         stripeAutoPayLaterWhenFieldKey: null,
         stripeAutoPayLaterWhenFieldValues: Prisma.DbNull,
         minimumParticipantAgeYears: null,
