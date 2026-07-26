@@ -353,17 +353,18 @@ export function PublicRegistrationHelpContactFields({
     <div className="rounded-xl border border-foreground/10 p-4 space-y-4">
       <div>
         <label htmlFor="helpContactName" className="text-sm font-semibold text-foreground/90">
-          Contact person name (optional)
+          Contact person name(s) (optional)
         </label>
         <p className="mt-1 text-sm text-foreground/60">
-          Shown on the registration form below the description, larger than the welcome text.
+          Shown on the registration form below the description. For multiple contacts, put one person per line
+          (name and phone), e.g. <span className="font-mono text-xs">Joyce John 832-577-6241</span>.
         </p>
-        <input
+        <textarea
           id="helpContactName"
           name="helpContactName"
-          type="text"
+          rows={3}
           defaultValue={helpContactName ?? ""}
-          placeholder="e.g. Boby Jacob"
+          placeholder={"e.g.\nPastor Danny Varghese 405-824-1231\nJessena Varghese 516-263-6039"}
           className="mt-2 w-full rounded-md border border-foreground/15 bg-background px-3 py-2 text-sm text-foreground"
         />
       </div>

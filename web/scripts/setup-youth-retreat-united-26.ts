@@ -65,6 +65,11 @@ const SCHOLARSHIP_PAY_LATER_MESSAGE =
   "The church office will follow up about the scholarship amount and any remaining balance. " +
   "You can also pay online later from the confirmation email or registrant lookup link.";
 
+/** One contact per line — rendered as multiple “Contact persons” on the public form. */
+const HELP_CONTACT_NAME =
+  "Pastor Danny Varghese 405-824-1231\nJessena Varghese 516-263-6039\nJoyce John 832-577-6241";
+const HELP_CONTACT_PHONE = "832-577-6241";
+
 const WAIVER_MERGE_FIELD_KEYS = [
   "guardianFirstName",
   "guardianLastName",
@@ -476,13 +481,18 @@ async function main() {
         });
         await prisma.publicRegistrationSettings.update({
           where: { seasonId: existing.id },
-          data: { sessionTimeDescription: SESSION_TIME_DESCRIPTION },
+          data: {
+            sessionTimeDescription: SESSION_TIME_DESCRIPTION,
+            helpContactName: HELP_CONTACT_NAME,
+            helpContactPhone: HELP_CONTACT_PHONE,
+          },
         });
       }
       console.log(`Season already exists: ${existing.name} [${existing.id}]`);
       console.log(`Public URL: /register/${SLUG}`);
       console.log(`Dates: ${START_DATE} – ${END_DATE}`);
       console.log(`Session line: ${SESSION_TIME_DESCRIPTION}`);
+      console.log("Contact persons: Pastor Danny, Jessena Varghese, Joyce John (with phones)");
       console.log(
         "Scholarship: needsScholarship + scholarshipPercent → auto pay later (no pay-later radio).",
       );
@@ -496,8 +506,8 @@ async function main() {
     const formJson = definitionToJson(formDef);
     const welcomeMessage = buildWelcomeMessage();
     const instructions = buildInstructions();
-    const helpContactName = "Joyce John & Jessena Varghese";
-    const helpContactPhone = "832-577-6241";
+    const helpContactName = HELP_CONTACT_NAME;
+    const helpContactPhone = HELP_CONTACT_PHONE;
     const helpContactEmail = process.env.VBS_HELP_EMAIL?.trim() || "info@ipchebron.com";
 
     if (dryRun) {
