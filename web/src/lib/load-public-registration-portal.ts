@@ -52,6 +52,7 @@ async function buildSeasonOption(
     year: s.year,
     startDate: calendarDateFromDate(s.startDate),
     endDate: calendarDateFromDate(s.endDate),
+    programKind: s.programKind,
     welcomeMessage: formRow.welcomeMessage ?? settings?.welcomeMessage ?? null,
     backgroundImageUrl: settings?.registrationBackgroundImageUrl ?? null,
     backgroundVideoUrl: settings?.registrationBackgroundVideoUrl ?? null,

@@ -477,6 +477,8 @@ async function main() {
             stripePayLaterMessage: SCHOLARSHIP_PAY_LATER_MESSAGE,
             stripeAutoPayLaterWhenFieldKey: SCHOLARSHIP_PERCENT_KEY,
             stripeAutoPayLaterWhenFieldValues: SCHOLARSHIP_PERCENT_VALUES,
+            minimumParticipantAgeYears: null,
+            maximumParticipantAgeYears: null,
           },
         });
         await prisma.publicRegistrationSettings.update({
@@ -592,6 +594,8 @@ async function main() {
         stripePayLaterMessage: SCHOLARSHIP_PAY_LATER_MESSAGE,
         stripeAutoPayLaterWhenFieldKey: SCHOLARSHIP_PERCENT_KEY,
         stripeAutoPayLaterWhenFieldValues: SCHOLARSHIP_PERCENT_VALUES,
+        minimumParticipantAgeYears: null,
+        maximumParticipantAgeYears: null,
         autoApproveWhenClassAssignedAndPaid: false,
         registrantLookupEnabled: true,
         adminRegistrationEditEnabled: true,

@@ -95,6 +95,8 @@ export type PublicSeasonOption = {
   year: number;
   startDate: string;
   endDate: string;
+  /** Used for legacy VBS age-gate defaults when form min/max ages are unset. */
+  programKind: "VBS" | "SPORTS" | "YOUTH" | "GENERAL";
   welcomeMessage: string | null;
   backgroundImageUrl: string | null;
   /** MP4/WebM URL; when set, shown instead of the image on /register. */
@@ -209,7 +211,11 @@ function childAgeGateMessageForDob(
   childIndex: number,
   season: Pick<
     PublicSeasonOption,
-    "minimumParticipantAgeYears" | "maximumParticipantAgeYears" | "participantAgeAsOfDateIso" | "participantSingularLabel"
+    | "minimumParticipantAgeYears"
+    | "maximumParticipantAgeYears"
+    | "participantAgeAsOfDateIso"
+    | "participantSingularLabel"
+    | "programKind"
   >,
 ): string | null {
   const trimmed = dobStr.trim();
@@ -225,7 +231,9 @@ function childAgeGateMessageForDob(
     minimumParticipantAgeYears: season.minimumParticipantAgeYears,
     maximumParticipantAgeYears: season.maximumParticipantAgeYears,
     participantAgeAsOfDate: asOfDate,
+    applyVbsDefaultsWhenUnset: season.programKind === "VBS",
   });
+  if (!rules) return null;
   return validateParticipantAge(dob, rules, season.participantSingularLabel, childIndex);
 }
 
@@ -783,11 +791,12 @@ function DynamicRegistrationWizardInner({
   const effectiveContactFooterText =
     current?.contactFooterText?.trim() || portalBranding?.contactFooterText?.trim() || null;
   const participantAgeRules = useMemo(() => {
-    if (!current) return resolveParticipantAgeRules({});
+    if (!current) return null;
     return resolveParticipantAgeRules({
       minimumParticipantAgeYears: current.minimumParticipantAgeYears,
       maximumParticipantAgeYears: current.maximumParticipantAgeYears,
       participantAgeAsOfDate: parseParticipantCalendarDate(current.participantAgeAsOfDateIso),
+      applyVbsDefaultsWhenUnset: current.programKind === "VBS",
     });
   }, [current]);
   const participantLabelRaw = current?.participantSingularLabel ?? portalBranding?.participantSingularLabel ?? "Child";
@@ -1026,12 +1035,12 @@ function DynamicRegistrationWizardInner({
   }, [activeSteps, step]);
 
   const currentStepShowsAgeGate = useMemo(() => {
-    if (currentStepKind !== "participants" || !def) return false;
+    if (currentStepKind !== "participants" || !def || !participantAgeRules) return false;
     const ids = new Set(currentStepFormSections.map((s) => s.id));
     return def.fields.some(
       (f) => ids.has(f.sectionId) && f.key === "childDateOfBirth" && f.type !== "sectionHeader" && f.type !== "staticText",
     );
-  }, [currentStepKind, def, currentStepFormSections]);
+  }, [currentStepKind, def, currentStepFormSections, participantAgeRules]);
 
   const reviewContactLabel =
     translateSectionTitle(locale, guardianSections[0]?.title ?? portalBranding?.contactSectionLabel ?? t("contactInformation"));
@@ -1805,7 +1814,7 @@ function DynamicRegistrationWizardInner({
                   )
                 }
               />
-              {currentStepShowsAgeGate ? (
+              {currentStepShowsAgeGate && participantAgeRules ? (
               <p className="mb-4 rounded-lg border border-white/15 bg-white/8 px-3 py-2 text-sm text-neutral-100/90">
                 {t("ageGate", {
                   label: participantLabel.toLowerCase(),

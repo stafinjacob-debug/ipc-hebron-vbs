@@ -43,27 +43,27 @@ export function RegistrationPublicContactPromo({
       {lines.length > 0 ? (
         <div className="space-y-2">
           <p className="text-xs font-semibold uppercase tracking-wide text-white/70">{heading}</p>
-          <ul className="space-y-2">
+          <ul className="space-y-1.5">
             {lines.map((line) => {
               const digits = line.phone ? phoneDigits(line.phone) : "";
               return (
                 <li
                   key={`${line.name}-${line.phone ?? ""}`}
-                  className="text-base font-semibold leading-snug text-white sm:text-lg"
+                  className="text-xs font-medium leading-snug text-white/90 sm:text-sm"
                 >
-                  <span className="inline-flex flex-wrap items-center justify-center gap-x-2 gap-y-1">
-                    <UserRound className="size-4 shrink-0 text-amber-200/90" aria-hidden />
+                  <span className="inline-flex flex-wrap items-center justify-center gap-x-1.5 gap-y-0.5">
+                    <UserRound className="size-3.5 shrink-0 text-amber-200/80" aria-hidden />
                     <span>{line.name}</span>
                     {line.phone && digits.length >= 10 ? (
                       <a
                         href={`tel:${digits}`}
-                        className="inline-flex items-center gap-1 text-sm font-semibold text-cyan-100/95 underline decoration-cyan-100/40 underline-offset-2 sm:text-base"
+                        className="inline-flex items-center gap-1 text-[11px] font-medium text-cyan-100/90 underline decoration-cyan-100/35 underline-offset-2 sm:text-xs"
                       >
-                        <Phone className="size-3.5 shrink-0" aria-hidden />
+                        <Phone className="size-3 shrink-0" aria-hidden />
                         {line.phone}
                       </a>
                     ) : line.phone ? (
-                      <span className="text-sm font-semibold text-cyan-100/95 sm:text-base">{line.phone}</span>
+                      <span className="text-[11px] font-medium text-cyan-100/90 sm:text-xs">{line.phone}</span>
                     ) : null}
                   </span>
                 </li>

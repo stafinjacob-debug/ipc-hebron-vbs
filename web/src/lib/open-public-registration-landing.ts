@@ -57,6 +57,9 @@ export function formatAgeRangeForCard(summary: OpenPublicRegistrationSummary): s
     maximumParticipantAgeYears: summary.maximumParticipantAgeYears,
     participantAgeAsOfDate: participantAsOf,
     seasonStartDate: seasonStart,
+    // Legacy VBS portal (no slug) keeps 4–14 defaults when ages are unset.
+    applyVbsDefaultsWhenUnset: !summary.publicRegistrationSlug?.trim(),
   });
+  if (!rules) return null;
   return `Ages ${rules.minimumYears}–${rules.maximumYears} (as of ${formatParticipantAgeAsOfLabel(rules.asOfDate)})`;
 }

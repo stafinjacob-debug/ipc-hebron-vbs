@@ -1140,8 +1140,9 @@ export function FormSettingsForm({
           </p>
         </div>
         <p className="text-xs text-foreground/60">
-          Public registration enforces the min/max ages above, or defaults to {VBS_PARTICIPANT_MIN_YEARS}–
-          {VBS_PARTICIPANT_MAX_YEARS} when left empty.
+          Public registration enforces the min/max ages above when set. For VBS programs, empty
+          values still default to {VBS_PARTICIPANT_MIN_YEARS}–{VBS_PARTICIPANT_MAX_YEARS}. Other
+          program kinds (Youth, Sports, etc.) have no age gate when left empty.
         </p>
         <label className="flex items-center gap-2 text-sm">
           <input

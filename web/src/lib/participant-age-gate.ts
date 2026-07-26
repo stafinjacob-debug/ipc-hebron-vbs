@@ -40,26 +40,49 @@ export function defaultParticipantAgeRules(): ParticipantAgeRules {
   };
 }
 
+export function formHasExplicitAgeLimits(
+  minimumParticipantAgeYears?: number | null,
+  maximumParticipantAgeYears?: number | null,
+): boolean {
+  return (
+    (minimumParticipantAgeYears != null && minimumParticipantAgeYears >= 1) ||
+    (maximumParticipantAgeYears != null && maximumParticipantAgeYears >= 1)
+  );
+}
+
+/**
+ * Resolve age limits for public registration.
+ * - Explicit form min/max always win.
+ * - When both are unset: VBS portals keep legacy 4–14 defaults; other program kinds have no age gate (`null`).
+ */
 export function resolveParticipantAgeRules(input: {
   minimumParticipantAgeYears?: number | null;
   maximumParticipantAgeYears?: number | null;
   participantAgeAsOfDate?: Date | null;
   seasonStartDate?: Date | null;
-} = {}): ParticipantAgeRules {
+  /** When true and min/max are empty, use VBS 4–14 defaults. */
+  applyVbsDefaultsWhenUnset?: boolean;
+} = {}): ParticipantAgeRules | null {
   const defaults = defaultParticipantAgeRules();
-  const min =
-    input.minimumParticipantAgeYears != null && input.minimumParticipantAgeYears >= 1
-      ? Math.floor(input.minimumParticipantAgeYears)
-      : defaults.minimumYears;
-  const max =
-    input.maximumParticipantAgeYears != null && input.maximumParticipantAgeYears >= 1
-      ? Math.floor(input.maximumParticipantAgeYears)
-      : defaults.maximumYears;
+  const hasMin =
+    input.minimumParticipantAgeYears != null && input.minimumParticipantAgeYears >= 1;
+  const hasMax =
+    input.maximumParticipantAgeYears != null && input.maximumParticipantAgeYears >= 1;
   const asOfDate =
-    input.participantAgeAsOfDate ??
-    input.seasonStartDate ??
-    defaults.asOfDate;
-  return { minimumYears: min, maximumYears: max, asOfDate };
+    input.participantAgeAsOfDate ?? input.seasonStartDate ?? defaults.asOfDate;
+
+  if (!hasMin && !hasMax) {
+    if (input.applyVbsDefaultsWhenUnset) {
+      return { ...defaults, asOfDate };
+    }
+    return null;
+  }
+
+  return {
+    minimumYears: hasMin ? Math.floor(input.minimumParticipantAgeYears!) : 0,
+    maximumYears: hasMax ? Math.floor(input.maximumParticipantAgeYears!) : 150,
+    asOfDate,
+  };
 }
 
 export function formatParticipantAgeAsOfLabel(asOfDate: Date, locale?: string | string[]): string {

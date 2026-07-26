@@ -278,10 +278,11 @@ async function submitPublicRegistrationCore(
     maximumParticipantAgeYears: formRow.maximumParticipantAgeYears,
     participantAgeAsOfDate: season.participantAgeAsOfDate,
     seasonStartDate: season.startDate,
+    applyVbsDefaultsWhenUnset: season.programKind === "VBS",
   });
   const participantLabel = "Participant";
 
-  if (formIncludesChildDateOfBirth(def)) {
+  if (formIncludesChildDateOfBirth(def) && ageRules) {
     for (let i = 0; i < dobDates.length; i++) {
       const msg = validateParticipantAge(dobDates[i], ageRules, participantLabel, i);
       if (msg) {
