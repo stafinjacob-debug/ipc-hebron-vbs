@@ -55,6 +55,9 @@ const START_DATE = "2026-09-11";
 const END_DATE = "2026-09-13";
 const FEE_CENTS = 15200;
 const REGISTRATION_CLOSES_LOCAL = "2026-08-31T23:59";
+/** Shown under the date range on the public registration hero (clock line). */
+const SESSION_TIME_DESCRIPTION =
+  "Eligible: 9th–12th grade & HYA (College) · Fees: $152 per participant";
 
 const WAIVER_MERGE_FIELD_KEYS = [
   "guardianFirstName",
@@ -414,9 +417,14 @@ async function main() {
             waiverMergeFieldKeys: WAIVER_MERGE_FIELD_KEYS,
           },
         });
+        await prisma.publicRegistrationSettings.update({
+          where: { seasonId: existing.id },
+          data: { sessionTimeDescription: SESSION_TIME_DESCRIPTION },
+        });
       }
       console.log(`Season already exists: ${existing.name} [${existing.id}]`);
       console.log(`Public URL: /register/${SLUG}`);
+      console.log(`Session line: ${SESSION_TIME_DESCRIPTION}`);
       console.log("Waiver enabled: General Liability + Challenge Course (combined digital signature).");
       return;
     }
@@ -473,8 +481,7 @@ async function main() {
         requireGuardianPhone: true,
         requireAllergiesNotes: false,
         welcomeMessage,
-        sessionTimeDescription:
-          "Church bus leaves Friday ~5:15 PM from IPC Hebron; returns Sunday 3:30 PM. Event dates are placeholders — confirm in admin.",
+        sessionTimeDescription: SESSION_TIME_DESCRIPTION,
         helpContactName,
         helpContactEmail,
         helpContactPhone,
