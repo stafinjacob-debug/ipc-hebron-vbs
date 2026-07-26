@@ -8,6 +8,7 @@ import { clampRegistrationBackgroundDimmingPercent } from "@/lib/registration-ba
 import { parsePublicRegistrationLayout } from "@/lib/public-registration-layout";
 import { rulesFromDb } from "@/lib/public-registration";
 import { calendarDateFromDate } from "@/lib/season-calendar-date";
+import { jsonToStringArray } from "@/lib/class-form-field-match";
 import { parseWaiverMergeFieldKeysFromDb, parseWaiverSupplementalDefsFromDb } from "@/lib/waiver-merge-fields";
 import type { PublicSeasonOption, PublicSeasonWaiverSnapshot } from "@/app/register/dynamic-registration-wizard";
 import { getPortalLookupPath } from "@/lib/portal-public-path";
@@ -80,6 +81,8 @@ async function buildSeasonOption(
     stripeProductLabel: formRow.stripeProductLabel,
     stripeSkipWhenFieldKey: formRow.stripeSkipWhenFieldKey,
     stripeSkipWhenFieldValue: formRow.stripeSkipWhenFieldValue,
+    stripeAutoPayLaterWhenFieldKey: formRow.stripeAutoPayLaterWhenFieldKey,
+    stripeAutoPayLaterWhenFieldValues: jsonToStringArray(formRow.stripeAutoPayLaterWhenFieldValues),
     registrantLookupEnabled: formRow.registrantLookupEnabled,
     sessionTimeDescription: settings?.sessionTimeDescription?.trim() || null,
     helpContactEmail: branding.contactEmail || null,

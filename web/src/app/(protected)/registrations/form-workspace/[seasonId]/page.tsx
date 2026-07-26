@@ -170,6 +170,10 @@ export default async function RegistrationFormWorkspacePage({
           stripeProductLabel: form.stripeProductLabel,
           stripeSkipWhenFieldKey: form.stripeSkipWhenFieldKey,
           stripeSkipWhenFieldValue: form.stripeSkipWhenFieldValue,
+          stripeAutoPayLaterWhenFieldKey: form.stripeAutoPayLaterWhenFieldKey,
+          stripeAutoPayLaterWhenFieldValues: parseWaiverMergeFieldKeysFromDb(
+            form.stripeAutoPayLaterWhenFieldValues,
+          ),
           registrantLookupEnabled: form.registrantLookupEnabled,
           registrantLookupEmailFieldKey: form.registrantLookupEmailFieldKey,
           registrantLookupPhoneFieldKey: form.registrantLookupPhoneFieldKey,

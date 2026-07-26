@@ -440,6 +440,10 @@ model RegistrationForm {
   stripeProcessingFeeMode     StripeProcessingFeeMode @default(OPTIONAL)
   /// Shown on Stripe Checkout line item (e.g. "Summer VBS 2026 registration").
   stripeProductLabel          String?
+  /// When set with stripePayLaterEnabled: hide the pay-later choice; force pay later if this field matches values.
+  stripeAutoPayLaterWhenFieldKey    String?
+  /// JSON string[] of allowed values (case-insensitive). Empty/null = any non-empty value on the key.
+  stripeAutoPayLaterWhenFieldValues Json?
   waiverEnabled               Boolean @default(false)
   waiverTitle                String?
   /// Short intro shown under the waiver title on the public form and PDF (optional).

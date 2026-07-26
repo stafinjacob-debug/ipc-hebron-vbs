@@ -22,6 +22,7 @@ import { clampRegistrationBackgroundDimmingPercent } from "@/lib/registration-ba
 import { parsePublicRegistrationLayout } from "@/lib/public-registration-layout";
 import { rulesFromDb } from "@/lib/public-registration";
 import { calendarDateFromDate } from "@/lib/season-calendar-date";
+import { jsonToStringArray } from "@/lib/class-form-field-match";
 import { persistSubmissionFormEntries } from "@/lib/persist-submission-form-entries";
 import { syncSubmissionPaymentExpectation } from "@/lib/sync-submission-payment-expectation";
 import { parseRegistrantEditForm } from "@/lib/registrant-edit-form";
@@ -214,6 +215,8 @@ export async function updateRegistrationFormSettings(
     stripeProductLabel: string | null;
     stripeSkipWhenFieldKey: string | null;
     stripeSkipWhenFieldValue: string | null;
+    stripeAutoPayLaterWhenFieldKey: string | null;
+    stripeAutoPayLaterWhenFieldValues: string[];
     registrantLookupEnabled: boolean;
     registrantLookupEmailFieldKey: string | null;
     registrantLookupPhoneFieldKey: string | null;
@@ -293,6 +296,10 @@ export async function updateRegistrationFormSettings(
       message: "To use conditional payment skip, choose both a field key and a matching value.",
     };
   }
+  const stripeAutoPayLaterWhenFieldKey = data.stripeAutoPayLaterWhenFieldKey?.trim() || null;
+  const stripeAutoPayLaterWhenFieldValues = (data.stripeAutoPayLaterWhenFieldValues ?? [])
+    .map((s) => s.trim())
+    .filter(Boolean);
   if (data.stripeCheckoutEnabled) {
     const raw = data.stripeAmountCents;
     if (raw == null || raw < 50) {
@@ -391,6 +398,14 @@ export async function updateRegistrationFormSettings(
         stripeProductLabel: data.stripeProductLabel?.trim() ? data.stripeProductLabel.trim() : null,
         stripeSkipWhenFieldKey: data.stripeCheckoutEnabled ? stripeSkipWhenFieldKey : null,
         stripeSkipWhenFieldValue: data.stripeCheckoutEnabled ? stripeSkipWhenFieldValue : null,
+        stripeAutoPayLaterWhenFieldKey:
+          data.stripeCheckoutEnabled && data.stripePayLaterEnabled
+            ? stripeAutoPayLaterWhenFieldKey
+            : null,
+        stripeAutoPayLaterWhenFieldValues:
+          data.stripeCheckoutEnabled && data.stripePayLaterEnabled && stripeAutoPayLaterWhenFieldKey
+            ? (stripeAutoPayLaterWhenFieldValues as Prisma.InputJsonValue)
+            : Prisma.DbNull,
         registrantLookupEnabled: data.registrantLookupEnabled,
         registrantLookupEmailFieldKey: data.registrantLookupEnabled
           ? registrantLookupEmailFieldKey ?? DEFAULT_REGISTRANT_LOOKUP_EMAIL_FIELD
@@ -482,6 +497,8 @@ export async function cloneRegistrationFormFromSeason(
       stripeProductLabel: srcForm.stripeProductLabel,
       stripeSkipWhenFieldKey: srcForm.stripeSkipWhenFieldKey,
       stripeSkipWhenFieldValue: srcForm.stripeSkipWhenFieldValue,
+      stripeAutoPayLaterWhenFieldKey: srcForm.stripeAutoPayLaterWhenFieldKey,
+      stripeAutoPayLaterWhenFieldValues: srcForm.stripeAutoPayLaterWhenFieldValues ?? Prisma.DbNull,
       registrantLookupEnabled: srcForm.registrantLookupEnabled,
       registrantLookupEmailFieldKey: srcForm.registrantLookupEmailFieldKey,
       registrantLookupPhoneFieldKey: srcForm.registrantLookupPhoneFieldKey,
@@ -894,6 +911,8 @@ export type FormWorkspacePayload = {
     stripeProductLabel: string | null;
     stripeSkipWhenFieldKey: string | null;
     stripeSkipWhenFieldValue: string | null;
+    stripeAutoPayLaterWhenFieldKey: string | null;
+    stripeAutoPayLaterWhenFieldValues: string[];
     registrantLookupEnabled: boolean;
     registrantLookupEmailFieldKey: string | null;
     registrantLookupPhoneFieldKey: string | null;
@@ -1067,6 +1086,8 @@ export async function loadFormWorkspacePayload(
         stripeProductLabel: form.stripeProductLabel,
         stripeSkipWhenFieldKey: form.stripeSkipWhenFieldKey,
         stripeSkipWhenFieldValue: form.stripeSkipWhenFieldValue,
+        stripeAutoPayLaterWhenFieldKey: form.stripeAutoPayLaterWhenFieldKey,
+        stripeAutoPayLaterWhenFieldValues: jsonToStringArray(form.stripeAutoPayLaterWhenFieldValues),
         registrantLookupEnabled: form.registrantLookupEnabled,
         registrantLookupEmailFieldKey: form.registrantLookupEmailFieldKey,
         registrantLookupPhoneFieldKey: form.registrantLookupPhoneFieldKey,

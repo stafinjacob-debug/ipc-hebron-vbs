@@ -45,6 +45,10 @@ import {
   resolveGuardianContactFromForm,
 } from "@/lib/registration-form-validate";
 import { shouldSkipStripeForSubmission } from "@/lib/stripe-skip-rule";
+import {
+  shouldAutoPayLaterForSubmission,
+  stripeAutoPayLaterConfigured,
+} from "@/lib/stripe-auto-pay-later";
 import type { PublicRegistrationLayout } from "@/generated/prisma";
 import { RegistrationBackgroundMedia } from "./registration-background-media";
 import { RegistrationHeroBrand } from "./registration-hero-brand";
@@ -122,6 +126,9 @@ export type PublicSeasonOption = {
   /** When set with {@link stripeSkipWhenFieldValue}, card checkout is skipped if any matching field equals (case-insensitive). */
   stripeSkipWhenFieldKey: string | null;
   stripeSkipWhenFieldValue: string | null;
+  /** When set, pay-later radio is hidden; matching field values force pay later. */
+  stripeAutoPayLaterWhenFieldKey: string | null;
+  stripeAutoPayLaterWhenFieldValues: string[];
   registrantLookupEnabled: boolean;
   /** Optional line under VBS dates on the wizard header (from public settings). */
   sessionTimeDescription: string | null;
@@ -837,8 +844,26 @@ function DynamicRegistrationWizardInner({
     });
   }, [current, def, stripeFeeConfigured, guardian, children]);
 
+  const autoPayLaterForced = useMemo(() => {
+    if (!current || !def || !stripeFeeConfigured || stripeSkippedByRule) return false;
+    if (!current.stripePayLaterEnabled) return false;
+    if (!stripeAutoPayLaterConfigured(current.stripeAutoPayLaterWhenFieldKey)) return false;
+    const snap = extractStripeSkipEvaluationData(
+      def,
+      guardian,
+      children.map((c) => c.values),
+    );
+    return shouldAutoPayLaterForSubmission({
+      autoFieldKey: current.stripeAutoPayLaterWhenFieldKey,
+      autoFieldValues: current.stripeAutoPayLaterWhenFieldValues,
+      ctx: snap,
+    });
+  }, [current, def, stripeFeeConfigured, stripeSkippedByRule, guardian, children]);
+
+  /** Classic pay-later radio: only when enabled and auto-pay-later mode is not configured. */
   const payLaterAvailable = useMemo(() => {
     if (!current) return false;
+    if (stripeAutoPayLaterConfigured(current.stripeAutoPayLaterWhenFieldKey)) return false;
     return (
       current.stripeCheckoutEnabled &&
       (current.stripeAmountCents ?? 0) >= 50 &&
@@ -847,15 +872,23 @@ function DynamicRegistrationWizardInner({
     );
   }, [current, stripeSkippedByRule]);
 
+  useEffect(() => {
+    if (autoPayLaterForced) {
+      setPaymentChoice("pay_later");
+    } else if (stripeAutoPayLaterConfigured(current?.stripeAutoPayLaterWhenFieldKey)) {
+      setPaymentChoice("card");
+    }
+  }, [autoPayLaterForced, current?.stripeAutoPayLaterWhenFieldKey]);
+
   const isLegacyVbs = current ? isLegacyVbsPortal(current) : false;
 
   const payLaterNoticeText = useMemo(() => {
-    if (!current || !payLaterAvailable) return "";
+    if (!current || (!payLaterAvailable && !autoPayLaterForced)) return "";
     return resolvePayLaterNotice(
       { name: current.name, startDate: new Date(current.startDate) },
       current.stripePayLaterMessage,
     );
-  }, [current, payLaterAvailable]);
+  }, [current, payLaterAvailable, autoPayLaterForced]);
 
   const payLaterParagraphs = useMemo(
     () => payLaterNoticeParagraphs(payLaterNoticeText),
@@ -867,6 +900,7 @@ function DynamicRegistrationWizardInner({
     const active = current.stripeCheckoutEnabled && (current.stripeAmountCents ?? 0) >= 50;
     if (!active) return { active: false as const };
     if (stripeSkippedByRule) return { active: false as const };
+    if (autoPayLaterForced) return { active: false as const };
     if (payLaterAvailable && paymentChoice === "pay_later") return { active: false as const };
     const baseCents = computeRegistrationBaseCents(
       current.stripePricingUnit,
@@ -894,7 +928,7 @@ function DynamicRegistrationWizardInner({
       childCount,
       label: current.stripeProductLabel?.trim() || "VBS registration",
     };
-  }, [current, children.length, coverProcessingFee, stripeSkippedByRule, payLaterAvailable, paymentChoice]);
+  }, [current, children.length, coverProcessingFee, stripeSkippedByRule, payLaterAvailable, paymentChoice, autoPayLaterForced]);
 
   /** When true, waiver signatures live on their own step so Privacy → Review cannot skip them. */
   const waiverStepActive = waiverSnap?.enabled === true;
@@ -1355,18 +1389,29 @@ function DynamicRegistrationWizardInner({
 
   const primarySubmitLabel = useMemo(() => {
     if (pending) return t("submitting");
-    if (payLaterAvailable && paymentChoice === "pay_later") return t("submitRegistration");
+    if (autoPayLaterForced || (payLaterAvailable && paymentChoice === "pay_later")) {
+      return t("submitRegistration");
+    }
     if (stripePayment.active) return t("submitPayCard");
     if (stripeFeeConfigured && stripeSkippedByRule) return t("submit");
     return t("submitRegistration");
-  }, [pending, payLaterAvailable, paymentChoice, stripePayment.active, stripeFeeConfigured, stripeSkippedByRule, t]);
+  }, [
+    pending,
+    payLaterAvailable,
+    paymentChoice,
+    autoPayLaterForced,
+    stripePayment.active,
+    stripeFeeConfigured,
+    stripeSkippedByRule,
+    t,
+  ]);
 
   const mobileSubmitLabel = useMemo(() => {
     if (pending) return t("submitting");
-    if (payLaterAvailable && paymentChoice === "pay_later") return t("submit");
+    if (autoPayLaterForced || (payLaterAvailable && paymentChoice === "pay_later")) return t("submit");
     if (stripePayment.active) return t("payWithCard");
     return t("submit");
-  }, [pending, payLaterAvailable, paymentChoice, stripePayment.active, t]);
+  }, [pending, payLaterAvailable, paymentChoice, autoPayLaterForced, stripePayment.active, t]);
 
   const goNext = () => {
     const err = validateStep(step);
@@ -1595,7 +1640,11 @@ function DynamicRegistrationWizardInner({
             <input
               type="hidden"
               name="paymentChoice"
-              value={payLaterAvailable ? paymentChoice : "card"}
+              value={
+                autoPayLaterForced || (payLaterAvailable && paymentChoice === "pay_later")
+                  ? "pay_later"
+                  : "card"
+              }
               readOnly
             />
           ) : null}
@@ -2262,7 +2311,7 @@ function DynamicRegistrationWizardInner({
                     ) : null}
                   </div>
                 ) : null}
-                {payLaterAvailable || stripePayment.active ? (
+                {payLaterAvailable || autoPayLaterForced || stripePayment.active ? (
                   <div className="mt-5 space-y-4">
                     <p className="text-xs font-bold uppercase text-neutral-400">{t("payment")}</p>
                     {payLaterAvailable ? (
@@ -2299,7 +2348,7 @@ function DynamicRegistrationWizardInner({
                         </label>
                       </div>
                     ) : null}
-                    {payLaterAvailable && paymentChoice === "pay_later" ? (
+                    {(autoPayLaterForced || (payLaterAvailable && paymentChoice === "pay_later")) ? (
                       <div className="rounded-xl border border-amber-500/35 bg-amber-500/10 px-4 py-3 text-sm leading-relaxed text-amber-100">
                         {payLaterParagraphs.map((para) => (
                           <p key={para.slice(0, 48)} className="mt-2 first:mt-0">

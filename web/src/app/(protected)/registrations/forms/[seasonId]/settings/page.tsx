@@ -123,6 +123,10 @@ export default async function RegistrationFormSettingsPage({
           stripeProductLabel: form.stripeProductLabel,
           stripeSkipWhenFieldKey: form.stripeSkipWhenFieldKey,
           stripeSkipWhenFieldValue: form.stripeSkipWhenFieldValue,
+          stripeAutoPayLaterWhenFieldKey: form.stripeAutoPayLaterWhenFieldKey,
+          stripeAutoPayLaterWhenFieldValues: parseWaiverMergeFieldKeysFromDb(
+            form.stripeAutoPayLaterWhenFieldValues,
+          ),
           registrantLookupEnabled: form.registrantLookupEnabled,
           registrantLookupEmailFieldKey: form.registrantLookupEmailFieldKey,
           registrantLookupPhoneFieldKey: form.registrantLookupPhoneFieldKey,

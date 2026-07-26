@@ -85,6 +85,8 @@ export function FormSettingsForm({
     stripeProductLabel: string | null;
     stripeSkipWhenFieldKey: string | null;
     stripeSkipWhenFieldValue: string | null;
+    stripeAutoPayLaterWhenFieldKey: string | null;
+    stripeAutoPayLaterWhenFieldValues?: string[] | null;
     registrantLookupEnabled: boolean;
     registrantLookupEmailFieldKey?: string | null;
     registrantLookupPhoneFieldKey?: string | null;
@@ -237,6 +239,12 @@ export function FormSettingsForm({
         if (!stripeSkipWhenFieldKey) {
           stripeSkipWhenFieldValue = null;
         }
+        const stripeAutoPayLaterWhenFieldKey =
+          String(fd.get("stripeAutoPayLaterWhenFieldKey") ?? "").trim() || null;
+        const stripeAutoPayLaterWhenFieldValues = String(fd.get("stripeAutoPayLaterWhenFieldValues") ?? "")
+          .split(/[\n,]+/)
+          .map((s) => s.trim())
+          .filter(Boolean);
 
         const bumpMsg = (t: string) => {
           setMsg(t);
@@ -299,6 +307,8 @@ export function FormSettingsForm({
             stripeProductLabel,
             stripeSkipWhenFieldKey,
             stripeSkipWhenFieldValue,
+            stripeAutoPayLaterWhenFieldKey,
+            stripeAutoPayLaterWhenFieldValues,
             registrantLookupEnabled,
             registrantLookupEmailFieldKey,
             registrantLookupPhoneFieldKey,
@@ -727,6 +737,45 @@ export function FormSettingsForm({
           <p className="mt-1 text-xs text-foreground/60">
             Shown when a family selects pay later. The first day of VBS is taken from the season start date in event
             details.
+          </p>
+        </div>
+        <div>
+          <label htmlFor="stripeAutoPayLaterWhenFieldKey" className="block text-xs font-medium text-foreground/70">
+            Auto pay later (field) — hides pay-later choice
+          </label>
+          <select
+            id="stripeAutoPayLaterWhenFieldKey"
+            name="stripeAutoPayLaterWhenFieldKey"
+            defaultValue={initial.stripeAutoPayLaterWhenFieldKey ?? ""}
+            className="mt-1 w-full rounded-md border border-foreground/15 bg-background px-3 py-2 text-sm"
+          >
+            <option value="">Off — show pay later radio when enabled above</option>
+            {paymentConditionFieldOptions.map((f) => (
+              <option key={f.key} value={f.key}>
+                {f.audience === "guardian" ? "Guardian" : "Child"}: {f.label} ({f.key})
+              </option>
+            ))}
+          </select>
+          <p className="mt-1 text-xs text-foreground/60">
+            When set, families never see a pay-later option. If this field matches a value below, registration is
+            submitted as pay later automatically; otherwise they pay by card now.
+          </p>
+        </div>
+        <div>
+          <label htmlFor="stripeAutoPayLaterWhenFieldValues" className="block text-xs font-medium text-foreground/70">
+            Auto pay later (match values)
+          </label>
+          <input
+            id="stripeAutoPayLaterWhenFieldValues"
+            name="stripeAutoPayLaterWhenFieldValues"
+            type="text"
+            maxLength={200}
+            placeholder="e.g. 25, 50, 75"
+            defaultValue={(initial.stripeAutoPayLaterWhenFieldValues ?? []).join(", ")}
+            className="mt-1 w-full rounded-md border border-foreground/15 bg-background px-3 py-2 text-sm"
+          />
+          <p className="mt-1 text-xs text-foreground/60">
+            Comma-separated. Leave blank to treat any non-empty value on the field as a match.
           </p>
         </div>
         <div>

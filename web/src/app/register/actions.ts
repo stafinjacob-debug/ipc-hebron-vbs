@@ -31,6 +31,7 @@ import {
   includeProcessingFeeForMode,
 } from "@/lib/stripe-fee-math";
 import { shouldSkipStripeForSubmission } from "@/lib/stripe-skip-rule";
+import { shouldAutoPayLaterForSubmission } from "@/lib/stripe-auto-pay-later";
 import { createRegistrationStripeCheckoutSession } from "@/lib/stripe-registration-payment";
 import { resolveWaiverDisplayContent } from "@/lib/default-waiver-content";
 import { makeCheckInToken, makeUniqueRegistrationNumber } from "@/lib/registration-identity";
@@ -327,11 +328,33 @@ async function submitPublicRegistrationCore(
     guardianCustom: data.guardianCustom,
     children: data.children,
   });
+  const autoPayLaterForced =
+    formRow.stripePayLaterEnabled &&
+    !stripePaymentSkippedByRule &&
+    shouldAutoPayLaterForSubmission({
+      autoFieldKey: formRow.stripeAutoPayLaterWhenFieldKey,
+      autoFieldValues: formRow.stripeAutoPayLaterWhenFieldValues,
+      ctx: {
+        guardian: data.guardian,
+        guardianCustom: data.guardianCustom,
+        children: data.children,
+      },
+    });
   const payLaterAllowed =
-    stripeConfigActive && !stripePaymentSkippedByRule && formRow.stripePayLaterEnabled;
-  const paymentChoice = fdGet("paymentChoice", formData).trim();
+    stripeConfigActive &&
+    !stripePaymentSkippedByRule &&
+    formRow.stripePayLaterEnabled &&
+    (autoPayLaterForced || !formRow.stripeAutoPayLaterWhenFieldKey?.trim());
+  const paymentChoiceRaw = fdGet("paymentChoice", formData).trim();
+  const paymentChoice = autoPayLaterForced ? "pay_later" : paymentChoiceRaw;
   const payLaterChosen = payLaterAllowed && paymentChoice === "pay_later";
-  if (payLaterAllowed && paymentChoice && paymentChoice !== "card" && paymentChoice !== "pay_later") {
+  if (
+    !autoPayLaterForced &&
+    payLaterAllowed &&
+    paymentChoice &&
+    paymentChoice !== "card" &&
+    paymentChoice !== "pay_later"
+  ) {
     return { ok: false, message: "Invalid payment choice. Please try again." };
   }
   if (paymentChoice === "pay_later" && !payLaterAllowed) {

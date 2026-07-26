@@ -50,14 +50,20 @@ const SEASON_YEAR = 2026;
 const SLUG = "retreat";
 const LEGACY_SLUG = "united-26";
 const THEME = "United '26";
-/** Placeholder Fri–Sun weekend after registration deadline — edit in admin when confirmed. */
-const START_DATE = "2026-09-11";
-const END_DATE = "2026-09-13";
+const START_DATE = "2026-09-25";
+const END_DATE = "2026-09-27";
 const FEE_CENTS = 15200;
 const REGISTRATION_CLOSES_LOCAL = "2026-08-31T23:59";
 /** Shown under the date range on the public registration hero (clock line). */
 const SESSION_TIME_DESCRIPTION =
   "Eligible: 9th–12th grade & HYA (College) · Fees: $152 per participant";
+
+const SCHOLARSHIP_PERCENT_KEY = "scholarshipPercent";
+const SCHOLARSHIP_PERCENT_VALUES = ["25", "50", "75"];
+const SCHOLARSHIP_PAY_LATER_MESSAGE =
+  "You requested a scholarship. Your registration is saved without paying online now. " +
+  "The church office will follow up about the scholarship amount and any remaining balance. " +
+  "You can also pay online later from the confirmation email or registrant lookup link.";
 
 const WAIVER_MERGE_FIELD_KEYS = [
   "guardianFirstName",
@@ -356,13 +362,44 @@ function buildFormDefinition(): FormDefinitionV1 {
         options: [...TSHIRT_OPTIONS],
       },
       {
+        id: "f_c_need_schol",
+        sectionId: "sec_child",
+        key: "needsScholarship",
+        type: "select",
+        label: "Do you need a scholarship?",
+        required: true,
+        order: 14,
+        helperText:
+          "No student will be turned away due to cost. If finances are a barrier, select Yes and choose a scholarship amount. Pastor Danny can also be contacted privately.",
+        options: [
+          { value: "No", label: "No" },
+          { value: "Yes", label: "Yes" },
+        ],
+      },
+      {
+        id: "f_c_schol_pct",
+        sectionId: "sec_child",
+        key: SCHOLARSHIP_PERCENT_KEY,
+        type: "select",
+        label: "Scholarship amount",
+        required: true,
+        order: 15,
+        helperText: "Selecting a scholarship submits your registration without paying online now (pay later).",
+        showWhen: { fieldKey: "needsScholarship", equals: "Yes" },
+        options: [
+          { value: "25", label: "25%" },
+          { value: "50", label: "50%" },
+          { value: "75", label: "75%" },
+        ],
+      },
+      {
         id: "f_c_notes",
         sectionId: "sec_child",
         key: "additionalNotes",
         type: "textarea",
         label: "Anything else you would like for us to know before camp?",
         required: false,
-        order: 14,
+        order: 16,
         placeholder: "Optional",
       },
     ],
@@ -395,6 +432,10 @@ async function main() {
       select: { id: true, name: true, publicRegistrationSlug: true },
     });
     if (existing) {
+      const formDef = buildFormDefinition();
+      const formJson = definitionToJson(formDef);
+      const startDate = parseLocalDate(START_DATE);
+      const endDate = parseLocalDate(END_DATE);
       if (existing.publicRegistrationSlug !== SLUG) {
         if (!dryRun) {
           await prisma.vbsSeason.update({
@@ -407,14 +448,30 @@ async function main() {
         );
       }
       if (!dryRun) {
+        await prisma.vbsSeason.update({
+          where: { id: existing.id },
+          data: { startDate, endDate },
+        });
         await prisma.registrationForm.update({
           where: { seasonId: existing.id },
           data: {
+            draftDefinitionJson: formJson,
+            publishedDefinitionJson: formJson,
+            publishedVersion: { increment: 1 },
+            publishedAt: new Date(),
+            status: "PUBLISHED",
             waiverEnabled: true,
             waiverTitle: YOUTH_RETREAT_WAIVER_TITLE,
             waiverDescription: YOUTH_RETREAT_WAIVER_DESCRIPTION,
             waiverBody: YOUTH_RETREAT_WAIVER_BODY,
             waiverMergeFieldKeys: WAIVER_MERGE_FIELD_KEYS,
+            stripeCheckoutEnabled: true,
+            stripeAmountCents: FEE_CENTS,
+            stripePricingUnit: "PER_CHILD",
+            stripePayLaterEnabled: true,
+            stripePayLaterMessage: SCHOLARSHIP_PAY_LATER_MESSAGE,
+            stripeAutoPayLaterWhenFieldKey: SCHOLARSHIP_PERCENT_KEY,
+            stripeAutoPayLaterWhenFieldValues: SCHOLARSHIP_PERCENT_VALUES,
           },
         });
         await prisma.publicRegistrationSettings.update({
@@ -424,7 +481,11 @@ async function main() {
       }
       console.log(`Season already exists: ${existing.name} [${existing.id}]`);
       console.log(`Public URL: /register/${SLUG}`);
+      console.log(`Dates: ${START_DATE} – ${END_DATE}`);
       console.log(`Session line: ${SESSION_TIME_DESCRIPTION}`);
+      console.log(
+        "Scholarship: needsScholarship + scholarshipPercent → auto pay later (no pay-later radio).",
+      );
       console.log("Waiver enabled: General Liability + Challenge Course (combined digital signature).");
       return;
     }
@@ -517,6 +578,10 @@ async function main() {
         stripePricingUnit: "PER_CHILD",
         stripeProductLabel: "Youth Retreat United '26 registration",
         stripeProcessingFeeMode: "OPTIONAL",
+        stripePayLaterEnabled: true,
+        stripePayLaterMessage: SCHOLARSHIP_PAY_LATER_MESSAGE,
+        stripeAutoPayLaterWhenFieldKey: SCHOLARSHIP_PERCENT_KEY,
+        stripeAutoPayLaterWhenFieldValues: SCHOLARSHIP_PERCENT_VALUES,
         autoApproveWhenClassAssignedAndPaid: false,
         registrantLookupEnabled: true,
         adminRegistrationEditEnabled: true,
@@ -532,7 +597,10 @@ async function main() {
     console.log(`Public registration: /register/${SLUG}`);
     console.log(`Fee: $${FEE_CENTS / 100} per participant · closes ${REGISTRATION_CLOSES_LOCAL} CT`);
     console.log("Waiver enabled: General Liability + Challenge Course (combined digital signature).");
-    console.log("Placeholder event dates set — update start/end dates in Programs when confirmed.");
+    console.log(
+      "Scholarship: needsScholarship + scholarshipPercent → auto pay later (no pay-later radio).",
+    );
+    console.log("Event dates set — update in Programs if they change.");
     if (!openRegistration) {
       console.log("\nRegistration is closed. Re-run with --open or enable it in admin when ready.");
     }
