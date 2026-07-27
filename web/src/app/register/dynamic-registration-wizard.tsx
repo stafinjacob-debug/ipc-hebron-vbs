@@ -2330,7 +2330,7 @@ function DynamicRegistrationWizardInner({
                               {isLegacyVbs
                                 ? t("payLaterDetailVbs")
                                 : current?.publicRegistrationSlug === "retreat"
-                                  ? "Register now; pay by card online by August 31, 2026, or arrange payment with the registration managers."
+                                  ? "Register now; pay by card online or Zelle (cash@ipchouston.com) by August 31, 2026."
                                   : t("payLaterDetailEvent", {
                                       eventName: current?.name ?? "the event",
                                     })}

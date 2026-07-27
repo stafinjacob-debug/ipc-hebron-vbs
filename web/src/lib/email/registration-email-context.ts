@@ -25,6 +25,8 @@ export type RegistrationEmailContext = {
   paymentDeadlineNotice: string;
   /** Admin override from form settings; when set, payment deadline copy is shown in emails. */
   customPaymentDeadlineNotice: string | null;
+  /** Custom pay-later instructions (form settings); used in confirmation emails when pay later is chosen. */
+  customPayLaterNotice: string | null;
   /** Event logo or registration hero image for ticket emails (non-VBS). */
   ticketLogoUrl: string | null;
   publicRegistrationSlug: string | null;
@@ -54,6 +56,7 @@ export async function loadRegistrationEmailContext(
   const form =
     season.registrationForm ?? (await ensureRegistrationFormForSeason(season.id, season.name));
   const customPaymentDeadlineNotice = form.stripePaymentDeadlineNotice?.trim() || null;
+  const customPayLaterNotice = form.stripePayLaterMessage?.trim() || null;
 
   const isLegacyVbs = isLegacyVbsPortal(season);
   const branding = resolvePortalBranding(season, season.publicRegistrationSettings, {
@@ -99,6 +102,7 @@ export async function loadRegistrationEmailContext(
       customPaymentDeadlineNotice,
     ),
     customPaymentDeadlineNotice,
+    customPayLaterNotice,
   };
 }
 

@@ -404,6 +404,30 @@ function buildPayLaterPaymentInstructionsHtml(args: {
   const cardLink = args.cardPayUrl
     ? `<a href="${escapeHtml(args.cardPayUrl)}" style="display:inline-block;margin-top:8px;background:#0f766e;color:#ffffff;padding:10px 16px;border-radius:999px;text-decoration:none;font-size:14px;font-weight:700;">Pay by card online</a>`
     : "";
+
+  const customNotice = args.ctx.customPayLaterNotice?.trim();
+  if (customNotice) {
+    const paras = payLaterNoticeParagraphs(customNotice)
+      .map(
+        (p, i, arr) =>
+          `<p style="margin:0${i < arr.length - 1 ? " 0 10px" : ""};">${escapeHtml(p)}</p>`,
+      )
+      .join("");
+    return `
+    <div style="margin:0 0 16px;padding:12px 14px;border-radius:12px;background:#fffbeb;border:1px solid #fde68a;color:#92400e;font-size:14px;line-height:1.55;">
+      <p style="margin:0 0 10px;font-weight:700;color:#78350f;">Payment still due</p>
+      ${paras}
+      ${
+        cardLink
+          ? `<p style="margin:12px 0 8px;font-weight:600;">Pay by card online</p>
+      <p style="margin:0 0 8px;">You can also complete payment securely by card using the button below.</p>
+      ${cardLink}`
+          : ""
+      }
+      <div style="margin-top:12px;">${paymentDeadlineNoticeEmailBlock(args.ctx)}</div>
+    </div>`;
+  }
+
   const beforeEvent = args.ctx.isLegacyVbs ? "before VBS" : `before ${season} begins`;
 
   return `
