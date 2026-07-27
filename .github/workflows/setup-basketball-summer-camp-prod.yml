@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
     inputs:
       open_registration:
-        description: Open public registration after setup
+        description: "Open public registration (true) or close it (false)"
         type: boolean
         default: true
 
@@ -37,8 +37,8 @@ jobs:
           DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
           VBS_HELP_EMAIL: ${{ secrets.VBS_HELP_EMAIL }}
         run: |
-          ARGS=""
           if [ "${{ inputs.open_registration }}" = "true" ]; then
-            ARGS="--open"
+            npx tsx scripts/setup-basketball-summer-camp.ts --open
+          else
+            npx tsx scripts/setup-basketball-summer-camp.ts --close
           fi
-          npx tsx scripts/setup-basketball-summer-camp.ts $ARGS

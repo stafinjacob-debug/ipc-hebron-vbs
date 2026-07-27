@@ -5,8 +5,10 @@
  *   npx dotenv -e .env.local -- tsx scripts/setup-basketball-summer-camp.ts --database=vbs_production
  *   npx dotenv -e .env.local -- tsx scripts/setup-basketball-summer-camp.ts --database=vbs_production --dry-run
  *   npx dotenv -e .env.local -- tsx scripts/setup-basketball-summer-camp.ts --database=vbs_production --open
+ *   npx dotenv -e .env.local -- tsx scripts/setup-basketball-summer-camp.ts --database=vbs_production --close
  *
- * `--open` sets publicRegistrationOpen and isActive after setup (default: leaves registration closed).
+ * `--open` sets publicRegistrationOpen (and isActive on create). `--close` sets publicRegistrationOpen false
+ * on an existing season. Without either flag, an existing season's open/closed state is left unchanged.
  */
 import { config } from "dotenv";
 import { existsSync } from "fs";
@@ -49,9 +51,13 @@ const GRADE_OPTIONS = [
 function parseArgs() {
   const dryRun = process.argv.includes("--dry-run");
   const openRegistration = process.argv.includes("--open");
+  const closeRegistration = process.argv.includes("--close");
+  if (openRegistration && closeRegistration) {
+    throw new Error("Use either --open or --close, not both.");
+  }
   const dbArg = process.argv.find((a) => a.startsWith("--database="));
   const database = dbArg?.slice("--database=".length).trim() || null;
-  return { dryRun, openRegistration, database };
+  return { dryRun, openRegistration, closeRegistration, database };
 }
 
 function resolveDatabaseUrl(database: string | null): string {
@@ -183,7 +189,7 @@ function buildFormDefinition(): FormDefinitionV1 {
 }
 
 async function main() {
-  const { dryRun, openRegistration, database } = parseArgs();
+  const { dryRun, openRegistration, closeRegistration, database } = parseArgs();
   const url = resolveDatabaseUrl(database);
   if (database) console.log(`Database: ${database}`);
   if (dryRun) console.log("DRY RUN — no database writes.\n");
@@ -200,7 +206,12 @@ async function main() {
           { name: SEASON_NAME },
         ],
       },
-      select: { id: true, name: true, publicRegistrationSlug: true },
+      select: {
+        id: true,
+        name: true,
+        publicRegistrationSlug: true,
+        publicRegistrationOpen: true,
+      },
     });
     if (existing) {
       if (existing.publicRegistrationSlug !== SLUG) {
@@ -227,6 +238,22 @@ async function main() {
             helpContactEmail,
           },
         });
+      }
+      if (openRegistration || closeRegistration) {
+        const nextOpen = openRegistration;
+        if (!dryRun) {
+          await prisma.vbsSeason.update({
+            where: { id: existing.id },
+            data: { publicRegistrationOpen: nextOpen },
+          });
+        }
+        console.log(
+          `Public registration: ${existing.publicRegistrationOpen ? "open" : "closed"} → ${nextOpen ? "open" : "closed"}`,
+        );
+      } else {
+        console.log(
+          `Public registration: ${existing.publicRegistrationOpen ? "open" : "closed"} (unchanged — pass --open or --close to change)`,
+        );
       }
       console.log(`Season already exists: ${existing.name} [${existing.id}]`);
       console.log(`Public URL: /basketball`);
