@@ -4,6 +4,7 @@ import {
   RESERVED_GUARDIAN_KEYS,
   type FormDefinitionV1,
 } from "@/lib/registration-form-definition";
+import { registrationListPaymentBadge } from "@/lib/registration-list-payment";
 
 export type ExportFieldOption = {
   key: string;
@@ -15,6 +16,7 @@ export const CORE_EXPORT_FIELDS: ExportFieldOption[] = [
   { key: "registrationId", label: "Registration ID", group: "core" },
   { key: "registrationNumber", label: "Registration #", group: "core" },
   { key: "status", label: "Status", group: "core" },
+  { key: "paymentStatus", label: "Payment status", group: "core" },
   { key: "registeredAt", label: "Registered at", group: "core" },
   { key: "seasonName", label: "Season", group: "core" },
   { key: "classroomName", label: "Classroom", group: "core" },
@@ -25,6 +27,7 @@ export const CORE_EXPORT_FIELDS: ExportFieldOption[] = [
 export const DEFAULT_EXPORT_FIELD_KEYS = [
   "registrationNumber",
   "status",
+  "paymentStatus",
   "registeredAt",
   "seasonName",
   "classroomName",
@@ -155,6 +158,8 @@ export type RegistrationFieldValueRow = {
   registeredAt: Date;
   notes: string | null;
   customResponses: unknown;
+  expectsPayment?: boolean;
+  paymentReceivedAt?: Date | null;
   child: {
     firstName: string;
     lastName: string;
@@ -171,6 +176,8 @@ export type RegistrationFieldValueRow = {
   formSubmission: {
     registrationCode: string | null;
     guardianResponses: unknown;
+    stripePaymentStatus?: string | null;
+    stripeCheckoutSessionId?: string | null;
   } | null;
 };
 
@@ -185,6 +192,18 @@ export function resolveRegistrationExportFieldValue(
   if (fieldKey === "registrationId") return row.id;
   if (fieldKey === "registrationNumber") return row.registrationNumber ?? "";
   if (fieldKey === "status") return row.status;
+  if (fieldKey === "paymentStatus" || fieldKey === "core:paymentStatus") {
+    return registrationListPaymentBadge({
+      paymentReceivedAt: row.paymentReceivedAt ?? null,
+      expectsPayment: row.expectsPayment ?? false,
+      formSubmission: row.formSubmission
+        ? {
+            stripePaymentStatus: row.formSubmission.stripePaymentStatus ?? null,
+            stripeCheckoutSessionId: row.formSubmission.stripeCheckoutSessionId ?? null,
+          }
+        : null,
+    }).label;
+  }
   if (fieldKey === "registeredAt") return row.registeredAt.toISOString();
   if (fieldKey === "seasonName") return seasonName;
   if (fieldKey === "classroomName") return row.classroom?.name ?? "";

@@ -3,28 +3,13 @@ import { prisma } from "@/lib/prisma";
 import {
   DEFAULT_EXPORT_FIELD_KEYS,
   buildRegistrationExportFieldOptionsFromJson,
+  resolveRegistrationExportFieldValue,
 } from "@/lib/registration-export";
 import { canViewOperations } from "@/lib/roles";
 import { loadStaffAccessScope, seasonIdAllowed } from "@/lib/staff-access-scope";
 
 function csvCell(s: string) {
   return `"${String(s).replace(/"/g, '""')}"`;
-}
-
-function asObject(v: unknown): Record<string, unknown> {
-  return v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
-}
-
-function valueToCell(v: unknown): string {
-  if (v == null) return "";
-  if (typeof v === "string") return v;
-  if (typeof v === "number" || typeof v === "boolean") return String(v);
-  if (v instanceof Date) return v.toISOString();
-  try {
-    return JSON.stringify(v);
-  } catch {
-    return String(v);
-  }
 }
 
 export async function GET(req: Request) {
@@ -72,7 +57,14 @@ export async function GET(req: Request) {
     include: {
       child: { include: { guardian: true } },
       classroom: true,
-      formSubmission: { select: { registrationCode: true, guardianResponses: true } },
+      formSubmission: {
+        select: {
+          registrationCode: true,
+          guardianResponses: true,
+          stripePaymentStatus: true,
+          stripeCheckoutSessionId: true,
+        },
+      },
     },
   });
 
@@ -80,35 +72,25 @@ export async function GET(req: Request) {
   const lines: string[] = [header.map(csvCell).join(",")];
 
   for (const r of rows) {
-    const guardianExtra = asObject(r.formSubmission?.guardianResponses);
-    const childExtra = asObject(r.customResponses);
-    const values = columns.map((k) => {
-      if (k === "registrationId") return r.id;
-      if (k === "registrationNumber") return r.registrationNumber ?? "";
-      if (k === "status") return r.status;
-      if (k === "registeredAt") return r.registeredAt.toISOString();
-      if (k === "seasonName") return season.name;
-      if (k === "classroomName") return r.classroom?.name ?? "";
-      if (k === "submissionCode") return r.formSubmission?.registrationCode ?? "";
-      if (k === "staffNotes") return r.notes ?? "";
-      if (k.startsWith("guardian:")) {
-        const fld = k.slice("guardian:".length);
-        if (fld === "guardianFirstName") return r.child.guardian.firstName;
-        if (fld === "guardianLastName") return r.child.guardian.lastName;
-        if (fld === "guardianEmail") return r.child.guardian.email ?? "";
-        if (fld === "guardianPhone") return r.child.guardian.phone ?? "";
-        return valueToCell(guardianExtra[fld]);
-      }
-      if (k.startsWith("child:")) {
-        const fld = k.slice("child:".length);
-        if (fld === "childFirstName") return r.child.firstName;
-        if (fld === "childLastName") return r.child.lastName;
-        if (fld === "childDateOfBirth") return r.child.dateOfBirth.toISOString().slice(0, 10);
-        if (fld === "allergiesNotes") return r.child.allergiesNotes ?? "";
-        return valueToCell(childExtra[fld]);
-      }
-      return "";
-    });
+    const values = columns.map((k) =>
+      resolveRegistrationExportFieldValue(
+        {
+          id: r.id,
+          registrationNumber: r.registrationNumber,
+          status: r.status,
+          registeredAt: r.registeredAt,
+          notes: r.notes,
+          customResponses: r.customResponses,
+          expectsPayment: r.expectsPayment,
+          paymentReceivedAt: r.paymentReceivedAt,
+          child: r.child,
+          classroom: r.classroom,
+          formSubmission: r.formSubmission,
+        },
+        season.name,
+        k,
+      ),
+    );
     lines.push(values.map(csvCell).join(","));
   }
 

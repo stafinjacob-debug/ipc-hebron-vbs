@@ -539,6 +539,8 @@ export default async function RegistrationsPage({
           registeredAt: r.registeredAt,
           notes: r.notes,
           customResponses: r.customResponses,
+          expectsPayment: r.expectsPayment,
+          paymentReceivedAt: r.paymentReceivedAt,
           child: r.child,
           classroom: r.classroom,
           formSubmission: r.formSubmission,

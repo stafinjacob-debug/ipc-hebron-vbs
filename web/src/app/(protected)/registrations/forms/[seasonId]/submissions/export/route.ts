@@ -1,5 +1,6 @@
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { registrationListPaymentBadge } from "@/lib/registration-list-payment";
 import { canViewOperations } from "@/lib/roles";
 
 function csvCell(s: string) {
@@ -42,6 +43,7 @@ export async function GET(
     "childLastName",
     "childDob",
     "registrationStatus",
+    "paymentStatus",
     "staffNotes",
     "guardianResponsesJson",
   ];
@@ -65,12 +67,21 @@ export async function GET(
           csvCell(""),
           csvCell(""),
           csvCell(""),
+          csvCell(""),
           csvCell(responses),
         ].join(","),
       );
       continue;
     }
     for (const r of s.registrations) {
+      const paymentStatus = registrationListPaymentBadge({
+        paymentReceivedAt: r.paymentReceivedAt,
+        expectsPayment: r.expectsPayment,
+        formSubmission: {
+          stripePaymentStatus: s.stripePaymentStatus,
+          stripeCheckoutSessionId: s.stripeCheckoutSessionId,
+        },
+      }).label;
       lines.push(
         [
           csvCell(s.registrationCode),
@@ -83,6 +94,7 @@ export async function GET(
           csvCell(r.child.lastName),
           csvCell(r.child.dateOfBirth.toISOString().slice(0, 10)),
           csvCell(r.status),
+          csvCell(paymentStatus),
           csvCell(r.notes ?? ""),
           csvCell(responses),
         ].join(","),
