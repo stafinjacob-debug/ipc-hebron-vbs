@@ -7,6 +7,7 @@ import {
   BarChart3,
   BookOpenText,
   ClipboardCheck,
+  FileText,
   LayoutDashboard,
   Mail,
   Megaphone,
@@ -45,6 +46,19 @@ const NAV: {
         href: "/registrations/students",
         label: "Students",
         match: (p) => p === "/registrations/students" || p.startsWith("/registrations/students/"),
+      },
+    ],
+  },
+  {
+    href: "/embedded-forms",
+    label: "Embedded Forms",
+    icon: FileText,
+    match: (p) => p === "/embedded-forms" || p.startsWith("/embedded-forms/"),
+    children: [
+      {
+        href: "/embedded-forms",
+        label: "All forms",
+        match: (p) => p === "/embedded-forms",
       },
     ],
   },

@@ -52,3 +52,12 @@ next-env.d.ts
 # Local uploads (use Azure Blob in production); keep folder in git
 /public/uploads/**
 !/public/uploads/.gitkeep
+
+# Private embedded-form passport photos (never public)
+/private/uploads/**
+!/private/uploads/.gitkeep
+!/private/uploads/embedded-photos/
+!/private/uploads/embedded-photos/.gitkeep
+
+# Local smoke-test artifacts
+/tmp/

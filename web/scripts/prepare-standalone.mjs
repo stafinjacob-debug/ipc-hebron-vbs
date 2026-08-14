@@ -20,6 +20,12 @@ if (existsSync(publicDir)) {
   cpSync(publicDir, join(standalone, "public"), { recursive: true });
 }
 
+/** Embedded-form PDF templates (e.g. HTC application overlay). */
+const assetsDir = join(root, "assets");
+if (existsSync(assetsDir)) {
+  cpSync(assetsDir, join(standalone, "assets"), { recursive: true });
+}
+
 const dejavuTtf = join(root, "node_modules", "dejavu-fonts-ttf", "ttf");
 const standaloneFonts = join(standalone, "node_modules", "dejavu-fonts-ttf", "ttf");
 const publicBadgeFonts = join(root, "public", "fonts", "badge-print");

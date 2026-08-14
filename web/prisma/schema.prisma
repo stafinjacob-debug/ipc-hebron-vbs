@@ -834,3 +834,135 @@ model SentMailboxSyncState {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 }
+
+/// Standalone application / intake forms (not event registrations).
+enum EmbeddedFormStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+/// Staff review decision for an embedded-form submission.
+enum EmbeddedSubmissionStatus {
+  PENDING_REVIEW
+  APPROVED
+  REJECTED
+  REFERRED
+}
+
+model EmbeddedForm {
+  id       String             @id @default(cuid())
+  title    String
+  subtitle String?
+  /// Public share path segment: /forms/{slug}
+  slug     String             @unique
+  status   EmbeddedFormStatus @default(DRAFT)
+
+  welcomeMessage      String? @db.Text
+  confirmationMessage String? @db.Text
+  instructions        String? @db.Text
+
+  /// Graph mail display name override (e.g. Hebron Theological College).
+  emailFromName String?
+  /// Optional subject override; otherwise derived from title.
+  emailSubject  String?
+  helpEmail     String?
+  helpPhone     String?
+
+  draftDefinitionJson     String? @db.Text
+  publishedDefinitionJson String? @db.Text
+  publishedAt             DateTime?
+  publishedVersion        Int       @default(0)
+
+  /// Key for the PDF blank template (e.g. "htc-application").
+  pdfTemplateKey String?
+
+  /// Application number prefix (e.g. HTC); sequence is zero-padded.
+  applicationNumberPrefix    String?
+  applicationNumberSeqDigits Int    @default(3)
+  applicationNumberNextSeq   Int    @default(0)
+
+  /// When true, applicants are sent to Stripe Checkout after submit (requires STRIPE_* env).
+  stripeCheckoutEnabled Boolean @default(false)
+  /// Base application fee in cents before processing gross-up (e.g. 5000 = $50).
+  stripeAmountCents     Int?
+  /// Checkout line-item label.
+  stripeProductLabel    String?
+  /// When true, total always includes estimated Stripe processing so the church nets the base fee.
+  stripeIncludeProcessingFee Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  submissions EmbeddedFormSubmission[]
+  auditLogs   EmbeddedFormAuditLog[]
+}
+
+model EmbeddedFormAuditLog {
+  id        String       @id @default(cuid())
+  formId    String
+  form      EmbeddedForm @relation(fields: [formId], references: [id], onDelete: Cascade)
+  userId    String?
+  action    String
+  metadata  Json?
+  createdAt DateTime     @default(now())
+
+  @@index([formId, createdAt])
+}
+
+model EmbeddedFormSubmission {
+  id     String       @id @default(cuid())
+  formId String
+  form   EmbeddedForm @relation(fields: [formId], references: [id], onDelete: Cascade)
+
+  applicationNumber String @unique
+  /// Client-generated UUID per page load; dedupes double-submit for this form.
+  clientSubmitKey   String?
+
+  formVersion Int                      @default(0)
+  status      EmbeddedSubmissionStatus @default(PENDING_REVIEW)
+
+  applicantFullName String
+  applicantEmail    String
+  applicantPhone    String?
+
+  /// Snapshot of applicant answers keyed by field key.
+  responsesJson Json
+  /// Snapshot of the published definition at submit time.
+  definitionSnapshotJson String @db.Text
+
+  /// Private storage key for passport photo (not a public URL).
+  photoObjectKey   String?
+  photoContentType String?
+
+  /// Private storage keys for academic documents (JSON string[]).
+  academicDocumentKeys Json?
+
+  signatureTypedName  String?
+  signedAt            DateTime?
+  declarationAccepted Boolean  @default(false)
+
+  /// Staff-only registrar fields (received date, fees, decision signature, etc.).
+  registrarResponsesJson Json?
+
+  /// Stripe Checkout for application fee.
+  stripeCheckoutSessionId  String?   @unique
+  stripePaymentStatus      String?
+  stripePaidAt             DateTime?
+  stripeAmountChargedCents Int?
+  stripeBaseCents          Int?
+  stripeProcessingCents    Int?
+
+  receivedAt                       DateTime?
+  applicationReceivedEmailSentAt   DateTime?
+  reviewedAt                       DateTime?
+  reviewedByUserId                 String?
+
+  submittedAt DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([formId, clientSubmitKey])
+  @@index([formId, submittedAt])
+  @@index([applicantEmail])
+  @@index([status])
+}

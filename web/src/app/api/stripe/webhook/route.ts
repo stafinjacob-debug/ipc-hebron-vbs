@@ -1,7 +1,9 @@
 import { prisma } from "@/lib/prisma";
 import { sendSubmissionReceivedEmail } from "@/lib/email/registration-emails";
+import { sendEmbeddedApplicationReceivedEmail } from "@/lib/email/embedded-application-email";
 import { tryAutoApproveRegistrationsForSubmission } from "@/lib/auto-approve-registration";
 import { getStripeClient } from "@/lib/stripe-registration-payment";
+import { markEmbeddedSubmissionPaidFromStripeSession } from "@/lib/embedded-stripe-payment";
 import type Stripe from "stripe";
 
 export const runtime = "nodejs";
@@ -30,6 +32,26 @@ export async function POST(request: Request) {
   if (event.type === "checkout.session.completed") {
     const session = event.data.object as Stripe.Checkout.Session;
     if (session.mode !== "payment" || session.payment_status !== "paid") {
+      return new Response("ok", { status: 200 });
+    }
+
+    const embeddedSubmissionId = session.metadata?.embeddedFormSubmissionId?.trim();
+    if (embeddedSubmissionId) {
+      const marked = await markEmbeddedSubmissionPaidFromStripeSession({
+        submissionId: embeddedSubmissionId,
+        amountTotal: session.amount_total ?? null,
+      });
+      if (marked) {
+        const submission = await prisma.embeddedFormSubmission.findUnique({
+          where: { id: embeddedSubmissionId },
+          select: { applicationReceivedEmailSentAt: true },
+        });
+        if (submission && !submission.applicationReceivedEmailSentAt) {
+          void sendEmbeddedApplicationReceivedEmail(embeddedSubmissionId).catch((err) => {
+            console.error("[stripe webhook] sendEmbeddedApplicationReceivedEmail", err);
+          });
+        }
+      }
       return new Response("ok", { status: 200 });
     }
 
