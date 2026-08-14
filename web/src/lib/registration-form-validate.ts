@@ -403,7 +403,6 @@ export function parseDynamicRegistrationForm(
   }
 
   const requiresDob = formIncludesChildDateOfBirth(def);
-  const requiresLastName = formIncludesChildLastName(def);
   if (
     children.some(
       (c) =>
