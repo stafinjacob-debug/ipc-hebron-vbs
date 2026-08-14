@@ -97,7 +97,7 @@ function buildFormDefinition(): FormDefinitionV1 {
         sectionId: "sec_info",
         key: "interestInfo",
         type: "staticText",
-        label: "",
+        label: "Interest form",
         required: false,
         order: 0,
         helperText:
