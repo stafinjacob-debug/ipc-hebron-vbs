@@ -1,0 +1,44 @@
+# Create/configure Weekday Soccer interest form in production.
+name: Setup Soccer Weekday Interest (Production)
+
+on:
+  workflow_dispatch:
+    inputs:
+      open_registration:
+        description: "Open public registration (true) or close it (false)"
+        type: boolean
+        default: true
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install dependencies
+        env:
+          DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
+        run: npm ci
+
+      - name: Create soccer weekday interest form
+        env:
+          DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
+          VBS_HELP_EMAIL: ${{ secrets.VBS_HELP_EMAIL }}
+        run: |
+          if [ "${{ inputs.open_registration }}" = "true" ]; then
+            npx tsx scripts/setup-soccer-weekday-interest.ts --open
+          else
+            npx tsx scripts/setup-soccer-weekday-interest.ts --close
+          fi

@@ -1,5 +1,8 @@
 import type { FormDefinitionV1, FormFieldDef } from "@/lib/registration-form-definition";
-import { formIncludesChildDateOfBirth } from "@/lib/registration-form-definition";
+import {
+  formIncludesChildDateOfBirth,
+  formIncludesChildLastName,
+} from "@/lib/registration-form-definition";
 
 export type GuardianExtract = {
   guardianFirstName: string;
@@ -348,6 +351,7 @@ export function parseDynamicRegistrationForm(
 
   const countRaw = getFormValue(formData, "childCount");
   const childCount = Math.min(8, Math.max(1, parseInt(countRaw, 10) || 1));
+  const requiresLastName = formIncludesChildLastName(def);
 
   const children: ChildExtract[] = [];
 
@@ -391,7 +395,7 @@ export function parseDynamicRegistrationForm(
 
     children.push({
       childFirstName: ctx.childFirstName?.trim() ?? "",
-      childLastName: ctx.childLastName?.trim() ?? "",
+      childLastName: ctx.childLastName?.trim() || (requiresLastName ? "" : "—"),
       childDateOfBirth: ctx.childDateOfBirth ?? "",
       allergiesNotes: allergiesNotesRaw ? allergiesNotesRaw : null,
       custom,
@@ -399,12 +403,22 @@ export function parseDynamicRegistrationForm(
   }
 
   const requiresDob = formIncludesChildDateOfBirth(def);
-  if (children.some((c) => !c.childFirstName || !c.childLastName || (requiresDob && !c.childDateOfBirth))) {
+  const requiresLastName = formIncludesChildLastName(def);
+  if (
+    children.some(
+      (c) =>
+        !c.childFirstName ||
+        (requiresLastName && !c.childLastName) ||
+        (requiresDob && !c.childDateOfBirth),
+    )
+  ) {
     return {
       ok: false,
       message: requiresDob
         ? "Each child needs a name and date of birth."
-        : "Each child needs a first and last name.",
+        : requiresLastName
+          ? "Each child needs a first and last name."
+          : "Each child needs a name.",
     };
   }
 

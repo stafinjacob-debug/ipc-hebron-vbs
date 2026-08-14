@@ -25,6 +25,8 @@ const nextConfig: NextConfig = {
     return [
       { source: "/basketball", destination: "/register/basketball" },
       { source: "/basketball/:path*", destination: "/register/basketball/:path*" },
+      { source: "/soccer-weekday", destination: "/register/soccer-weekday" },
+      { source: "/soccer-weekday/:path*", destination: "/register/soccer-weekday/:path*" },
     ];
   },
   async redirects() {

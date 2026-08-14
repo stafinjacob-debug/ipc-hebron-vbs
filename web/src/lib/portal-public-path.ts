@@ -1,6 +1,7 @@
 /** Optional short public paths for share links (slug → path without /register). */
 const PORTAL_SHORT_PATHS: Record<string, string> = {
   basketball: "/basketball",
+  "soccer-weekday": "/soccer-weekday",
 };
 
 /** Resolve the public signup base path for a program portal. */

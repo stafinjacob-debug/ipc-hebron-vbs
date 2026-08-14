@@ -381,6 +381,15 @@ export function formIncludesChildDateOfBirth(def: FormDefinitionV1): boolean {
   );
 }
 
+export function formIncludesChildLastName(def: FormDefinitionV1): boolean {
+  return def.fields.some(
+    (f) =>
+      f.key === "childLastName" &&
+      f.type !== "sectionHeader" &&
+      f.type !== "staticText",
+  );
+}
+
 export function listChildAssignableFieldOptions(def: FormDefinitionV1): { key: string; label: string }[] {
   const out: { key: string; label: string }[] = [];
   for (const f of fieldsForAudience(def, "eachChild")) {
