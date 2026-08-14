@@ -1545,23 +1545,27 @@ function DynamicRegistrationWizardInner({
           <h1 className="mt-1 text-2xl font-bold tracking-tight text-white sm:text-3xl lg:text-[1.9rem]">
             {season.formTitle || season.name}
           </h1>
-          <div className="mx-auto mt-4 max-w-md space-y-1.5 text-center" role="group" aria-label="VBS dates and times">
-            <p className="flex flex-wrap items-center justify-center gap-2 text-lg font-bold leading-snug text-white sm:text-xl">
-              <CalendarDays className="size-4 shrink-0 text-amber-200/90" aria-hidden />
-              <span>{formatSeasonDateRange(season.startDate, season.endDate)}</span>
-            </p>
-            {season.sessionTimeDescription?.trim() ? (
-              <p className="flex items-start justify-center gap-2 text-sm font-semibold leading-snug text-white/95">
-                <Clock className="mt-0.5 size-3.5 shrink-0 text-cyan-200/95" aria-hidden />
-                <span className="max-w-[min(100%,22rem)] whitespace-pre-line text-left">
-                  {season.sessionTimeDescription.trim()}
-                </span>
+          {season.sessionTimeDescription?.trim() || season.welcomeMessage?.trim() ? (
+            <div className="mx-auto mt-4 max-w-md space-y-1.5 text-center" role="group" aria-label="VBS dates and times">
+              <p className="flex flex-wrap items-center justify-center gap-2 text-lg font-bold leading-snug text-white sm:text-xl">
+                <CalendarDays className="size-4 shrink-0 text-amber-200/90" aria-hidden />
+                <span>{formatSeasonDateRange(season.startDate, season.endDate)}</span>
               </p>
-            ) : null}
-          </div>
-          <p className="mx-auto mt-3 max-w-md whitespace-pre-line text-sm leading-relaxed text-neutral-200/85 lg:mt-3 lg:text-sm">
-            {season.welcomeMessage?.trim() || t("welcomeFallback", { eventName: season.name })}
-          </p>
+              {season.sessionTimeDescription?.trim() ? (
+                <p className="flex items-start justify-center gap-2 text-sm font-semibold leading-snug text-white/95">
+                  <Clock className="mt-0.5 size-3.5 shrink-0 text-cyan-200/95" aria-hidden />
+                  <span className="max-w-[min(100%,22rem)] whitespace-pre-line text-left">
+                    {season.sessionTimeDescription.trim()}
+                  </span>
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+          {season.welcomeMessage?.trim() ? (
+            <p className="mx-auto mt-3 max-w-md whitespace-pre-line text-sm leading-relaxed text-neutral-200/85 lg:mt-3 lg:text-sm">
+              {season.welcomeMessage.trim()}
+            </p>
+          ) : null}
           <RegistrationPublicContactPromo
             contactName={effectiveContactName}
             contactEmail={effectiveContactEmail}

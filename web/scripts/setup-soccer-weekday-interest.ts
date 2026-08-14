@@ -36,6 +36,8 @@ const START_DATE = "2026-08-13";
 const END_DATE = "2026-08-27";
 /** Form closes two weeks after launch (America/Chicago). */
 const REGISTRATION_CLOSES_LOCAL = "2026-08-27T23:59";
+const HELP_CONTACT_NAME = "Benn Matthew";
+const HELP_CONTACT_PHONE = "7138376030";
 
 function parseArgs() {
   const dryRun = process.argv.includes("--dry-run");
@@ -56,54 +58,26 @@ function resolveDatabaseUrl(database: string | null): string {
   return url.replace(/\/[^/?]+(\?|$)/, `/${database}$1`);
 }
 
-function buildWelcomeMessage(): string {
-  return (
-    "Weekday Soccer at Church\n\n" +
-    "If your child attended soccer camp and you are interested in weekday soccer at IPC Hebron, " +
-    "please share your contact information below. This helps us plan and add you to a WhatsApp group for updates.\n\n" +
-    "This form is open for two weeks only."
-  );
-}
-
 function buildFormDefinition(): FormDefinitionV1 {
   return {
     version: 1,
     sections: [
       {
-        id: "sec_info",
-        title: "About this form",
-        description: "",
-        audience: "static",
-        order: 0,
-      },
-      {
         id: "sec_guardian",
         title: "Parent / guardian",
         description: "We'll use this to follow up and add you to the WhatsApp group.",
         audience: "guardian",
-        order: 1,
+        order: 0,
       },
       {
         id: "sec_child",
         title: "Your children",
         description: "Add each child who may participate in weekday soccer.",
         audience: "eachChild",
-        order: 2,
+        order: 1,
       },
     ],
     fields: [
-      {
-        id: "f_info",
-        sectionId: "sec_info",
-        key: "interestInfo",
-        type: "staticText",
-        label: "Interest form",
-        required: false,
-        order: 0,
-        helperText:
-          "This is not a registration — we are collecting interest only. " +
-          "Someone from the church will contact you with next steps.",
-      },
       {
         id: "f_g_name",
         sectionId: "sec_guardian",
@@ -148,6 +122,27 @@ function buildFormDefinition(): FormDefinitionV1 {
   };
 }
 
+function publicSettingsData(seasonId: string) {
+  return {
+    seasonId,
+    requireGuardianEmail: false,
+    requireGuardianPhone: true,
+    requireAllergiesNotes: false,
+    welcomeMessage: null,
+    sessionTimeDescription: null,
+    helpContactName: `${HELP_CONTACT_NAME} ${HELP_CONTACT_PHONE}`,
+    helpContactPhone: HELP_CONTACT_PHONE,
+    helpContactEmail: null,
+    publicContactFooterText: null,
+    publicHeaderLabel: SEASON_NAME,
+    publicPageTitle: `${SEASON_NAME} | IPC Hebron`,
+    publicPageDescription: "Weekday soccer interest form",
+    participantSectionLabel: "Children",
+    participantSingularLabel: "Child",
+    contactSectionLabel: "Parent / guardian",
+  };
+}
+
 async function main() {
   const { dryRun, openRegistration, closeRegistration, database } = parseArgs();
   const url = resolveDatabaseUrl(database);
@@ -177,8 +172,6 @@ async function main() {
 
     const formDef = buildFormDefinition();
     const formJson = definitionToJson(formDef);
-    const welcomeMessage = buildWelcomeMessage();
-    const helpContactEmail = process.env.VBS_HELP_EMAIL?.trim() || "soccer@ipchouston.com";
 
     if (existing) {
       if (!dryRun) {
@@ -202,30 +195,21 @@ async function main() {
             publishedAt: new Date(),
             status: "PUBLISHED",
             registrationClosesAt,
-            welcomeMessage,
+            welcomeMessage: null,
           },
         });
         await prisma.publicRegistrationSettings.upsert({
           where: { seasonId: existing.id },
-          create: {
-            seasonId: existing.id,
-            requireGuardianEmail: false,
-            requireGuardianPhone: true,
-            welcomeMessage,
-            helpContactEmail,
-            publicHeaderLabel: SEASON_NAME,
-            publicPageTitle: `${SEASON_NAME} | IPC Hebron`,
-            publicPageDescription:
-              "Share your interest in weekday soccer at church for children who attended soccer camp.",
-            participantSectionLabel: "Children",
-            participantSingularLabel: "Child",
-            contactSectionLabel: "Parent / guardian",
-          },
+          create: publicSettingsData(existing.id),
           update: {
             requireGuardianEmail: false,
             requireGuardianPhone: true,
-            welcomeMessage,
-            helpContactEmail,
+            welcomeMessage: null,
+            sessionTimeDescription: null,
+            helpContactName: `${HELP_CONTACT_NAME} ${HELP_CONTACT_PHONE}`,
+            helpContactPhone: HELP_CONTACT_PHONE,
+            helpContactEmail: null,
+            publicContactFooterText: null,
           },
         });
       }
@@ -240,6 +224,7 @@ async function main() {
       }
       console.log(`Season already exists: ${existing.name} [${existing.id}]`);
       console.log(`Public URL: /soccer-weekday`);
+      console.log(`Contact: ${HELP_CONTACT_NAME} · ${HELP_CONTACT_PHONE}`);
       console.log(`Closes: ${REGISTRATION_CLOSES_LOCAL} America/Chicago`);
       return;
     }
@@ -251,6 +236,7 @@ async function main() {
       console.log("Would create:");
       console.log(`  Season: ${SEASON_NAME} (${SEASON_YEAR})`);
       console.log(`  Slug: ${SLUG} (public URL /soccer-weekday)`);
+      console.log(`  Contact: ${HELP_CONTACT_NAME} · ${HELP_CONTACT_PHONE}`);
       console.log(`  Interest window closes: ${REGISTRATION_CLOSES_LOCAL} America/Chicago`);
       console.log(`  Open registration: ${openRegistration}`);
       console.log(`  Form fields: ${formDef.fields.length}`);
@@ -278,29 +264,14 @@ async function main() {
     });
 
     await prisma.publicRegistrationSettings.create({
-      data: {
-        seasonId: season.id,
-        requireGuardianEmail: false,
-        requireGuardianPhone: true,
-        requireAllergiesNotes: false,
-        welcomeMessage,
-        helpContactEmail,
-        publicHeaderLabel: SEASON_NAME,
-        publicPageTitle: `${SEASON_NAME} | IPC Hebron`,
-        publicPageDescription:
-          "Share your interest in weekday soccer at church for children who attended soccer camp.",
-        participantSectionLabel: "Children",
-        participantSingularLabel: "Child",
-        contactSectionLabel: "Parent / guardian",
-        publicContactFooterText: "Questions? Email soccer@ipchouston.com",
-      },
+      data: publicSettingsData(season.id),
     });
 
     await prisma.registrationForm.create({
       data: {
         seasonId: season.id,
-        title: `${SEASON_NAME}`,
-        welcomeMessage,
+        title: SEASON_NAME,
+        welcomeMessage: null,
         confirmationMessage:
           "Thank you — we received your interest in weekday soccer at church. " +
           "We'll be in touch soon and will add your phone number to the parent WhatsApp group.",
@@ -322,6 +293,7 @@ async function main() {
 
     console.log(`Created season: ${SEASON_NAME} [${season.id}]`);
     console.log(`Public registration: /soccer-weekday`);
+    console.log(`Contact: ${HELP_CONTACT_NAME} · ${HELP_CONTACT_PHONE}`);
     console.log(`Closes: ${REGISTRATION_CLOSES_LOCAL} America/Chicago`);
     if (!openRegistration) {
       console.log("\nRegistration is closed. Re-run with --open or enable it in admin when ready.");
