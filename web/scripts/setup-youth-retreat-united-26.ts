@@ -300,10 +300,11 @@ function buildFormDefinition(): FormDefinitionV1 {
         label: "Registration group",
         required: true,
         order: 7,
-        helperText: "Highschool (9th–12th grade) or College / HYA.",
+        helperText: "Highschool (9th–12th grade), College / HYA, or Volunteer.",
         options: [
           { value: "Highschool", label: "Highschool (9th–12th)" },
           { value: "College", label: "College / HYA" },
+          { value: "Volunteer", label: "Volunteer" },
         ],
       },
       {
