@@ -145,6 +145,7 @@ export function RegistrationsBulkTable({
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
+  const [notifyGuardianOnDelete, setNotifyGuardianOnDelete] = useState(true);
 
   const rowById = useMemo(() => new Map(rows.map((r) => [r.id, r])), [rows]);
   const pageIds = useMemo(() => rows.map((r) => r.id), [rows]);
@@ -275,15 +276,18 @@ export function RegistrationsBulkTable({
       const row = rowById.get(id);
       return row ? `${row.childFirstName} ${row.childLastName}` : id;
     });
+    const notifyLine = notifyGuardianOnDelete
+      ? "A cancellation email will be sent to each family (when an email is on file)."
+      : "Guardians will NOT be emailed.";
     if (
       !window.confirm(
-        `Permanently delete ${ids.length} registration(s)? This cannot be undone. A cancellation email will be sent to each family (when an email is on file).\n\n${labels.slice(0, 12).join(", ")}${labels.length > 12 ? "…" : ""}`,
+        `Permanently delete ${ids.length} registration(s)? This cannot be undone. ${notifyLine}\n\n${labels.slice(0, 12).join(", ")}${labels.length > 12 ? "…" : ""}`,
       )
     ) {
       return;
     }
     startTransition(async () => {
-      const bulk = await bulkDeleteRegistrations(ids);
+      const bulk = await bulkDeleteRegistrations(ids, { notifyGuardian: notifyGuardianOnDelete });
       const lines =
         bulk.results.length > 0
           ? bulk.results.map((r) => r.message)
@@ -294,7 +298,7 @@ export function RegistrationsBulkTable({
         router.refresh();
       }
     });
-  }, [selected, rowById, router]);
+  }, [selected, rowById, router, notifyGuardianOnDelete]);
 
   return (
     <div className="overflow-hidden rounded-xl border border-foreground/10">
@@ -357,6 +361,16 @@ export function RegistrationsBulkTable({
             >
               Reject & delete
             </button>
+            <label className="flex items-center gap-2 text-xs text-foreground/70">
+              <input
+                type="checkbox"
+                className="h-4 w-4 rounded border-foreground/30"
+                checked={notifyGuardianOnDelete}
+                disabled={pending}
+                onChange={(e) => setNotifyGuardianOnDelete(e.target.checked)}
+              />
+              Email guardians on delete
+            </label>
           </div>
         </div>
       ) : null}

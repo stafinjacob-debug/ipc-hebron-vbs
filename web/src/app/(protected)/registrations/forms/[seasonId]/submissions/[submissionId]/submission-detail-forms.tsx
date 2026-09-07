@@ -57,6 +57,7 @@ export function SubmissionDetailForms({
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [msg, setMsg] = useState<string | null>(null);
+  const [notifyGuardian, setNotifyGuardian] = useState(true);
 
   if (!canEdit) {
     return (
@@ -140,10 +141,13 @@ export function SubmissionDetailForms({
           disabled={pending}
           className="rounded-md border border-red-500/30 px-3 py-2 text-sm font-medium text-red-700 disabled:opacity-50 dark:text-red-300"
           onClick={() => {
-            if (!confirm("Cancel all registrations on this submission?")) return;
+            const confirmMsg = notifyGuardian
+              ? "Cancel all registrations on this submission? The guardian will be emailed."
+              : "Cancel all registrations on this submission without emailing the guardian?";
+            if (!confirm(confirmMsg)) return;
             setMsg(null);
             startTransition(async () => {
-              const r = await bulkCancelSubmission(submissionId);
+              const r = await bulkCancelSubmission(submissionId, { notifyGuardian });
               setMsg(r.message);
               if (r.ok) router.refresh();
             });
@@ -165,6 +169,21 @@ export function SubmissionDetailForms({
         >
           Resend confirmation
         </button>
+        <label className="flex w-full items-start gap-2 text-sm text-foreground/80 sm:ml-1 sm:w-auto sm:items-center">
+          <input
+            type="checkbox"
+            className="mt-0.5 h-4 w-4 rounded border-foreground/30 sm:mt-0"
+            checked={notifyGuardian}
+            disabled={pending}
+            onChange={(e) => setNotifyGuardian(e.target.checked)}
+          />
+          <span>
+            Notify guardian on cancel
+            <span className="mt-0.5 block text-xs text-foreground/55 sm:mt-0 sm:inline sm:before:content-['_·_']">
+              Uncheck when cleaning up duplicates
+            </span>
+          </span>
+        </label>
       </div>
 
       {adminStructuredEditEnabled && formEditContext ? (
@@ -275,7 +294,7 @@ export function SubmissionDetailForms({
           }));
           setMsg(null);
           startTransition(async () => {
-            const r = await updateSubmissionRegistrations(submissionId, updates);
+            const r = await updateSubmissionRegistrations(submissionId, updates, { notifyGuardian });
             setMsg(r.message);
             if (r.ok) router.refresh();
           });

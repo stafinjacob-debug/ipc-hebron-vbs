@@ -47,6 +47,7 @@ export function RegistrationAdminPanel({
   const [pending, startTransition] = useTransition();
   const [msg, setMsg] = useState<string | null>(null);
   const [smsBody, setSmsBody] = useState("");
+  const [notifyGuardian, setNotifyGuardian] = useState(true);
 
   const isConfirmed = status === "CONFIRMED";
   const canApprove = status === "PENDING" || status === "WAITLIST" || status === "DRAFT";
@@ -89,10 +90,13 @@ export function RegistrationAdminPanel({
             disabled={pending}
             className="rounded-lg border border-red-300 px-3 py-2 text-sm font-medium text-red-800 hover:bg-red-50 disabled:opacity-50 dark:border-red-900 dark:text-red-200 dark:hover:bg-red-950/40"
             onClick={() => {
-              if (!confirm("Decline this registration? It will be marked cancelled.")) return;
+              const confirmMsg = notifyGuardian
+                ? "Decline this registration? It will be marked cancelled and the guardian will be emailed."
+                : "Decline this registration without emailing the guardian? It will be marked cancelled.";
+              if (!confirm(confirmMsg)) return;
               setMsg(null);
               startTransition(async () => {
-                const r = await declineRegistration(registrationId);
+                const r = await declineRegistration(registrationId, { notifyGuardian });
                 setMsg(r.message);
                 if (r.ok) router.refresh();
               });
@@ -106,15 +110,13 @@ export function RegistrationAdminPanel({
           disabled={pending}
           className="rounded-lg border border-foreground/20 px-3 py-2 text-sm font-medium hover:bg-foreground/[0.04] disabled:opacity-50"
           onClick={() => {
-            if (
-              !confirm(
-                "Permanently delete this registration row? This cannot be undone. A cancellation email will be sent to the guardian if an email is on file.",
-              )
-            )
-              return;
+            const confirmMsg = notifyGuardian
+              ? "Permanently delete this registration row? This cannot be undone. A cancellation email will be sent to the guardian if an email is on file."
+              : "Permanently delete this registration row without emailing the guardian? This cannot be undone.";
+            if (!confirm(confirmMsg)) return;
             setMsg(null);
             startTransition(async () => {
-              const r = await deleteRegistrationRecord(registrationId);
+              const r = await deleteRegistrationRecord(registrationId, { notifyGuardian });
               setMsg(r.message);
               if (r.ok) router.push("/registrations");
             });
@@ -123,6 +125,22 @@ export function RegistrationAdminPanel({
           Delete registration
         </button>
       </div>
+
+      <label className="flex items-start gap-2 text-sm text-foreground/80">
+        <input
+          type="checkbox"
+          className="mt-0.5 h-4 w-4 rounded border-foreground/30"
+          checked={notifyGuardian}
+          disabled={pending}
+          onChange={(e) => setNotifyGuardian(e.target.checked)}
+        />
+        <span>
+          Notify guardian by email when declining or deleting
+          <span className="mt-0.5 block text-xs text-foreground/55">
+            Uncheck when cleaning up duplicates so parents are not emailed.
+          </span>
+        </span>
+      </label>
 
       <div className="border-t border-foreground/10 pt-4">
         <p className="text-xs font-medium text-foreground/60">Email</p>

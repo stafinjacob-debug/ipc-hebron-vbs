@@ -981,6 +981,11 @@ export function formatCancellationEmailHint(result: EmailSendResult): string {
   return " (Cancellation email failed — check server logs.)";
 }
 
+/** When staff deliberately skip the cancellation email (e.g. cleaning up duplicates). */
+export function formatCancellationNotifySkippedHint(): string {
+  return " Guardian was not notified.";
+}
+
 export function formatCheckoutReminderEmailHint(result: EmailSendResult): string {
   if (result === "sent") return " Checkout reminder emailed.";
   if (result === "skipped_no_graph") return " (Email not configured.)";

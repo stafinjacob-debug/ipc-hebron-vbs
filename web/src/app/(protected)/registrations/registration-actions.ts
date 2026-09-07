@@ -3,6 +3,7 @@
 import { auth } from "@/auth";
 import {
   formatCancellationEmailHint,
+  formatCancellationNotifySkippedHint,
   sendAllApprovedRegistrationsEmailForSubmission,
   sendCheckoutReminderEmail,
   sendPaymentReminderEmail,
@@ -112,11 +113,21 @@ export async function approveRegistration(registrationId: string): Promise<RegAc
   return { ok: true, message: `Registration approved.${emailHint}` };
 }
 
-export async function declineRegistration(registrationId: string): Promise<RegActionState> {
+export type CancellationNotifyOptions = {
+  /** When false, skip the guardian cancellation email (default true). */
+  notifyGuardian?: boolean;
+};
+
+export async function declineRegistration(
+  registrationId: string,
+  options?: CancellationNotifyOptions,
+): Promise<RegActionState> {
   const session = await auth();
   if (!session?.user?.role || !canManageDirectory(session.user.role)) {
     return { ok: false, message: "You do not have permission." };
   }
+
+  const notifyGuardian = options?.notifyGuardian !== false;
 
   const reg = await prisma.registration.findUnique({
     where: { id: registrationId },
@@ -132,13 +143,15 @@ export async function declineRegistration(registrationId: string): Promise<RegAc
     data: { status: "CANCELLED" },
   });
 
-  const emailResult = await sendRegistrationCancelledEmail(registrationId);
+  const emailHint = notifyGuardian
+    ? formatCancellationEmailHint(await sendRegistrationCancelledEmail(registrationId))
+    : formatCancellationNotifySkippedHint();
 
   revalidateRegistrationPaths(reg.seasonId);
   revalidatePath(`/registrations/${registrationId}`);
   return {
     ok: true,
-    message: `Registration declined (cancelled).${formatCancellationEmailHint(emailResult)}`,
+    message: `Registration declined (cancelled).${emailHint}`,
   };
 }
 
@@ -157,13 +170,19 @@ async function removeRegistrationRows(registrationIds: string[]): Promise<void> 
   }
 }
 
-export async function deleteRegistrationRecord(registrationId: string): Promise<RegActionState> {
-  const bulk = await bulkDeleteRegistrations([registrationId]);
+export async function deleteRegistrationRecord(
+  registrationId: string,
+  options?: CancellationNotifyOptions,
+): Promise<RegActionState> {
+  const bulk = await bulkDeleteRegistrations([registrationId], options);
   return bulk.results[0] ?? { ok: bulk.ok, message: bulk.message };
 }
 
-/** Permanently delete registrations and email guardians (one email per family per season). */
-export async function bulkDeleteRegistrations(registrationIds: string[]): Promise<{
+/** Permanently delete registrations and optionally email guardians (one email per family per season). */
+export async function bulkDeleteRegistrations(
+  registrationIds: string[],
+  options?: CancellationNotifyOptions,
+): Promise<{
   ok: boolean;
   message: string;
   results: RegActionState[];
@@ -172,6 +191,8 @@ export async function bulkDeleteRegistrations(registrationIds: string[]): Promis
   if (!session?.user?.role || !canManageDirectory(session.user.role)) {
     return { ok: false, message: "You do not have permission.", results: [] };
   }
+
+  const notifyGuardian = options?.notifyGuardian !== false;
 
   const uniqueIds = [...new Set(registrationIds.map((id) => id.trim()).filter(Boolean))];
   if (uniqueIds.length === 0) {
@@ -228,8 +249,12 @@ export async function bulkDeleteRegistrations(registrationIds: string[]): Promis
     }
   }
 
-  const emailByGuardianSeason = new Map<string, EmailSendResult>();
+  const emailByGuardianSeason = new Map<string, EmailSendResult | "skipped_by_admin">();
   for (const [key, group] of groups) {
+    if (!notifyGuardian) {
+      emailByGuardianSeason.set(key, "skipped_by_admin");
+      continue;
+    }
     if (!group.guardianEmail?.trim()) {
       emailByGuardianSeason.set(key, "skipped_no_email");
       continue;
@@ -256,9 +281,13 @@ export async function bulkDeleteRegistrations(registrationIds: string[]): Promis
     const key = `${reg.child.guardian.id}::${reg.seasonId}`;
     const emailResult = emailByGuardianSeason.get(key) ?? "skipped_no_email";
     const childLabel = `${reg.child.firstName} ${reg.child.lastName}`.trim();
+    const emailHint =
+      emailResult === "skipped_by_admin"
+        ? formatCancellationNotifySkippedHint()
+        : formatCancellationEmailHint(emailResult);
     return {
       ok: true,
-      message: `${childLabel}: Removed.${formatCancellationEmailHint(emailResult)}`,
+      message: `${childLabel}: Removed.${emailHint}`,
     };
   });
 
@@ -266,7 +295,9 @@ export async function bulkDeleteRegistrations(registrationIds: string[]): Promis
   const summary =
     uniqueIds.length === 1
       ? results[0]?.message ?? "Registration removed."
-      : `Removed ${regs.length} registration(s).${sentCount > 0 ? ` ${sentCount} cancellation email(s) sent.` : ""}`;
+      : notifyGuardian
+        ? `Removed ${regs.length} registration(s).${sentCount > 0 ? ` ${sentCount} cancellation email(s) sent.` : ""}`
+        : `Removed ${regs.length} registration(s). Guardians were not notified.`;
 
   return { ok: true, message: summary, results };
 }

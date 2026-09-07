@@ -28,6 +28,7 @@ import { syncSubmissionPaymentExpectation } from "@/lib/sync-submission-payment-
 import { parseRegistrantEditForm } from "@/lib/registrant-edit-form";
 import {
   formatCancellationEmailHint,
+  formatCancellationNotifySkippedHint,
   sendAllApprovedRegistrationsEmailForSubmission,
   sendSubmissionCancelledEmail,
 } from "@/lib/email/registration-emails";
@@ -557,11 +558,14 @@ export async function resetDraftFromPublished(seasonId: string): Promise<ActionS
 export async function updateSubmissionRegistrations(
   submissionId: string,
   updates: Array<{ registrationId: string; status?: string; notes?: string | null }>,
+  options?: { notifyGuardian?: boolean },
 ): Promise<ActionState> {
   const session = await auth();
   if (!session?.user?.role || !canManageDirectory(session.user.role)) {
     return { ok: false, message: "Unauthorized." };
   }
+
+  const notifyGuardian = options?.notifyGuardian !== false;
 
   const submission = await prisma.formSubmission.findUnique({
     where: { id: submissionId },
@@ -601,8 +605,9 @@ export async function updateSubmissionRegistrations(
 
   let emailHint = "";
   if (newlyCancelledIds.length > 0) {
-    const emailResult = await sendSubmissionCancelledEmail(submissionId, newlyCancelledIds);
-    emailHint = formatCancellationEmailHint(emailResult);
+    emailHint = notifyGuardian
+      ? formatCancellationEmailHint(await sendSubmissionCancelledEmail(submissionId, newlyCancelledIds))
+      : formatCancellationNotifySkippedHint();
   }
 
   if (submission.formId) {
@@ -791,11 +796,16 @@ export async function bulkMoveSubmissionToWaitlist(submissionId: string): Promis
   return { ok: true, message: "All children on this submission moved to waitlist." };
 }
 
-export async function bulkCancelSubmission(submissionId: string): Promise<ActionState> {
+export async function bulkCancelSubmission(
+  submissionId: string,
+  options?: { notifyGuardian?: boolean },
+): Promise<ActionState> {
   const session = await auth();
   if (!session?.user?.role || !canManageDirectory(session.user.role)) {
     return { ok: false, message: "Unauthorized." };
   }
+
+  const notifyGuardian = options?.notifyGuardian !== false;
 
   const submission = await prisma.formSubmission.findUnique({
     where: { id: submissionId },
@@ -814,8 +824,9 @@ export async function bulkCancelSubmission(submissionId: string): Promise<Action
 
   let emailHint = "";
   if (cancelResult.count > 0) {
-    const emailResult = await sendSubmissionCancelledEmail(submissionId);
-    emailHint = formatCancellationEmailHint(emailResult);
+    emailHint = notifyGuardian
+      ? formatCancellationEmailHint(await sendSubmissionCancelledEmail(submissionId))
+      : formatCancellationNotifySkippedHint();
   }
 
   revalidatePath(`${RF_PATH}/${submission.seasonId}/submissions`);
