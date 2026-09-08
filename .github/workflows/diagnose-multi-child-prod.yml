@@ -1,0 +1,32 @@
+# One-off: diagnose multi-child registration counts in production.
+name: Diagnose Multi-Child Submissions (Production)
+
+on:
+  workflow_dispatch:
+    inputs:
+      slug:
+        description: Public registration slug (e.g. retreat)
+        type: string
+        default: retreat
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install dependencies
+        env:
+          DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
+        run: npm ci
+      - name: Diagnose multi-child submissions
+        env:
+          DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
+        run: npx tsx scripts/check-multi-child-submissions.ts --slug=${{ inputs.slug }}
