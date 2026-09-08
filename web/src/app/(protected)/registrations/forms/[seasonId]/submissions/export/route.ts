@@ -1,5 +1,6 @@
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { CSV_UTF8_BOM } from "@/lib/registration-export";
 import { registrationListPaymentBadge } from "@/lib/registration-list-payment";
 import { canViewOperations } from "@/lib/roles";
 
@@ -28,12 +29,19 @@ export async function GET(
     orderBy: { submittedAt: "desc" },
     include: {
       guardian: true,
-      registrations: { include: { child: true } },
+      // One CSV row per child — do not collapse siblings onto the submission.
+      registrations: {
+        orderBy: { registeredAt: "asc" },
+        include: { child: true },
+      },
     },
   });
 
   const header = [
-    "registrationCode",
+    "registrationId",
+    "registrationNumber",
+    "childIndex",
+    "submissionCode",
     "submittedAt",
     "guardianFirstName",
     "guardianLastName",
@@ -48,14 +56,19 @@ export async function GET(
     "guardianResponsesJson",
   ];
 
-  const lines: string[] = [header.join(",")];
+  const lines: string[] = [header.map(csvCell).join(",")];
+  let dataRowCount = 0;
 
   for (const s of rows) {
     const g = s.guardian;
     const responses = JSON.stringify(s.guardianResponses ?? {});
     if (s.registrations.length === 0) {
+      dataRowCount += 1;
       lines.push(
         [
+          csvCell(""),
+          csvCell(""),
+          csvCell(""),
           csvCell(s.registrationCode),
           csvCell(s.submittedAt.toISOString()),
           csvCell(g.firstName),
@@ -73,7 +86,8 @@ export async function GET(
       );
       continue;
     }
-    for (const r of s.registrations) {
+    s.registrations.forEach((r, idx) => {
+      dataRowCount += 1;
       const paymentStatus = registrationListPaymentBadge({
         paymentReceivedAt: r.paymentReceivedAt,
         expectsPayment: r.expectsPayment,
@@ -84,6 +98,9 @@ export async function GET(
       }).label;
       lines.push(
         [
+          csvCell(r.id),
+          csvCell(r.registrationNumber ?? ""),
+          csvCell(String(idx + 1)),
           csvCell(s.registrationCode),
           csvCell(s.submittedAt.toISOString()),
           csvCell(g.firstName),
@@ -99,11 +116,11 @@ export async function GET(
           csvCell(responses),
         ].join(","),
       );
-    }
+    });
   }
 
-  const csv = lines.join("\n");
-  const filename = `vbs-registrations-${season.year}-${seasonId.slice(0, 8)}.csv`;
+  const csv = `${CSV_UTF8_BOM}${lines.join("\n")}`;
+  const filename = `vbs-submission-children-${season.year}-${dataRowCount}rows-${seasonId.slice(0, 8)}.csv`;
 
   return new Response(csv, {
     status: 200,

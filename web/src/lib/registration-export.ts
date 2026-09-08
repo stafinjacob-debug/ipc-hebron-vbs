@@ -15,6 +15,7 @@ export type ExportFieldOption = {
 export const CORE_EXPORT_FIELDS: ExportFieldOption[] = [
   { key: "registrationId", label: "Registration ID", group: "core" },
   { key: "registrationNumber", label: "Registration #", group: "core" },
+  { key: "childIndex", label: "Child # (in family submission)", group: "core" },
   { key: "status", label: "Status", group: "core" },
   { key: "paymentStatus", label: "Payment status", group: "core" },
   { key: "registeredAt", label: "Registered at", group: "core" },
@@ -24,13 +25,16 @@ export const CORE_EXPORT_FIELDS: ExportFieldOption[] = [
   { key: "staffNotes", label: "Staff notes", group: "core" },
 ];
 
+/** Default columns — always include unique per-child keys so Excel cannot collapse siblings. */
 export const DEFAULT_EXPORT_FIELD_KEYS = [
+  "registrationId",
   "registrationNumber",
+  "childIndex",
+  "submissionCode",
   "status",
   "paymentStatus",
   "registeredAt",
   "seasonName",
-  "classroomName",
   "guardian:guardianFirstName",
   "guardian:guardianLastName",
   "guardian:guardianEmail",
@@ -160,6 +164,8 @@ export type RegistrationFieldValueRow = {
   customResponses: unknown;
   expectsPayment?: boolean;
   paymentReceivedAt?: Date | null;
+  /** 1-based index of this child within the family form submission (siblings share a submission). */
+  childIndex?: number | null;
   child: {
     firstName: string;
     lastName: string;
@@ -191,6 +197,9 @@ export function resolveRegistrationExportFieldValue(
 
   if (fieldKey === "registrationId") return row.id;
   if (fieldKey === "registrationNumber") return row.registrationNumber ?? "";
+  if (fieldKey === "childIndex") {
+    return row.childIndex != null && row.childIndex > 0 ? String(row.childIndex) : "";
+  }
   if (fieldKey === "status") return row.status;
   if (fieldKey === "paymentStatus" || fieldKey === "core:paymentStatus") {
     return registrationListPaymentBadge({
@@ -230,3 +239,21 @@ export function resolveRegistrationExportFieldValue(
 
   return "";
 }
+
+/** Assign 1-based child index within each form submission (standalone regs get 1). */
+export function buildChildIndexByRegistrationId(
+  rows: Array<{ id: string; formSubmissionId: string | null }>,
+): Map<string, number> {
+  const counts = new Map<string, number>();
+  const out = new Map<string, number>();
+  for (const r of rows) {
+    const key = r.formSubmissionId ?? `solo:${r.id}`;
+    const next = (counts.get(key) ?? 0) + 1;
+    counts.set(key, next);
+    out.set(r.id, next);
+  }
+  return out;
+}
+
+/** UTF-8 BOM so Excel on Windows opens CSV with correct encoding. */
+export const CSV_UTF8_BOM = "\uFEFF";

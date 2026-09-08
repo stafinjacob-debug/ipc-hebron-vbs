@@ -125,8 +125,9 @@ export default async function RegistrationsSubmissionsHubPage({
           <Link
             href={`/registrations/forms/${activeSeasonId}/submissions/export`}
             className="rounded-md border border-foreground/20 px-3 py-2 text-sm font-medium hover:bg-foreground/[0.04]"
+            title="Downloads one CSV row per child. Siblings share a submission code but have different registration IDs."
           >
-            Export CSV
+            Export CSV (one row per child)
           </Link>
         ) : null}
       </form>

@@ -53,7 +53,9 @@ export function ExportRegistrationsModal({
               <div>
                 <h2 className="text-base font-semibold text-foreground">Export registrations</h2>
                 <p className="mt-1 text-xs text-foreground/65">
-                  Select a season and columns to include. Use &quot;All columns&quot; to export everything.
+                  Each child/participant is a separate row (a family of 3 produces 3 rows). Do not
+                  remove duplicates on Submission code — that code is shared by siblings. Use
+                  Registration ID or Registration # as the unique key in Excel.
                 </p>
               </div>
               <button

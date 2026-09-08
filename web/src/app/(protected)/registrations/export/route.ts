@@ -1,7 +1,9 @@
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import {
+  CSV_UTF8_BOM,
   DEFAULT_EXPORT_FIELD_KEYS,
+  buildChildIndexByRegistrationId,
   buildRegistrationExportFieldOptionsFromJson,
   resolveRegistrationExportFieldValue,
 } from "@/lib/registration-export";
@@ -51,9 +53,10 @@ export async function GET(req: Request) {
     : requested.filter((k, i) => optionMap.has(k) && requested.indexOf(k) === i);
   const columns = selected.length > 0 ? selected : DEFAULT_EXPORT_FIELD_KEYS.filter((k) => optionMap.has(k));
 
+  // Always emit one CSV row per child registration (siblings share a submission code).
   const rows = await prisma.registration.findMany({
     where: { seasonId },
-    orderBy: { registeredAt: "desc" },
+    orderBy: [{ formSubmissionId: "asc" }, { registeredAt: "asc" }],
     include: {
       child: { include: { guardian: true } },
       classroom: true,
@@ -67,6 +70,10 @@ export async function GET(req: Request) {
       },
     },
   });
+
+  const childIndexById = buildChildIndexByRegistrationId(
+    rows.map((r) => ({ id: r.id, formSubmissionId: r.formSubmissionId })),
+  );
 
   const header = columns.map((k) => optionMap.get(k)?.label ?? k);
   const lines: string[] = [header.map(csvCell).join(",")];
@@ -83,6 +90,7 @@ export async function GET(req: Request) {
           customResponses: r.customResponses,
           expectsPayment: r.expectsPayment,
           paymentReceivedAt: r.paymentReceivedAt,
+          childIndex: childIndexById.get(r.id) ?? 1,
           child: r.child,
           classroom: r.classroom,
           formSubmission: r.formSubmission,
@@ -94,8 +102,8 @@ export async function GET(req: Request) {
     lines.push(values.map(csvCell).join(","));
   }
 
-  const csv = lines.join("\n");
-  const filename = `vbs-registrations-${season.year}-${seasonId.slice(0, 8)}.csv`;
+  const csv = `${CSV_UTF8_BOM}${lines.join("\n")}`;
+  const filename = `vbs-registrations-${season.year}-${rows.length}rows-${seasonId.slice(0, 8)}.csv`;
   return new Response(csv, {
     status: 200,
     headers: {
