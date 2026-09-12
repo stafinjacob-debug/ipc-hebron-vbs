@@ -127,6 +127,14 @@ export function parseEmbeddedApplicantForm(
     }
   }
 
+  const legalName = String(rawMap.declarationName || rawMap.fullName || "").trim();
+  if (legalName) {
+    rawMap.applicantSignature = legalName;
+    if (!String(rawMap.declarationName ?? "").trim()) {
+      rawMap.declarationName = legalName;
+    }
+  }
+
   for (const field of fields) {
     if (!fieldIsVisible(field, rawMap)) continue;
     const raw = rawMap[field.key] ?? "";
@@ -230,7 +238,12 @@ export function parseEmbeddedApplicantForm(
   const applicantFullName = String(responses.fullName ?? "").trim();
   const applicantEmail = String(responses.email ?? "").trim().toLowerCase();
   const applicantPhone = String(responses.phone ?? "").trim() || null;
-  const signatureTypedName = String(responses.applicantSignature ?? "").trim();
+  const declaredLegalName = String(responses.declarationName || applicantFullName).trim();
+  if (declaredLegalName) {
+    responses.declarationName = declaredLegalName;
+    responses.applicantSignature = declaredLegalName;
+  }
+  const signatureTypedName = declaredLegalName;
   const signatureDate = String(responses.applicantSignatureDate ?? "").trim();
   const declarationAccepted = responses.declarationAccepted === true;
 
@@ -239,8 +252,11 @@ export function parseEmbeddedApplicantForm(
   if (!declarationAccepted) {
     fieldErrors.declarationAccepted = "You must accept the declaration and pledge.";
   }
-  if (!signatureTypedName) {
-    fieldErrors.applicantSignature = fieldErrors.applicantSignature ?? "Type your legal name as signature.";
+  if (!declaredLegalName) {
+    fieldErrors.declarationName = fieldErrors.declarationName ?? "Enter your full legal name.";
+    delete fieldErrors.applicantSignature;
+  } else {
+    delete fieldErrors.applicantSignature;
   }
   if (
     signatureTypedName &&

@@ -75,6 +75,14 @@ export function EmbeddedPublicWizard(props: Props) {
   function setValue(key: string, value: FormValue) {
     setValues((prev) => {
       const next = { ...prev, [key]: value };
+      if (key === "declarationName" || key === "fullName") {
+        const legal = String(
+          (key === "declarationName" ? value : next.declarationName) ||
+            (key === "fullName" ? value : next.fullName) ||
+            "",
+        ).trim();
+        if (legal) next.applicantSignature = legal;
+      }
       if (key === "maritalStatus" && value !== "Married") {
         delete next.dateOfMarriage;
         delete next.spouseName;
@@ -322,6 +330,7 @@ export function EmbeddedPublicWizard(props: Props) {
                 <label className="block">
                   <span className={fieldLabelClass}>Date of completion</span>
                   <input
+                    type="date"
                     value={row.completionDate}
                     onChange={(e) => updateEntry(index, { completionDate: e.target.value })}
                     className={fieldControlClass}
@@ -434,6 +443,19 @@ export function EmbeddedPublicWizard(props: Props) {
       );
     }
 
+    if (field.type === "signatureTyped") {
+      const legalName = String(values.declarationName || values.fullName || "").trim();
+      return (
+        <div key={field.id} className={`${widthClass(field.layout?.width)} block`}>
+          {commonLabel}
+          <p className="rounded-lg border border-slate-300 bg-slate-50 px-3.5 py-3 font-serif text-xl italic text-neutral-950">
+            {legalName || "Your signature will appear here after you enter your full legal name."}
+          </p>
+          {field.helperText ? <p className={helperClass}>{field.helperText}</p> : null}
+        </div>
+      );
+    }
+
     const inputType =
       field.type === "email"
         ? "email"
@@ -445,17 +467,20 @@ export function EmbeddedPublicWizard(props: Props) {
               ? "number"
               : "text";
 
+    const displayValue =
+      field.key === "declarationName"
+        ? String(values.declarationName ?? values.fullName ?? "")
+        : String(values[field.key] ?? "");
+
     return (
       <label key={field.id} className={`${widthClass(field.layout?.width)} block`}>
         {commonLabel}
         <input
           type={inputType}
           name={field.key}
-          value={String(values[field.key] ?? "")}
+          value={displayValue}
           onChange={(e) => setValue(field.key, e.target.value)}
-          className={`${fieldControlClass} ${
-            field.type === "signatureTyped" ? "font-serif italic text-lg" : ""
-          }`}
+          className={fieldControlClass}
           placeholder={field.placeholder}
         />
         {field.helperText ? <p className={helperClass}>{field.helperText}</p> : null}
@@ -485,6 +510,11 @@ export function EmbeddedPublicWizard(props: Props) {
       }
       // Ensure declaration checkbox posts when checked
       if (values.declarationAccepted === "true") fd.set("declarationAccepted", "on");
+      const legalName = String(values.declarationName || values.fullName || "").trim();
+      if (legalName) {
+        fd.set("declarationName", legalName);
+        fd.set("applicantSignature", legalName);
+      }
 
       if (photoFile) {
         fd.set("passportPhoto", photoFile);
@@ -503,8 +533,10 @@ export function EmbeddedPublicWizard(props: Props) {
         if (result.fieldErrors) setFieldErrors(result.fieldErrors);
         return;
       }
-      if (result.stripeCheckoutUrl) {
-        window.location.href = result.stripeCheckoutUrl;
+      if (props.stripeCheckoutEnabled && result.submissionId) {
+        window.location.assign(
+          `/forms/${props.slug}/pay?submission=${encodeURIComponent(result.submissionId)}`,
+        );
         return;
       }
       router.push(
@@ -626,7 +658,8 @@ export function EmbeddedPublicWizard(props: Props) {
               {String(values.personalTestimony ?? "").trim() ? "Provided" : "Missing"}
             </li>
             <li>
-              <strong>Signature:</strong> {String(values.applicantSignature ?? "—")}
+              <strong>Signature:</strong>{" "}
+              {String(values.declarationName || values.applicantSignature || values.fullName || "—")}
             </li>
           </ul>
           {props.stripeCheckoutEnabled && props.stripeAmountCents ? (

@@ -34,6 +34,9 @@ const requiredKeys = [
   "occupation",
   "primaryLanguage",
   "addressLine1",
+  "addressCity",
+  "addressState",
+  "addressZip",
   "email",
   "phone",
   "fatherGuardianName",
@@ -43,6 +46,10 @@ const requiredKeys = [
   "child1NameAge",
   "churchAffiliation",
   "localChurchNameAddress",
+  "localChurchAddressLine",
+  "localChurchCity",
+  "localChurchState",
+  "localChurchZip",
   "receivedJesusWhen",
   "waterBaptismWhen",
   "filledWithHolySpirit",
@@ -56,12 +63,21 @@ const requiredKeys = [
   "whyJoinProgramme",
   "refPastorName",
   "refPastorAddress",
+  "refPastorCity",
+  "refPastorState",
+  "refPastorZip",
   "refPastorPhone",
   "refOfficialName",
   "refOfficialAddress",
+  "refOfficialCity",
+  "refOfficialState",
+  "refOfficialZip",
   "refOfficialPhone",
   "refFriendName",
   "refFriendAddress",
+  "refFriendCity",
+  "refFriendState",
+  "refFriendZip",
   "refFriendPhone",
   "declarationAccepted",
   "declarationName",
@@ -109,6 +125,13 @@ assert(
   !def.fields.some((f) => f.sectionId === "sec_submission" && f.type === "photo"),
   "submission section should not include passport photo",
 );
+
+assert(!applicantKeys.has("addressLine2"), "personal address should use city/state/ZIP fields");
+assert(def.fields.find((f) => f.key === "dateOfMarriage")?.type === "date", "dateOfMarriage should be a date picker");
+assert(def.fields.find((f) => f.key === "receivedJesusWhen")?.type === "date", "receivedJesusWhen should be a date picker");
+assert(def.fields.find((f) => f.key === "waterBaptismWhen")?.type === "date", "waterBaptismWhen should be a date picker");
+assert(def.fields.find((f) => f.key === "declarationName")?.label === "Full legal name", "declaration should ask for legal name once");
+assert(def.fields.find((f) => f.key === "applicantSignature")?.type === "signatureTyped", "applicantSignature should remain for generated signature");
 
 assert(!applicantKeys.has("motherTongue"), "motherTongue should be primaryLanguage");
 assert(!applicantKeys.has("fatherGuardianAddress"), "father/guardian address was removed");

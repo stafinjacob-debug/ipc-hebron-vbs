@@ -153,9 +153,9 @@ async function buildPdf(): Promise<Uint8Array> {
 
     numberLabel(p, bold, "7", 48, HTC_OVERLAY.page1.addressLine1.y + 16);
     writeLine(p, 58, HTC_OVERLAY.page1.addressLine1.y - 4, 500);
-    caption(p, regular, "Address for communication — line 1", 58, HTC_OVERLAY.page1.addressLine1.y - 16);
+    caption(p, regular, "Address line", 58, HTC_OVERLAY.page1.addressLine1.y - 16);
     writeLine(p, 58, HTC_OVERLAY.page1.addressLine2.y - 4, 500);
-    caption(p, regular, "Address — line 2", 58, HTC_OVERLAY.page1.addressLine2.y - 16);
+    caption(p, regular, "City, State, ZIP Code", 58, HTC_OVERLAY.page1.addressLine2.y - 16);
   }
 
   // ——— Page 2 ———
@@ -199,7 +199,7 @@ async function buildPdf(): Promise<Uint8Array> {
 
     numberLabel(p, bold, "13", 48, HTC_OVERLAY.page2.localChurchNameAddress.y + 16);
     writeLine(p, 58, HTC_OVERLAY.page2.localChurchNameAddress.y - 4, 500);
-    caption(p, regular, "Name and address of your local church", 58, HTC_OVERLAY.page2.localChurchNameAddress.y - 16);
+    caption(p, regular, "Name and address of your local church (street, city, state, ZIP)", 58, HTC_OVERLAY.page2.localChurchNameAddress.y - 16);
     writeLine(p, 340, HTC_OVERLAY.page2.localChurchPhone.y - 4, 200);
     caption(p, regular, "Phone", 340, HTC_OVERLAY.page2.localChurchPhone.y - 16);
 

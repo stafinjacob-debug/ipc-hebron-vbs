@@ -46,28 +46,38 @@ export async function submitEmbeddedFormPublic(
         existing.stripePaymentStatus !== "paid" &&
         (form.stripeAmountCents ?? 0) >= 50
       ) {
-        const checkout = await createEmbeddedApplicationStripeCheckout({
-          submissionId: existing.id,
-          formSlug: form.slug,
-          applicantEmail: existing.applicantEmail,
-          productLabel:
-            form.stripeProductLabel?.trim() ||
-            `${form.title} — Application Fee`,
-          baseCents: form.stripeAmountCents!,
-          includeProcessingFee: form.stripeIncludeProcessingFee,
-        });
-        if ("error" in checkout) {
+        try {
+          const checkout = await createEmbeddedApplicationStripeCheckout({
+            submissionId: existing.id,
+            formSlug: form.slug,
+            applicantEmail: existing.applicantEmail,
+            productLabel:
+              form.stripeProductLabel?.trim() ||
+              `${form.title} — Application Fee`,
+            baseCents: form.stripeAmountCents!,
+            includeProcessingFee: form.stripeIncludeProcessingFee,
+          });
+          if ("error" in checkout) {
+            return {
+              ok: true,
+              applicationNumber: existing.applicationNumber,
+              submissionId: existing.id,
+            };
+          }
           return {
-            ok: false,
-            error: `${checkout.error} Your reference is ${existing.applicationNumber}.`,
+            ok: true,
+            applicationNumber: existing.applicationNumber,
+            submissionId: existing.id,
+            stripeCheckoutUrl: checkout.url,
+          };
+        } catch (e) {
+          console.error("[embedded submit resume checkout]", e);
+          return {
+            ok: true,
+            applicationNumber: existing.applicationNumber,
+            submissionId: existing.id,
           };
         }
-        return {
-          ok: true,
-          applicationNumber: existing.applicationNumber,
-          submissionId: existing.id,
-          stripeCheckoutUrl: checkout.url,
-        };
       }
       return {
         ok: true,

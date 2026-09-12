@@ -60,6 +60,24 @@ function str(responses: Record<string, unknown>, key: string): string {
   return responseToDisplayString(responses[key]).trim();
 }
 
+function formatCityStateZip(city: string, state: string, zip: string): string {
+  const region = [state, zip].filter(Boolean).join(" ");
+  if (city && region) return `${city}, ${region}`;
+  return [city, region].filter(Boolean).join(", ");
+}
+
+function formatStreetAddress(
+  street: string,
+  city: string,
+  state: string,
+  zip: string,
+  fallback = "",
+): string {
+  const cityLine = formatCityStateZip(city, state, zip);
+  const composed = [street, cityLine].filter(Boolean).join(", ");
+  return composed || fallback;
+}
+
 function hasCondition(responses: Record<string, unknown>, value: string): boolean {
   const raw = responses.healthConditions;
   if (Array.isArray(raw)) return raw.map(String).includes(value);
@@ -137,7 +155,13 @@ export async function renderEmbeddedApplicationPdf(
 
     drawText(p, font, str(r, "otherLanguages"), p1.otherLanguages);
     drawText(p, font, str(r, "addressLine1"), p1.addressLine1);
-    drawText(p, font, str(r, "addressLine2"), p1.addressLine2);
+    drawText(
+      p,
+      font,
+      formatCityStateZip(str(r, "addressCity"), str(r, "addressState"), str(r, "addressZip")) ||
+        str(r, "addressLine2"),
+      p1.addressLine2,
+    );
   }
 
   // ——— Page 2: contact + family + church ———
@@ -159,7 +183,18 @@ export async function renderEmbeddedApplicationPdf(
     drawText(p, font, str(r, "child3NameAge"), p2.child3);
 
     drawText(p, font, str(r, "churchAffiliation"), p2.churchAffiliation);
-    drawText(p, font, str(r, "localChurchNameAddress"), p2.localChurchNameAddress);
+    drawText(
+      p,
+      font,
+      formatStreetAddress(
+        [str(r, "localChurchNameAddress"), str(r, "localChurchAddressLine")].filter(Boolean).join(" — "),
+        str(r, "localChurchCity"),
+        str(r, "localChurchState"),
+        str(r, "localChurchZip"),
+        str(r, "localChurchNameAddress"),
+      ),
+      p2.localChurchNameAddress,
+    );
     drawText(p, font, str(r, "localChurchPhone"), p2.localChurchPhone);
 
     drawText(p, font, str(r, "receivedJesusWhen"), p2.receivedJesusWhen);
@@ -268,15 +303,48 @@ export async function renderEmbeddedApplicationPdf(
     drawText(p, font, str(r, "illnessStatusNow"), p4.illnessStatusNow);
 
     drawText(p, font, str(r, "refPastorName"), p4.refPastorName);
-    drawText(p, font, str(r, "refPastorAddress"), p4.refPastorAddress);
+    drawText(
+      p,
+      font,
+      formatStreetAddress(
+        str(r, "refPastorAddress"),
+        str(r, "refPastorCity"),
+        str(r, "refPastorState"),
+        str(r, "refPastorZip"),
+        str(r, "refPastorAddress"),
+      ),
+      p4.refPastorAddress,
+    );
     drawText(p, font, str(r, "refPastorPhone"), p4.refPastorPhone);
 
     drawText(p, font, str(r, "refOfficialName"), p4.refOfficialName);
-    drawText(p, font, str(r, "refOfficialAddress"), p4.refOfficialAddress);
+    drawText(
+      p,
+      font,
+      formatStreetAddress(
+        str(r, "refOfficialAddress"),
+        str(r, "refOfficialCity"),
+        str(r, "refOfficialState"),
+        str(r, "refOfficialZip"),
+        str(r, "refOfficialAddress"),
+      ),
+      p4.refOfficialAddress,
+    );
     drawText(p, font, str(r, "refOfficialPhone"), p4.refOfficialPhone);
 
     drawText(p, font, str(r, "refFriendName"), p4.refFriendName);
-    drawText(p, font, str(r, "refFriendAddress"), p4.refFriendAddress);
+    drawText(
+      p,
+      font,
+      formatStreetAddress(
+        str(r, "refFriendAddress"),
+        str(r, "refFriendCity"),
+        str(r, "refFriendState"),
+        str(r, "refFriendZip"),
+        str(r, "refFriendAddress"),
+      ),
+      p4.refFriendAddress,
+    );
     drawText(p, font, str(r, "refFriendPhone"), p4.refFriendPhone);
   }
 
