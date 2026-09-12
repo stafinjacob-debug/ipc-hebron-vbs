@@ -16,14 +16,30 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   metadataBase: new URL(getPublicAppBaseUrl()),
-  title: "IPC Hebron VBS",
-  description: "Vacation Bible School registration and volunteer coordination",
+  title: {
+    default: "IPC Hebron Forms",
+    template: "%s | IPC Hebron Forms",
+  },
+  description: "IPC Hebron Houston forms and applications",
+  icons: {
+    icon: "/church-logo.png",
+    apple: "/church-logo.png",
+  },
   openGraph: {
     type: "website",
-    siteName: "IPC Hebron VBS",
+    siteName: "IPC Hebron Forms",
+    images: [
+      {
+        url: "/hebron-forms-og.png",
+        width: 1200,
+        height: 630,
+        alt: "IPC Hebron Houston",
+      },
+    ],
   },
   twitter: {
-    card: "summary",
+    card: "summary_large_image",
+    images: ["/hebron-forms-og.png"],
   },
 };
 

@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
@@ -5,6 +6,20 @@ import { getStripeClient } from "@/lib/stripe-registration-payment";
 import { markEmbeddedSubmissionPaidFromStripeSession } from "@/lib/embedded-stripe-payment";
 import { sendEmbeddedApplicationFollowUpEmails } from "@/lib/email/embedded-application-email";
 import { formatUsdFromCents } from "@/lib/stripe-fee-math";
+
+export const metadata: Metadata = {
+  title: "Application received",
+  openGraph: {
+    images: [
+      {
+        url: "/hebron-forms-og.png",
+        width: 1200,
+        height: 630,
+        alt: "IPC Hebron Houston",
+      },
+    ],
+  },
+};
 
 export default async function EmbeddedFormThanksPage({
   params,
