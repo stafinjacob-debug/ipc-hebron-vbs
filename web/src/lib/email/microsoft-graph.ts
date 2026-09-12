@@ -251,7 +251,7 @@ async function uploadOutlookAttachmentSession(
         "Content-Length": String(chunk.length),
         "Content-Range": `bytes ${start}-${end}/${bytes.length}`,
       },
-      body: chunk,
+      body: new Uint8Array(chunk),
     });
     if (!res.ok && res.status !== 200 && res.status !== 201 && res.status !== 202) {
       return { ok: false, error: await readGraphError(res, res.statusText) };
