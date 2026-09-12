@@ -11,7 +11,7 @@ import {
   isFillableEmbeddedField,
 } from "@/lib/embedded-form-definition";
 import { responseToDisplayString } from "@/lib/embedded-form-validate";
-import { parseAcademicDocumentKeys } from "@/lib/embedded-document-storage";
+import { parseAcademicDocumentRecords } from "@/lib/embedded-document-storage";
 import { formatUsdFromCents } from "@/lib/stripe-fee-math";
 import { EmbeddedSubmissionAdminActions } from "./submission-admin-actions";
 
@@ -40,7 +40,7 @@ export default async function EmbeddedSubmissionDetailPage({
   for (const [k, v] of Object.entries(registrarRaw)) {
     registrar[k] = responseToDisplayString(v);
   }
-  const docKeys = parseAcademicDocumentKeys(submission.academicDocumentKeys);
+  const documents = parseAcademicDocumentRecords(submission.academicDocumentKeys);
 
   return (
     <div className="mx-auto max-w-4xl space-y-6 p-4 md:p-6">
@@ -101,19 +101,19 @@ export default async function EmbeddedSubmissionDetailPage({
         </div>
       ) : null}
 
-      {docKeys.length > 0 ? (
+      {documents.length > 0 ? (
         <div className="rounded-xl border border-foreground/10 bg-surface-elevated p-4">
           <h2 className="text-sm font-semibold">Academic documents</h2>
           <ul className="mt-3 space-y-2 text-sm">
-            {docKeys.map((_, i) => (
-              <li key={i}>
+            {documents.map((doc, i) => (
+              <li key={`${doc.objectKey}-${i}`}>
                 <a
                   href={`/api/embedded-forms/submissions/${submission.id}/document?i=${i}`}
                   target="_blank"
                   rel="noreferrer"
                   className="text-brand hover:underline"
                 >
-                  Document {i + 1}
+                  {doc.originalName || `Document ${i + 1}`}
                 </a>
               </li>
             ))}

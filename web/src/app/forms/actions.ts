@@ -137,7 +137,11 @@ export async function submitEmbeddedFormPublic(
   }
 
   const signedAt = parsed.signatureDate ? new Date(parsed.signatureDate) : new Date();
-  const documentKeys = docsResult.documents.map((d) => d.objectKey);
+  const documentKeys = docsResult.documents.map((d) => ({
+    objectKey: d.objectKey,
+    originalName: d.originalName,
+    contentType: d.contentType,
+  }));
 
   try {
     const submission = await prisma.embeddedFormSubmission.create({

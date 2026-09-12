@@ -1,5 +1,14 @@
 import { prisma } from "@/lib/prisma";
-import { isMicrosoftGraphEmailConfigured, sendMailViaMicrosoftGraph } from "@/lib/email/microsoft-graph";
+import {
+  isMicrosoftGraphEmailConfigured,
+  sendMailViaMicrosoftGraph,
+  sendMailViaMicrosoftGraphAllowingLargeAttachments,
+  type GraphMailAttachment,
+} from "@/lib/email/microsoft-graph";
+import {
+  loadEmbeddedDocumentFile,
+  parseAcademicDocumentRecords,
+} from "@/lib/embedded-document-storage";
 import {
   applicantVisibleSections,
   fieldsForEmbeddedSection,
@@ -253,9 +262,8 @@ export async function sendEmbeddedApplicationStaffNotificationEmail(
   const responses = (submission.responsesJson ?? {}) as Record<string, unknown>;
   const registrar = (submission.registrarResponsesJson ?? null) as Record<string, unknown> | null;
 
-  let pdfAttachment:
-    | { name: string; contentType: string; contentBytesBase64: string }
-    | null = null;
+  const attachments: GraphMailAttachment[] = [];
+  let pdfAttachmentName: string | null = null;
   try {
     const pdf = await renderEmbeddedApplicationPdf({
       templateKey: form.pdfTemplateKey || HTC_FORM_DEFAULTS.pdfTemplateKey,
@@ -266,16 +274,49 @@ export async function sendEmbeddedApplicationStaffNotificationEmail(
       signatureTypedName: submission.signatureTypedName,
       applicantFullName: submission.applicantFullName,
     });
-    pdfAttachment = {
-      name: embeddedPdfFilename(submission.applicantFullName, submission.applicationNumber),
+    pdfAttachmentName = embeddedPdfFilename(submission.applicantFullName, submission.applicationNumber);
+    attachments.push({
+      name: pdfAttachmentName,
       contentType: "application/pdf",
       contentBytesBase64: pdf.toString("base64"),
-    };
+    });
   } catch (e) {
     console.error("[embedded staff notification pdf]", e);
   }
 
+  const documentRecords = parseAcademicDocumentRecords(submission.academicDocumentKeys);
+  const documentNames: string[] = [];
+  const missingDocuments: string[] = [];
+  for (let i = 0; i < documentRecords.length; i++) {
+    const record = documentRecords[i]!;
+    const loaded = await loadEmbeddedDocumentFile(record, i);
+    if (!loaded) {
+      missingDocuments.push(record.originalName || `Document ${i + 1}`);
+      continue;
+    }
+    documentNames.push(loaded.originalName);
+    attachments.push({
+      name: loaded.originalName,
+      contentType: loaded.contentType,
+      contentBytesBase64: loaded.bytes.toString("base64"),
+    });
+  }
+
   const stripeRows = stripeDetailRows(submission);
+  const attachmentNote = [
+    pdfAttachmentName ? `Filled application PDF: ${pdfAttachmentName}` : "The filled PDF could not be generated; export it from the admin submission page.",
+    documentNames.length
+      ? `Supporting documents attached: ${documentNames.join(", ")}.`
+      : documentRecords.length
+        ? "Supporting documents were uploaded but could not be attached. Download them from the admin portal."
+        : "No supporting documents were uploaded.",
+    missingDocuments.length
+      ? `Could not load: ${missingDocuments.join(", ")}.`
+      : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
   const inner = `
     <p style="margin:0 0 14px;">A new application was submitted for <strong>${escapeHtml(form.title)}</strong>.</p>
     <p style="margin:0 0 16px;padding:12px 14px;border-radius:12px;background:#eef2ff;border:1px solid #c7d2fe;color:#312e81;font-size:14px;">
@@ -286,8 +327,7 @@ export async function sendEmbeddedApplicationStaffNotificationEmail(
     <h3 style="margin:0 0 8px;font-size:14px;color:#312e81;">Stripe transaction</h3>
     ${kvTable(stripeRows)}
     <p style="margin:16px 0 0;font-size:13px;color:#475569;">
-      ${pdfAttachment ? "The filled application PDF is attached." : "The filled PDF could not be generated; export it from the admin submission page."}
-      Academic document files stay in the admin portal.
+      ${escapeHtml(attachmentNote)}
     </p>
     <h3 style="margin:22px 0 8px;font-size:14px;color:#312e81;">Field responses</h3>
     ${responsesHtml(submission.definitionSnapshotJson, responses)}
@@ -300,13 +340,13 @@ export async function sendEmbeddedApplicationStaffNotificationEmail(
     teamPhrase: `${brandName} admissions`,
   });
 
-  const result = await sendMailViaMicrosoftGraph({
+  const result = await sendMailViaMicrosoftGraphAllowingLargeAttachments({
     toAddress: to,
     toName: "Admissions",
     subject: `New application — ${submission.applicantFullName} — ${submission.applicationNumber}`,
     htmlBody: html,
     fromName: brandName,
-    attachments: pdfAttachment ? [pdfAttachment] : undefined,
+    attachments: attachments.length ? attachments : undefined,
   });
 
   if (result.ok) {

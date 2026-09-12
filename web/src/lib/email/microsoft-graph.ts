@@ -78,6 +78,34 @@ export type GraphMailAttachment = {
   contentId?: string;
 };
 
+/** Graph `/sendMail` JSON body is limited to ~4 MB. Leave room for the HTML body. */
+export const GRAPH_SIMPLE_SEND_ATTACHMENT_BUDGET = 2_400_000;
+
+export function graphAttachmentRawBytes(attachment: GraphMailAttachment): number {
+  return Math.ceil((attachment.contentBytesBase64.length * 3) / 4);
+}
+
+export function packGraphAttachmentBatches(
+  attachments: GraphMailAttachment[],
+  budget = GRAPH_SIMPLE_SEND_ATTACHMENT_BUDGET,
+): GraphMailAttachment[][] {
+  const batches: GraphMailAttachment[][] = [];
+  let current: GraphMailAttachment[] = [];
+  let used = 0;
+  for (const attachment of attachments) {
+    const size = graphAttachmentRawBytes(attachment);
+    if (current.length > 0 && used + size > budget) {
+      batches.push(current);
+      current = [];
+      used = 0;
+    }
+    current.push(attachment);
+    used += size;
+  }
+  if (current.length) batches.push(current);
+  return batches;
+}
+
 export type SendGraphMailInput = {
   toAddress: string;
   toName?: string | null;
@@ -191,4 +219,182 @@ export async function sendMailViaMicrosoftGraph(
     ok: false,
     error: `Graph sendMail failed (${res.status}): ${detail}`,
   };
+}
+
+async function readGraphError(res: Response, fallback: string): Promise<string> {
+  try {
+    const errJson = (await res.json()) as { error?: { message?: string } };
+    if (errJson.error?.message) return errJson.error.message;
+  } catch {
+    try {
+      const text = await res.text();
+      if (text.trim()) return text;
+    } catch {
+      /* ignore */
+    }
+  }
+  return fallback;
+}
+
+async function uploadOutlookAttachmentSession(
+  uploadUrl: string,
+  bytes: Buffer,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const chunkSize = 4 * 1024 * 1024;
+  for (let start = 0; start < bytes.length; start += chunkSize) {
+    const end = Math.min(start + chunkSize, bytes.length) - 1;
+    const chunk = bytes.subarray(start, end + 1);
+    const res = await fetch(uploadUrl, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/octet-stream",
+        "Content-Length": String(chunk.length),
+        "Content-Range": `bytes ${start}-${end}/${bytes.length}`,
+      },
+      body: chunk,
+    });
+    if (!res.ok && res.status !== 200 && res.status !== 201 && res.status !== 202) {
+      return { ok: false, error: await readGraphError(res, res.statusText) };
+    }
+  }
+  return { ok: true };
+}
+
+async function sendMailViaDraftAndUpload(
+  input: SendGraphMailInput,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const mailbox = process.env.MICROSOFT_GRAPH_MAILBOX!.trim();
+  const tokenResult = await getAppAccessToken();
+  if (!tokenResult.ok) return tokenResult;
+
+  const headers = {
+    Authorization: `Bearer ${tokenResult.token}`,
+    "Content-Type": "application/json",
+  };
+  const base = `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(mailbox)}`;
+
+  const primaryTrimmed = input.toAddress.trim();
+  const seen = new Set<string>([primaryTrimmed.toLowerCase()]);
+  const toRecipients: Array<{ emailAddress: { address: string; name: string } }> = [
+    { emailAddress: { address: primaryTrimmed, name: input.toName?.trim() || primaryTrimmed } },
+  ];
+  for (const raw of input.additionalToAddresses ?? []) {
+    const addr = raw.trim();
+    if (!addr || seen.has(addr.toLowerCase())) continue;
+    seen.add(addr.toLowerCase());
+    toRecipients.push({ emailAddress: { address: addr, name: addr } });
+  }
+
+  const fromDisplayName = resolveGraphFromDisplayName(input.fromName);
+  const draftRes = await fetch(`${base}/messages`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      subject: input.subject,
+      body: { contentType: "HTML", content: input.htmlBody },
+      toRecipients,
+      ...(fromDisplayName
+        ? { from: { emailAddress: { address: mailbox, name: fromDisplayName } } }
+        : {}),
+    }),
+  });
+  if (!draftRes.ok) {
+    return { ok: false, error: `Graph draft create failed (${draftRes.status}): ${await readGraphError(draftRes, draftRes.statusText)}` };
+  }
+  const draft = (await draftRes.json()) as { id?: string };
+  if (!draft.id) return { ok: false, error: "Graph draft create did not return a message id." };
+
+  for (const attachment of input.attachments ?? []) {
+    const bytes = Buffer.from(attachment.contentBytesBase64, "base64");
+    if (bytes.length <= GRAPH_SIMPLE_SEND_ATTACHMENT_BUDGET) {
+      const add = await fetch(`${base}/messages/${encodeURIComponent(draft.id)}/attachments`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          "@odata.type": "#microsoft.graph.fileAttachment",
+          name: attachment.name,
+          contentType: attachment.contentType,
+          contentBytes: attachment.contentBytesBase64,
+        }),
+      });
+      if (!add.ok) {
+        return { ok: false, error: `Graph attach failed (${add.status}): ${await readGraphError(add, add.statusText)}` };
+      }
+      continue;
+    }
+
+    const sessionRes = await fetch(
+      `${base}/messages/${encodeURIComponent(draft.id)}/attachments/createUploadSession`,
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          AttachmentItem: {
+            attachmentType: "file",
+            name: attachment.name,
+            size: bytes.length,
+            contentType: attachment.contentType,
+          },
+        }),
+      },
+    );
+    if (!sessionRes.ok) {
+      return {
+        ok: false,
+        error: `Graph upload session failed (${sessionRes.status}): ${await readGraphError(sessionRes, sessionRes.statusText)}`,
+      };
+    }
+    const session = (await sessionRes.json()) as { uploadUrl?: string };
+    if (!session.uploadUrl) return { ok: false, error: "Graph upload session did not return an upload URL." };
+    const uploaded = await uploadOutlookAttachmentSession(session.uploadUrl, bytes);
+    if (!uploaded.ok) return uploaded;
+  }
+
+  const sendRes = await fetch(`${base}/messages/${encodeURIComponent(draft.id)}/send`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${tokenResult.token}` },
+  });
+  if (!sendRes.ok && sendRes.status !== 202) {
+    return { ok: false, error: `Graph draft send failed (${sendRes.status}): ${await readGraphError(sendRes, sendRes.statusText)}` };
+  }
+  return { ok: true };
+}
+
+/** Sends one or more Graph messages so supporting documents are not dropped by the 4 MB sendMail limit. */
+export async function sendMailViaMicrosoftGraphAllowingLargeAttachments(
+  input: SendGraphMailInput,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const attachments = input.attachments ?? [];
+  if (attachments.length === 0) return sendMailViaMicrosoftGraph(input);
+
+  const total = attachments.reduce((sum, a) => sum + graphAttachmentRawBytes(a), 0);
+  if (total <= GRAPH_SIMPLE_SEND_ATTACHMENT_BUDGET) {
+    return sendMailViaMicrosoftGraph(input);
+  }
+
+  const draft = await sendMailViaDraftAndUpload(input);
+  if (draft.ok) return draft;
+  console.error("[graph mail] draft/upload failed, falling back to batched sendMail", draft.error);
+
+  const batches = packGraphAttachmentBatches(attachments);
+  let sent = 0;
+  for (let i = 0; i < batches.length; i++) {
+    const batch = batches[i]!;
+    if (batch.some((a) => graphAttachmentRawBytes(a) > GRAPH_SIMPLE_SEND_ATTACHMENT_BUDGET)) {
+      continue;
+    }
+    const result = await sendMailViaMicrosoftGraph({
+      ...input,
+      subject: i === 0 ? input.subject : `${input.subject} (supporting documents ${i + 1})`,
+      htmlBody:
+        i === 0
+          ? input.htmlBody
+          : "<p>Additional supporting documents for this application are attached.</p>",
+      attachments: batch,
+    });
+    if (!result.ok) return result;
+    sent += 1;
+  }
+  if (sent === 0) return draft;
+  return { ok: true };
 }

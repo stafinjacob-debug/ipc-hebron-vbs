@@ -116,9 +116,39 @@ export async function storeEmbeddedAcademicDocuments(
   return { ok: true, documents };
 }
 
+export type AcademicDocumentRecord = {
+  objectKey: string;
+  originalName?: string;
+  contentType?: string;
+};
+
+export type LoadedEmbeddedDocument = {
+  bytes: Buffer;
+  contentType: string;
+  originalName: string;
+};
+
+function extensionFromKey(key: string): string {
+  const match = key.toLowerCase().match(/\.(pdf|png|jpe?g|webp)(?:\?|$)/);
+  if (!match) return "bin";
+  return match[1] === "jpeg" ? "jpg" : match[1]!;
+}
+
+function mimeFromExtension(ext: string): string {
+  if (ext === "pdf") return "application/pdf";
+  if (ext === "png") return "image/png";
+  if (ext === "webp") return "image/webp";
+  if (ext === "jpg" || ext === "jpeg") return "image/jpeg";
+  return "application/octet-stream";
+}
+
+function fallbackDocumentName(key: string, index: number): string {
+  return `supporting-document-${index + 1}.${extensionFromKey(key)}`;
+}
+
 export async function loadEmbeddedDocumentBytes(
   objectKey: string | null | undefined,
-): Promise<{ bytes: Buffer; contentTypeHint?: string } | null> {
+): Promise<{ bytes: Buffer; contentTypeHint?: string; originalName?: string } | null> {
   if (!objectKey?.trim()) return null;
   const key = objectKey.trim();
 
@@ -127,7 +157,7 @@ export async function loadEmbeddedDocumentBytes(
     if (rel.includes("..") || !rel.startsWith(`${PRIVATE_PREFIX}/`)) return null;
     try {
       const bytes = await readFile(path.join(process.cwd(), "private", "uploads", rel));
-      return { bytes };
+      return { bytes, contentTypeHint: mimeFromExtension(extensionFromKey(key)) };
     } catch {
       return null;
     }
@@ -144,8 +174,12 @@ export async function loadEmbeddedDocumentBytes(
     try {
       const service = BlobServiceClient.fromConnectionString(conn);
       const block = service.getContainerClient(containerName).getBlockBlobClient(blobName);
-      const bytes = Buffer.from(await block.downloadToBuffer());
-      return { bytes };
+      const [bytes, props] = await Promise.all([block.downloadToBuffer(), block.getProperties()]);
+      return {
+        bytes: Buffer.from(bytes),
+        contentTypeHint: props.contentType || mimeFromExtension(extensionFromKey(key)),
+        originalName: props.metadata?.originalName || props.metadata?.originalname,
+      };
     } catch (e) {
       console.error("[embedded academic doc load]", e);
       return null;
@@ -155,7 +189,45 @@ export async function loadEmbeddedDocumentBytes(
   return null;
 }
 
-export function parseAcademicDocumentKeys(value: unknown): string[] {
+export async function loadEmbeddedDocumentFile(
+  record: AcademicDocumentRecord,
+  index: number,
+): Promise<LoadedEmbeddedDocument | null> {
+  const loaded = await loadEmbeddedDocumentBytes(record.objectKey);
+  if (!loaded) return null;
+  const ext = extensionFromKey(record.objectKey);
+  return {
+    bytes: loaded.bytes,
+    contentType: record.contentType || loaded.contentTypeHint || mimeFromExtension(ext),
+    originalName:
+      record.originalName?.trim() ||
+      loaded.originalName?.trim() ||
+      fallbackDocumentName(record.objectKey, index),
+  };
+}
+
+export function parseAcademicDocumentRecords(value: unknown): AcademicDocumentRecord[] {
   if (!Array.isArray(value)) return [];
-  return value.map((x) => String(x)).filter(Boolean);
+  const out: AcademicDocumentRecord[] = [];
+  for (const item of value) {
+    if (typeof item === "string" && item.trim()) {
+      out.push({ objectKey: item.trim() });
+      continue;
+    }
+    if (item && typeof item === "object") {
+      const rec = item as Record<string, unknown>;
+      const objectKey = String(rec.objectKey ?? rec.key ?? "").trim();
+      if (!objectKey) continue;
+      out.push({
+        objectKey,
+        originalName: rec.originalName ? String(rec.originalName) : undefined,
+        contentType: rec.contentType ? String(rec.contentType) : undefined,
+      });
+    }
+  }
+  return out;
+}
+
+export function parseAcademicDocumentKeys(value: unknown): string[] {
+  return parseAcademicDocumentRecords(value).map((record) => record.objectKey);
 }
