@@ -131,7 +131,7 @@ async function buildPdf(): Promise<Uint8Array> {
     caption(p, regular, "Month", 58, HTC_OVERLAY.page1.dobMonth.y - 16);
     caption(p, regular, "Day", 168, HTC_OVERLAY.page1.dobDay.y - 16);
     caption(p, regular, "Year", 278, HTC_OVERLAY.page1.dobYear.y - 16);
-    caption(p, regular, "Age now", 400, HTC_OVERLAY.page1.ageNow.y - 16);
+    caption(p, regular, "Age", 400, HTC_OVERLAY.page1.ageNow.y - 16);
 
     numberLabel(p, bold, "4", 48, HTC_OVERLAY.page1.nationality.y + 16);
     writeLine(p, 58, HTC_OVERLAY.page1.nationality.y - 4, 150);

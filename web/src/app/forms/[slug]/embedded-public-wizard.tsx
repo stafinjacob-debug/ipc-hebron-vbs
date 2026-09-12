@@ -14,7 +14,7 @@ import {
   type EmbeddedFormDefinitionV1,
   type EmbeddedFormFieldDef,
 } from "@/lib/embedded-form-definition";
-import { validateEmbeddedApplicantField } from "@/lib/embedded-form-validate";
+import { ageFromDob, validateEmbeddedApplicantField } from "@/lib/embedded-form-validate";
 import { submitEmbeddedFormPublic } from "@/app/forms/actions";
 
 type Props = {
@@ -93,6 +93,15 @@ export function EmbeddedPublicWizard(props: Props) {
       }
       if (key === "ordainedPastor" && value !== "Yes") {
         delete next.ordinationDetails;
+      }
+      if (key === "dobMonth" || key === "dobDay" || key === "dobYear") {
+        const age = ageFromDob(
+          Number(next.dobDay),
+          Number(next.dobMonth),
+          Number(next.dobYear),
+        );
+        if (age != null) next.ageNow = String(age);
+        else delete next.ageNow;
       }
       return next;
     });
@@ -567,9 +576,10 @@ export function EmbeddedPublicWizard(props: Props) {
           type={inputType}
           name={field.key}
           value={displayValue}
+          readOnly={field.key === "ageNow"}
           onChange={(e) => setValue(field.key, e.target.value)}
-          className={fieldControlClass}
-          placeholder={field.placeholder}
+          className={`${fieldControlClass} ${field.key === "ageNow" ? "bg-slate-50" : ""}`}
+          placeholder={field.key === "ageNow" ? "—" : field.placeholder}
         />
         {field.helperText ? <p className={helperClass}>{field.helperText}</p> : null}
         {err ? <p className={errorClass}>{err}</p> : null}

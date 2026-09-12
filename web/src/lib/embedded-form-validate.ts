@@ -28,7 +28,7 @@ function asString(v: FormDataEntryValue | null | undefined): string {
   return "";
 }
 
-function ageFromDob(day: number, month: number, year: number, asOf = new Date()): number | null {
+export function ageFromDob(day: number, month: number, year: number, asOf = new Date()): number | null {
   if (!Number.isFinite(day) || !Number.isFinite(month) || !Number.isFinite(year)) return null;
   if (year < 1900 || month < 1 || month > 12 || day < 1 || day > 31) return null;
   const birth = new Date(year, month - 1, day);

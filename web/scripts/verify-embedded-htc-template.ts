@@ -150,6 +150,9 @@ const primaryLang = def.fields.find((f) => f.key === "primaryLanguage");
 assert(primaryLang?.label === "Primary language", "primaryLanguage label mismatch");
 const country = def.fields.find((f) => f.key === "county");
 assert(country?.label === "Country", "county field should be labeled Country");
+const ageNow = def.fields.find((f) => f.key === "ageNow");
+assert(ageNow?.label === "Age", "ageNow should be labeled Age");
+assert(!ageNow?.helperText, "Age should not show helper text");
 assert((testimony?.validation?.minLength ?? 0) === 40, "personalTestimony should require 40 characters");
 
 const ordination = def.fields.find((f) => f.key === "ordinationDetails");
