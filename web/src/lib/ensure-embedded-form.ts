@@ -7,6 +7,17 @@ import {
 import { embeddedDefinitionToJson } from "@/lib/embedded-form-definition";
 
 const PREVIOUS_HTC_NOTIFICATION_EMAILS = ["admissions@ipchouston.com"];
+const PLACEHOLDER_HTC_HELP_PHONES = ["(713) 555-0148", "7135550148", "713-555-0148"];
+
+function resolveHtcHelpPhone(current?: string | null): string | null {
+  const trimmed = current?.trim() || "";
+  if (!trimmed) return null;
+  const digits = trimmed.replace(/\D/g, "");
+  if (PLACEHOLDER_HTC_HELP_PHONES.includes(trimmed) || digits === "7135550148") {
+    return null;
+  }
+  return trimmed;
+}
 
 function resolveHtcNotificationEmail(current?: string | null): string {
   const trimmed = current?.trim() || "";
@@ -35,12 +46,14 @@ export async function ensureHtcEmbeddedForm() {
 
   if (existing) {
     const nextNotificationEmail = resolveHtcNotificationEmail(existing.notificationEmail);
+    const nextHelpPhone = resolveHtcHelpPhone(existing.helpPhone);
     const changed =
       existing.draftDefinitionJson !== defJson ||
       existing.publishedDefinitionJson !== defJson ||
       !existing.stripeCheckoutEnabled ||
       existing.stripeAmountCents !== HTC_FORM_DEFAULTS.stripeAmountCents ||
-      existing.notificationEmail !== nextNotificationEmail;
+      existing.notificationEmail !== nextNotificationEmail ||
+      existing.helpPhone !== nextHelpPhone;
     if (!changed) return existing;
     return prisma.embeddedForm.update({
       where: { id: existing.id },
@@ -55,6 +68,7 @@ export async function ensureHtcEmbeddedForm() {
         title: existing.title || HTC_FORM_DEFAULTS.title,
         subtitle: existing.subtitle ?? HTC_FORM_DEFAULTS.subtitle,
         pdfTemplateKey: existing.pdfTemplateKey ?? HTC_FORM_DEFAULTS.pdfTemplateKey,
+        helpPhone: nextHelpPhone,
         ...stripeDefaults,
       },
     });
@@ -69,7 +83,7 @@ export async function ensureHtcEmbeddedForm() {
       emailFromName: HTC_FORM_DEFAULTS.emailFromName,
       emailSubject: HTC_FORM_DEFAULTS.emailSubject,
       helpEmail: HTC_FORM_DEFAULTS.helpEmail,
-      helpPhone: HTC_FORM_DEFAULTS.helpPhone,
+      helpPhone: resolveHtcHelpPhone(HTC_FORM_DEFAULTS.helpPhone),
       draftDefinitionJson: defJson,
       publishedDefinitionJson: defJson,
       publishedAt: new Date(),

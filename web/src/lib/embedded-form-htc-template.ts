@@ -954,7 +954,7 @@ export const HTC_FORM_DEFAULTS = {
   helpEmail: "admissions@ipchouston.com",
   /** Staff inbox for filled applications + Stripe details. Changeable in Embedded Forms settings. */
   notificationEmail: "stafinjacob@outlook.com",
-  helpPhone: "(713) 555-0148",
+  helpPhone: null,
   pdfTemplateKey: "htc-application",
   applicationNumberPrefix: "HTC",
   welcomeMessage:

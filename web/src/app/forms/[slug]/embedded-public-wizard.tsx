@@ -645,7 +645,7 @@ export function EmbeddedPublicWizard(props: Props) {
 
   const progress = Math.round(((Math.min(step, sections.length) + (isReview ? 1 : 0)) / (sections.length + 1)) * 100);
   const helpEmail = props.helpEmail?.trim() || "admissions@ipchouston.com";
-  const helpPhone = props.helpPhone?.trim() || "(713) 555-0148";
+  const helpPhone = props.helpPhone?.trim() || "";
 
   return (
     <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-10">
@@ -687,10 +687,14 @@ export function EmbeddedPublicWizard(props: Props) {
               >
                 ipchouston.com
               </a>
-              {" · "}
-              <a href={`tel:${helpPhone.replace(/[^\d+]/g, "")}`} className="hover:text-[#4f46e5] hover:underline">
-                {helpPhone}
-              </a>
+              {helpPhone ? (
+                <>
+                  {" · "}
+                  <a href={`tel:${helpPhone.replace(/[^\d+]/g, "")}`} className="hover:text-[#4f46e5] hover:underline">
+                    {helpPhone}
+                  </a>
+                </>
+              ) : null}
             </p>
           </div>
         </div>
@@ -819,11 +823,14 @@ export function EmbeddedPublicWizard(props: Props) {
         )}
       </div>
 
-      {(props.helpEmail || props.helpPhone) && (
+      {props.helpEmail ? (
         <p className="mt-8 text-center text-sm text-slate-700">
-          Questions? {[props.helpEmail, props.helpPhone].filter(Boolean).join(" · ")}
+          Questions?{" "}
+          <a href={`mailto:${props.helpEmail}`} className="hover:text-[#4f46e5] hover:underline">
+            {props.helpEmail}
+          </a>
         </p>
-      )}
+      ) : null}
     </div>
   );
 }
