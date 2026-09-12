@@ -46,6 +46,12 @@ function widthClass(width?: string): string {
   }
 }
 
+const fieldLabelClass = "mb-1.5 block text-[0.95rem] font-semibold leading-snug text-neutral-950";
+const fieldControlClass =
+  "w-full rounded-lg border border-slate-400 bg-white px-3.5 py-3 text-base text-neutral-950 shadow-sm outline-none placeholder:text-slate-400 focus:border-indigo-600 focus:ring-2 focus:ring-indigo-100";
+const helperClass = "mt-1.5 text-sm text-slate-700";
+const errorClass = "mt-1.5 text-sm text-rose-600";
+
 export function EmbeddedPublicWizard(props: Props) {
   const router = useRouter();
   const sections = useMemo(() => applicantVisibleSections(props.definition), [props.definition]);
@@ -91,7 +97,7 @@ export function EmbeddedPublicWizard(props: Props) {
 
     const err = fieldErrors[field.key];
     const commonLabel = (
-      <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">
+      <span className={fieldLabelClass}>
         {field.label}
         {field.required ? <span className="text-rose-600"> *</span> : null}
       </span>
@@ -99,8 +105,8 @@ export function EmbeddedPublicWizard(props: Props) {
 
     if (field.type === "staticText") {
       return (
-        <div key={field.id} className="md:col-span-12 rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
-          <p className="font-semibold text-slate-900">{field.label}</p>
+        <div key={field.id} className="md:col-span-12 rounded-lg border border-slate-200 bg-slate-50 p-4 text-base text-neutral-900">
+          <p className="font-semibold text-neutral-950">{field.label}</p>
           {field.helperText ? <p className="mt-2 whitespace-pre-wrap leading-relaxed">{field.helperText}</p> : null}
         </div>
       );
@@ -111,7 +117,7 @@ export function EmbeddedPublicWizard(props: Props) {
         <div key={field.id} className="md:col-span-12">
           {commonLabel}
           <div className="flex flex-wrap items-start gap-4">
-            <label className="flex h-40 w-32 cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-indigo-300 bg-indigo-50/40 text-center text-xs text-indigo-700">
+            <label className="flex h-48 w-40 cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-indigo-300 bg-indigo-50/40 text-center text-sm text-indigo-800">
               {photoPreview ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={photoPreview} alt="Preview" className="h-full w-full rounded-lg object-cover" />
@@ -133,9 +139,9 @@ export function EmbeddedPublicWizard(props: Props) {
                 }}
               />
             </label>
-            {field.helperText ? <p className="max-w-sm text-xs text-slate-500">{field.helperText}</p> : null}
+            {field.helperText ? <p className={`${helperClass} max-w-xl`}>{field.helperText}</p> : null}
           </div>
-          {err ? <p className="mt-1 text-xs text-rose-600">{err}</p> : null}
+          {err ? <p className={errorClass}>{err}</p> : null}
         </div>
       );
     }
@@ -145,10 +151,10 @@ export function EmbeddedPublicWizard(props: Props) {
       return (
         <div key={field.id} className="md:col-span-12 space-y-2">
           {commonLabel}
-          {field.helperText ? <p className="text-xs text-slate-500">{field.helperText}</p> : null}
-          <label className="flex cursor-pointer flex-col items-start gap-2 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-4 text-sm text-slate-700 hover:border-indigo-300 hover:bg-indigo-50/40">
-            <span className="font-semibold text-indigo-700">Choose academic documents</span>
-            <span className="text-xs text-slate-500">PDF or images · up to {maxFiles} files · 5 MB each</span>
+          {field.helperText ? <p className={helperClass}>{field.helperText}</p> : null}
+          <label className="flex cursor-pointer flex-col items-start gap-2 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-5 py-5 text-base text-slate-800 hover:border-indigo-300 hover:bg-indigo-50/40">
+            <span className="font-semibold text-indigo-800">Choose academic documents</span>
+            <span className="text-sm text-slate-700">PDF or images · up to {maxFiles} files · 5 MB each</span>
             <input
               type="file"
               accept="application/pdf,image/jpeg,image/png,image/webp"
@@ -161,11 +167,11 @@ export function EmbeddedPublicWizard(props: Props) {
             />
           </label>
           {documentFiles.length > 0 ? (
-            <ul className="space-y-1 text-sm text-slate-700">
+            <ul className="space-y-1 text-base text-slate-800">
               {documentFiles.map((file) => (
-                <li key={`${file.name}-${file.size}`} className="rounded-md bg-white px-3 py-1.5 border border-slate-200">
+                <li key={`${file.name}-${file.size}`} className="rounded-md bg-white px-3 py-2 border border-slate-200">
                   {file.name}{" "}
-                  <span className="text-xs text-slate-450 text-slate-500">
+                  <span className="text-sm text-slate-600">
                     ({Math.round(file.size / 1024)} KB)
                   </span>
                 </li>
@@ -175,13 +181,13 @@ export function EmbeddedPublicWizard(props: Props) {
           {documentFiles.length > 0 ? (
             <button
               type="button"
-              className="text-xs font-medium text-rose-600 hover:underline"
+              className="text-sm font-medium text-rose-600 hover:underline"
               onClick={() => setDocumentFiles([])}
             >
               Clear documents
             </button>
           ) : null}
-          {err ? <p className="text-xs text-rose-600">{err}</p> : null}
+          {err ? <p className={errorClass}>{err}</p> : null}
         </div>
       );
     }
@@ -190,21 +196,22 @@ export function EmbeddedPublicWizard(props: Props) {
       return (
         <fieldset key={field.id} className={widthClass(field.layout?.width)}>
           {commonLabel}
-          <div className="flex flex-wrap gap-4 pt-1">
+          <div className="flex flex-wrap gap-5 pt-1">
             {(field.options ?? []).map((opt) => (
-              <label key={opt.value} className="inline-flex items-center gap-2 text-sm text-slate-800">
+              <label key={opt.value} className="inline-flex items-center gap-2.5 text-base text-neutral-950">
                 <input
                   type="radio"
                   name={field.key}
                   value={opt.value}
                   checked={values[field.key] === opt.value}
                   onChange={() => setValue(field.key, opt.value)}
+                  className="h-4 w-4"
                 />
                 {opt.label}
               </label>
             ))}
           </div>
-          {err ? <p className="mt-1 text-xs text-rose-600">{err}</p> : null}
+          {err ? <p className={errorClass}>{err}</p> : null}
         </fieldset>
       );
     }
@@ -214,11 +221,11 @@ export function EmbeddedPublicWizard(props: Props) {
       return (
         <fieldset key={field.id} className="md:col-span-12">
           {commonLabel}
-          <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="mt-2 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {(field.options ?? []).map((opt) => {
               const checked = selected.includes(opt.value);
               return (
-                <label key={opt.value} className="inline-flex items-start gap-2 text-sm text-slate-800">
+                <label key={opt.value} className="inline-flex items-start gap-2.5 text-base text-neutral-950">
                   <input
                     type="checkbox"
                     checked={checked}
@@ -228,13 +235,14 @@ export function EmbeddedPublicWizard(props: Props) {
                         : [...selected, opt.value];
                       setValue(field.key, next);
                     }}
+                    className="mt-1 h-4 w-4"
                   />
                   <span>{opt.label}</span>
                 </label>
               );
             })}
           </div>
-          {err ? <p className="mt-1 text-xs text-rose-600">{err}</p> : null}
+          {err ? <p className={errorClass}>{err}</p> : null}
         </fieldset>
       );
     }
@@ -260,34 +268,34 @@ export function EmbeddedPublicWizard(props: Props) {
       return (
         <div key={field.id} className="md:col-span-12 space-y-3">
           {commonLabel}
-          {field.helperText ? <p className="text-xs text-slate-500">{field.helperText}</p> : null}
+          {field.helperText ? <p className={helperClass}>{field.helperText}</p> : null}
           {entries.length === 0 ? (
-            <p className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-3 py-4 text-sm text-slate-500">
+            <p className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-base text-slate-700">
               No education rows yet. Add High School, Undergrad, Graduate School, or Other as needed.
             </p>
           ) : null}
           {entries.map((row, index) => (
             <div
               key={`${field.key}-${index}`}
-              className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm"
+              className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
             >
               <div className="mb-3 flex items-center justify-between gap-2">
-                <p className="text-sm font-semibold text-slate-800">Education {index + 1}</p>
+                <p className="text-base font-semibold text-neutral-950">Education {index + 1}</p>
                 <button
                   type="button"
-                  className="text-xs font-medium text-rose-600 hover:underline"
+                  className="text-sm font-medium text-rose-600 hover:underline"
                   onClick={() => setValue(field.key, entries.filter((_, i) => i !== index))}
                 >
                   Remove
                 </button>
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
-                <label className="block text-sm sm:col-span-2">
-                  <span className="mb-1 block text-xs uppercase tracking-wide text-slate-500">Description</span>
+                <label className="block sm:col-span-2">
+                  <span className={fieldLabelClass}>Description</span>
                   <select
                     value={row.description}
                     onChange={(e) => updateEntry(index, { description: e.target.value })}
-                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                    className={fieldControlClass}
                   >
                     <option value="">Select level…</option>
                     {options.map((opt) => (
@@ -301,46 +309,46 @@ export function EmbeddedPublicWizard(props: Props) {
                     ))}
                   </select>
                 </label>
-                <label className="block text-sm sm:col-span-2">
-                  <span className="mb-1 block text-xs uppercase tracking-wide text-slate-500">
+                <label className="block sm:col-span-2">
+                  <span className={fieldLabelClass}>
                     Name & place of institution
                   </span>
                   <input
                     value={row.institution}
                     onChange={(e) => updateEntry(index, { institution: e.target.value })}
-                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                    className={fieldControlClass}
                   />
                 </label>
-                <label className="block text-sm">
-                  <span className="mb-1 block text-xs uppercase tracking-wide text-slate-500">Date of completion</span>
+                <label className="block">
+                  <span className={fieldLabelClass}>Date of completion</span>
                   <input
                     value={row.completionDate}
                     onChange={(e) => updateEntry(index, { completionDate: e.target.value })}
-                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                    className={fieldControlClass}
                   />
                 </label>
-                <label className="block text-sm">
-                  <span className="mb-1 block text-xs uppercase tracking-wide text-slate-500">Diploma / degree</span>
+                <label className="block">
+                  <span className={fieldLabelClass}>Diploma / degree</span>
                   <input
                     value={row.diplomaDegree}
                     onChange={(e) => updateEntry(index, { diplomaDegree: e.target.value })}
-                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                    className={fieldControlClass}
                   />
                 </label>
-                <label className="block text-sm">
-                  <span className="mb-1 block text-xs uppercase tracking-wide text-slate-500">Class / division</span>
+                <label className="block">
+                  <span className={fieldLabelClass}>Class / division</span>
                   <input
                     value={row.classDivision}
                     onChange={(e) => updateEntry(index, { classDivision: e.target.value })}
-                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                    className={fieldControlClass}
                   />
                 </label>
-                <label className="block text-sm">
-                  <span className="mb-1 block text-xs uppercase tracking-wide text-slate-500">Passed / failed</span>
+                <label className="block">
+                  <span className={fieldLabelClass}>Passed / failed</span>
                   <select
                     value={row.passedFailed}
                     onChange={(e) => updateEntry(index, { passedFailed: e.target.value })}
-                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                    className={fieldControlClass}
                   >
                     <option value="">—</option>
                     <option value="Passed">Passed</option>
@@ -356,7 +364,7 @@ export function EmbeddedPublicWizard(props: Props) {
                 <button
                   key={opt.value}
                   type="button"
-                  className="rounded-md border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-100"
+                  className="rounded-md border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm font-semibold text-indigo-800 hover:bg-indigo-100"
                   onClick={() => setValue(field.key, [...entries, emptyEducationEntry(opt.value)])}
                 >
                   + Add {opt.label}
@@ -364,25 +372,25 @@ export function EmbeddedPublicWizard(props: Props) {
               ))}
             </div>
           ) : null}
-          {err ? <p className="text-xs text-rose-600">{err}</p> : null}
+          {err ? <p className={errorClass}>{err}</p> : null}
         </div>
       );
     }
 
     if (field.type === "declaration" || field.type === "checkbox") {
       return (
-        <label key={field.id} className="md:col-span-12 inline-flex items-start gap-2 text-sm text-slate-800">
+        <label key={field.id} className="md:col-span-12 inline-flex items-start gap-3 text-base text-neutral-950">
           <input
             type="checkbox"
             name={field.key}
             checked={values[field.key] === "true"}
             onChange={(e) => setValue(field.key, e.target.checked ? "true" : "")}
-            className="mt-1"
+            className="mt-1 h-4 w-4"
           />
           <span>
             {field.label}
             {field.required ? <span className="text-rose-600"> *</span> : null}
-            {err ? <span className="mt-1 block text-xs text-rose-600">{err}</span> : null}
+            {err ? <span className={`block ${errorClass}`}>{err}</span> : null}
           </span>
         </label>
       );
@@ -394,13 +402,13 @@ export function EmbeddedPublicWizard(props: Props) {
           {commonLabel}
           <textarea
             name={field.key}
-            rows={4}
+            rows={5}
             value={String(values[field.key] ?? "")}
             onChange={(e) => setValue(field.key, e.target.value)}
-            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+            className={fieldControlClass}
             placeholder={field.placeholder}
           />
-          {err ? <p className="mt-1 text-xs text-rose-600">{err}</p> : null}
+          {err ? <p className={errorClass}>{err}</p> : null}
         </label>
       );
     }
@@ -413,7 +421,7 @@ export function EmbeddedPublicWizard(props: Props) {
             name={field.key}
             value={String(values[field.key] ?? "")}
             onChange={(e) => setValue(field.key, e.target.value)}
-            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+            className={fieldControlClass}
           >
             {(field.options ?? []).map((opt) => (
               <option key={`${field.key}-${opt.value}`} value={opt.value}>
@@ -421,7 +429,7 @@ export function EmbeddedPublicWizard(props: Props) {
               </option>
             ))}
           </select>
-          {err ? <p className="mt-1 text-xs text-rose-600">{err}</p> : null}
+          {err ? <p className={errorClass}>{err}</p> : null}
         </label>
       );
     }
@@ -445,13 +453,13 @@ export function EmbeddedPublicWizard(props: Props) {
           name={field.key}
           value={String(values[field.key] ?? "")}
           onChange={(e) => setValue(field.key, e.target.value)}
-          className={`w-full rounded-md border border-slate-300 px-3 py-2 text-sm ${
+          className={`${fieldControlClass} ${
             field.type === "signatureTyped" ? "font-serif italic text-lg" : ""
           }`}
           placeholder={field.placeholder}
         />
-        {field.helperText ? <p className="mt-1 text-xs text-slate-500">{field.helperText}</p> : null}
-        {err ? <p className="mt-1 text-xs text-rose-600">{err}</p> : null}
+        {field.helperText ? <p className={helperClass}>{field.helperText}</p> : null}
+        {err ? <p className={errorClass}>{err}</p> : null}
       </label>
     );
   }
@@ -510,8 +518,8 @@ export function EmbeddedPublicWizard(props: Props) {
   const helpPhone = props.helpPhone?.trim() || "(713) 555-0148";
 
   return (
-    <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
-      <header className="mb-6 border-t-[3px] border-[#4f46e5] pt-5">
+    <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-10">
+      <header className="mb-8 border-t-[3px] border-[#4f46e5] pt-6">
         <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex items-center gap-3">
             <Image
@@ -519,21 +527,21 @@ export function EmbeddedPublicWizard(props: Props) {
               alt="Hebron Theological College"
               width={48}
               height={68}
-              className="h-14 w-auto object-contain"
+              className="h-16 w-auto object-contain"
               priority
             />
             <div className="leading-tight">
-              <p className="text-[1.35rem] font-extrabold tracking-wide text-slate-900 sm:text-[1.5rem]">
+              <p className="text-[1.5rem] font-extrabold tracking-wide text-neutral-950 sm:text-[1.7rem]">
                 HEBRON
               </p>
-              <p className="text-[0.7rem] font-semibold uppercase tracking-[0.14em] text-[#4f46e5] sm:text-[0.75rem]">
+              <p className="text-[0.8rem] font-semibold uppercase tracking-[0.14em] text-[#4f46e5] sm:text-[0.85rem]">
                 Theological College
               </p>
             </div>
           </div>
 
-          <div className="text-left text-[0.8rem] leading-snug text-slate-500 sm:text-right">
-            <p className="font-bold uppercase tracking-wide text-slate-900">Hebron Theological College</p>
+          <div className="text-left text-sm leading-snug text-slate-700 sm:text-right">
+            <p className="font-bold uppercase tracking-wide text-neutral-950">Hebron Theological College</p>
             <p>IPC Hebron Houston · Houston, TX</p>
             <p>
               <a href={`mailto:${helpEmail}`} className="hover:text-[#4f46e5] hover:underline">
@@ -558,18 +566,18 @@ export function EmbeddedPublicWizard(props: Props) {
         </div>
 
         <div className="mt-8">
-          <h1 className="text-[1.85rem] font-bold tracking-tight text-slate-900 sm:text-[2.15rem]">
+          <h1 className="text-[2.1rem] font-bold tracking-tight text-neutral-950 sm:text-[2.55rem]">
             {props.title}
           </h1>
-          {props.subtitle ? <p className="mt-1 text-base font-medium text-black">{props.subtitle}</p> : null}
+          {props.subtitle ? <p className="mt-2 text-lg font-semibold text-black">{props.subtitle}</p> : null}
           {props.welcomeMessage && step === 0 ? (
-            <p className="mt-3 text-sm leading-relaxed text-black">{props.welcomeMessage}</p>
+            <p className="mt-4 text-base leading-relaxed text-black sm:text-lg">{props.welcomeMessage}</p>
           ) : null}
         </div>
       </header>
 
       <div className="mb-6">
-        <div className="mb-1 flex justify-between text-xs text-slate-500">
+        <div className="mb-1 flex justify-between text-sm text-slate-700">
           <span>
             {isReview ? "Review & submit" : `Step ${step + 1} of ${sections.length}`}
           </span>
@@ -581,22 +589,22 @@ export function EmbeddedPublicWizard(props: Props) {
       </div>
 
       {!isReview && currentSection ? (
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7 md:p-8">
-          <h2 className="text-lg font-semibold text-slate-900">{currentSection.title}</h2>
+        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8 md:p-10">
+          <h2 className="text-2xl font-semibold text-neutral-950">{currentSection.title}</h2>
           {currentSection.description ? (
-            <p className="mt-1 text-sm text-slate-500">{currentSection.description}</p>
+            <p className="mt-2 text-base text-slate-700">{currentSection.description}</p>
           ) : null}
-          <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-12">
+          <div className="mt-6 grid grid-cols-1 gap-5 md:grid-cols-12 md:gap-x-6 md:gap-y-6">
             {fieldsForEmbeddedSection(props.definition, currentSection.id).map((f) => renderField(f))}
           </div>
         </section>
       ) : (
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7 md:p-8">
-          <h2 className="text-lg font-semibold text-slate-900">Review your application</h2>
-          <p className="mt-1 text-sm text-slate-500">
+        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8 md:p-10">
+          <h2 className="text-2xl font-semibold text-neutral-950">Review your application</h2>
+          <p className="mt-2 text-base text-slate-700">
             Confirm your details, then submit. You will receive an email when your application is received.
           </p>
-          <ul className="mt-4 space-y-2 text-sm text-slate-700">
+          <ul className="mt-4 space-y-2 text-base text-neutral-900">
             <li>
               <strong>Name:</strong> {String(values.fullName ?? "—")}
             </li>
@@ -655,7 +663,7 @@ export function EmbeddedPublicWizard(props: Props) {
           type="button"
           disabled={step === 0 || pending}
           onClick={() => setStep((s) => Math.max(0, s - 1))}
-          className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 disabled:opacity-40"
+          className="rounded-md border border-slate-300 px-5 py-2.5 text-base font-medium text-slate-800 disabled:opacity-40"
         >
           Back
         </button>
@@ -664,7 +672,7 @@ export function EmbeddedPublicWizard(props: Props) {
             type="button"
             disabled={pending}
             onClick={() => setStep((s) => Math.min(sections.length, s + 1))}
-            className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700"
+            className="rounded-md bg-indigo-600 px-5 py-2.5 text-base font-semibold text-white hover:bg-indigo-700"
           >
             Continue
           </button>
@@ -673,7 +681,7 @@ export function EmbeddedPublicWizard(props: Props) {
             type="button"
             disabled={pending}
             onClick={onSubmit}
-            className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-60"
+            className="rounded-md bg-indigo-600 px-5 py-2.5 text-base font-semibold text-white hover:bg-indigo-700 disabled:opacity-60"
           >
             {pending ? "Submitting…" : props.stripeCheckoutEnabled ? "Submit & pay" : "Submit application"}
           </button>
@@ -681,7 +689,7 @@ export function EmbeddedPublicWizard(props: Props) {
       </div>
 
       {(props.helpEmail || props.helpPhone) && (
-        <p className="mt-8 text-center text-xs text-slate-500">
+        <p className="mt-8 text-center text-sm text-slate-700">
           Questions? {[props.helpEmail, props.helpPhone].filter(Boolean).join(" · ")}
         </p>
       )}
