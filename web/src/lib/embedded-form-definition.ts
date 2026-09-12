@@ -188,19 +188,30 @@ export function emptyEducationEntry(description = ""): EducationEntry {
   };
 }
 
-export function parseEducationEntries(value: unknown): EducationEntry[] {
+export function readEducationEntries(value: unknown): EducationEntry[] {
   if (!Array.isArray(value)) return [];
   return value.map((row) => {
     const r = (row ?? {}) as Record<string, unknown>;
     return {
-      description: String(r.description ?? "").trim(),
-      institution: String(r.institution ?? "").trim(),
-      completionDate: String(r.completionDate ?? "").trim(),
-      diplomaDegree: String(r.diplomaDegree ?? "").trim(),
-      classDivision: String(r.classDivision ?? "").trim(),
-      passedFailed: String(r.passedFailed ?? "").trim(),
+      description: String(r.description ?? ""),
+      institution: String(r.institution ?? ""),
+      completionDate: String(r.completionDate ?? ""),
+      diplomaDegree: String(r.diplomaDegree ?? ""),
+      classDivision: String(r.classDivision ?? ""),
+      passedFailed: String(r.passedFailed ?? ""),
     };
   });
+}
+
+export function parseEducationEntries(value: unknown): EducationEntry[] {
+  return readEducationEntries(value).map((row) => ({
+    description: row.description.trim(),
+    institution: row.institution.trim(),
+    completionDate: row.completionDate.trim(),
+    diplomaDegree: row.diplomaDegree.trim(),
+    classDivision: row.classDivision.trim(),
+    passedFailed: row.passedFailed.trim(),
+  }));
 }
 
 /** Reserved response keys used for search / email / PDF identity. */

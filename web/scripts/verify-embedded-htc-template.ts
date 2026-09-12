@@ -148,6 +148,9 @@ const dobDay = def.fields.find((f) => f.key === "dobDay");
 assert((dobMonth?.order ?? 99) < (dobDay?.order ?? 0), "DOB should be Month then Day");
 const primaryLang = def.fields.find((f) => f.key === "primaryLanguage");
 assert(primaryLang?.label === "Primary language", "primaryLanguage label mismatch");
+const country = def.fields.find((f) => f.key === "county");
+assert(country?.label === "Country", "county field should be labeled Country");
+assert((testimony?.validation?.minLength ?? 0) === 40, "personalTestimony should require 40 characters");
 
 const ordination = def.fields.find((f) => f.key === "ordinationDetails");
 assert(ordination?.showWhen?.fieldKey === "ordainedPastor", "ordinationDetails conditional missing");

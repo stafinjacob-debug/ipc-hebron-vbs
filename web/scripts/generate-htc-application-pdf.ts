@@ -139,7 +139,7 @@ async function buildPdf(): Promise<Uint8Array> {
     writeLine(p, 400, HTC_OVERLAY.page1.county.y - 4, 150);
     caption(p, regular, "Nationality", 58, HTC_OVERLAY.page1.nationality.y - 16);
     caption(p, regular, "State", 230, HTC_OVERLAY.page1.state.y - 16);
-    caption(p, regular, "County", 400, HTC_OVERLAY.page1.county.y - 16);
+    caption(p, regular, "Country", 400, HTC_OVERLAY.page1.county.y - 16);
 
     numberLabel(p, bold, "5", 48, HTC_OVERLAY.page1.occupation.y + 16);
     writeLine(p, 58, HTC_OVERLAY.page1.occupation.y - 4, 230);

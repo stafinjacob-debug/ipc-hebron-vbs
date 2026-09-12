@@ -39,15 +39,17 @@ function ageFromDob(day: number, month: number, year: number, asOf = new Date())
   return age >= 0 && age < 130 ? age : null;
 }
 
-function validateSingleField(
+export function validateEmbeddedApplicantField(
   field: EmbeddedFormFieldDef,
   raw: string | string[],
 ): string | null {
   const empty =
     Array.isArray(raw) ? raw.length === 0 : !String(raw ?? "").trim();
 
+  const label = field.label.replace(/^\d+\.\s*/, "").trim() || field.label;
+
   if (field.required && empty && field.type !== "photo") {
-    return "This field is required.";
+    return `${label} is required.`;
   }
   if (empty) return null;
 
@@ -60,12 +62,12 @@ function validateSingleField(
   if (field.type === "number") {
     const n = Number(value);
     if (!Number.isFinite(n)) return "Enter a valid number.";
-    if (v?.min != null && n < v.min) return `Must be at least ${v.min}.`;
-    if (v?.max != null && n > v.max) return `Must be at most ${v.max}.`;
+    if (v?.min != null && n < v.min) return `${label} must be at least ${v.min}.`;
+    if (v?.max != null && n > v.max) return `${label} must be at most ${v.max}.`;
   }
   if (field.type === "radio" || field.type === "select") {
     const opts = (field.options ?? []).map((o) => o.value).filter((x) => x !== "");
-    if (opts.length && !opts.includes(value)) return "Select a valid option.";
+    if (opts.length && !opts.includes(value)) return `Select a valid option for ${label}.`;
   }
   if (field.type === "checkboxGroup" && Array.isArray(raw)) {
     const opts = new Set((field.options ?? []).map((o) => o.value));
@@ -74,10 +76,10 @@ function validateSingleField(
     }
   }
   if (v?.minLength != null && value.length < v.minLength) {
-    return `Must be at least ${v.minLength} characters.`;
+    return `${label} must be at least ${v.minLength} characters.`;
   }
   if (v?.maxLength != null && value.length > v.maxLength) {
-    return `Must be at most ${v.maxLength} characters.`;
+    return `${label} must be at most ${v.maxLength} characters.`;
   }
   if (v?.pattern) {
     try {
@@ -192,7 +194,7 @@ export function parseEmbeddedApplicantForm(
       continue;
     }
 
-    const err = validateSingleField(
+    const err = validateEmbeddedApplicantField(
       field,
       Array.isArray(raw) ? (raw as string[]) : String(raw),
     );

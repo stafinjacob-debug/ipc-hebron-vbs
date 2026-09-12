@@ -9,11 +9,12 @@ import {
   fieldIsVisible,
   fieldsForEmbeddedSection,
   isFillableEmbeddedField,
-  parseEducationEntries,
+  readEducationEntries,
   type EducationEntry,
   type EmbeddedFormDefinitionV1,
   type EmbeddedFormFieldDef,
 } from "@/lib/embedded-form-definition";
+import { validateEmbeddedApplicantField } from "@/lib/embedded-form-validate";
 import { submitEmbeddedFormPublic } from "@/app/forms/actions";
 
 type Props = {
@@ -95,6 +96,85 @@ export function EmbeddedPublicWizard(props: Props) {
       }
       return next;
     });
+  }
+
+  function validateSection(sectionId: string): Record<string, string> {
+    const errors: Record<string, string> = {};
+    const fields = fieldsForEmbeddedSection(props.definition, sectionId).filter(
+      (field) => isFillableEmbeddedField(field) && fieldIsVisible(field, values),
+    );
+
+    for (const field of fields) {
+      if (field.type === "photo") {
+        if (field.required && !photoFile) {
+          errors[field.key] = "Please upload a passport photo.";
+        }
+        continue;
+      }
+      if (field.type === "documentUploads") {
+        if (field.required && documentFiles.length === 0) {
+          errors[field.key] = "Please upload at least one academic document.";
+        }
+        continue;
+      }
+      if (field.type === "educationEntries") {
+        const entries = readEducationEntries(values[field.key]).filter(
+          (row) => row.description.trim() || row.institution.trim(),
+        );
+        if (field.required && entries.length === 0) {
+          errors[field.key] = "Add at least one educational qualification.";
+        } else {
+          for (let i = 0; i < entries.length; i++) {
+            const row = entries[i]!;
+            if (!row.description.trim()) {
+              errors[field.key] = `Education row ${i + 1}: choose a description.`;
+              break;
+            }
+            if (!row.institution.trim()) {
+              errors[field.key] = `Education row ${i + 1}: enter name & place of institution.`;
+              break;
+            }
+          }
+        }
+        continue;
+      }
+      if (field.type === "signatureTyped") continue;
+
+      const raw = values[field.key];
+      const err = validateEmbeddedApplicantField(
+        field,
+        Array.isArray(raw) ? (raw as string[]) : String(raw ?? ""),
+      );
+      if (err) errors[field.key] = err;
+    }
+    return errors;
+  }
+
+  function goToFirstError(errors: Record<string, string>, fallbackMessage: string) {
+    const firstKey = Object.keys(errors)[0];
+    const firstField = firstKey
+      ? props.definition.fields.find((field) => field.key === firstKey)
+      : undefined;
+    if (firstField) {
+      const sectionIndex = sections.findIndex((section) => section.id === firstField.sectionId);
+      if (sectionIndex >= 0) setStep(sectionIndex);
+    }
+    setFieldErrors(errors);
+    setError(errors[firstKey ?? ""] || fallbackMessage);
+  }
+
+  function continueToNext() {
+    if (!currentSection) return;
+    const errors = validateSection(currentSection.id);
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      const first = Object.values(errors)[0] ?? "Please complete the required fields on this page.";
+      setError(`${first} Complete this page before continuing.`);
+      return;
+    }
+    setFieldErrors({});
+    setError(null);
+    setStep((s) => Math.min(sections.length, s + 1));
   }
 
   function renderField(field: EmbeddedFormFieldDef) {
@@ -256,7 +336,7 @@ export function EmbeddedPublicWizard(props: Props) {
     }
 
     if (field.type === "educationEntries") {
-      const entries = parseEducationEntries(values[field.key]);
+      const entries = readEducationEntries(values[field.key]);
       const options = field.options?.length
         ? field.options
         : [
@@ -406,17 +486,25 @@ export function EmbeddedPublicWizard(props: Props) {
     }
 
     if (field.type === "textarea") {
+      const text = String(values[field.key] ?? "");
+      const minLength = field.validation?.minLength;
       return (
         <label key={field.id} className={`${widthClass(field.layout?.width)} block`}>
           {commonLabel}
           <textarea
             name={field.key}
             rows={5}
-            value={String(values[field.key] ?? "")}
+            value={text}
             onChange={(e) => setValue(field.key, e.target.value)}
             className={fieldControlClass}
             placeholder={field.placeholder}
           />
+          {minLength ? (
+            <p className={text.trim().length < minLength ? errorClass : helperClass}>
+              {text.trim().length} / {minLength} characters minimum
+            </p>
+          ) : null}
+          {field.helperText ? <p className={helperClass}>{field.helperText}</p> : null}
           {err ? <p className={errorClass}>{err}</p> : null}
         </label>
       );
@@ -492,6 +580,13 @@ export function EmbeddedPublicWizard(props: Props) {
   function onSubmit() {
     setError(null);
     setFieldErrors({});
+    for (const section of sections) {
+      const errors = validateSection(section.id);
+      if (Object.keys(errors).length > 0) {
+        goToFirstError(errors, "Please complete the highlighted fields.");
+        return;
+      }
+    }
     startTransition(async () => {
       const fd = new FormData();
       fd.set("clientSubmitKey", clientSubmitKey);
@@ -529,8 +624,11 @@ export function EmbeddedPublicWizard(props: Props) {
 
       const result = await submitEmbeddedFormPublic(props.slug, fd);
       if (!result.ok) {
-        setError(result.error);
-        if (result.fieldErrors) setFieldErrors(result.fieldErrors);
+        if (result.fieldErrors && Object.keys(result.fieldErrors).length > 0) {
+          goToFirstError(result.fieldErrors, result.error);
+        } else {
+          setError(result.error);
+        }
         return;
       }
       if (props.stripeCheckoutEnabled && result.submissionId) {
@@ -704,7 +802,7 @@ export function EmbeddedPublicWizard(props: Props) {
           <button
             type="button"
             disabled={pending}
-            onClick={() => setStep((s) => Math.min(sections.length, s + 1))}
+            onClick={continueToNext}
             className="rounded-md bg-indigo-600 px-5 py-2.5 text-base font-semibold text-white hover:bg-indigo-700"
           >
             Continue
