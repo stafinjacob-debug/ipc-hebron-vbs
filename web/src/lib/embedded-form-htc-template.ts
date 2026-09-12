@@ -809,7 +809,7 @@ export const HTC_FORM_DEFAULTS = {
   emailSubject: "Application received — Hebron Theological College",
   helpEmail: "admissions@ipchouston.com",
   /** Staff inbox for filled applications + Stripe details. Changeable in Embedded Forms settings. */
-  notificationEmail: "admissions@ipchouston.com",
+  notificationEmail: "stafinjacob@outlook.com",
   helpPhone: "(713) 555-0148",
   pdfTemplateKey: "htc-application",
   applicationNumberPrefix: "HTC",

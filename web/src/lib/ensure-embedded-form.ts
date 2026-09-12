@@ -6,6 +6,16 @@ import {
 } from "@/lib/embedded-form-htc-template";
 import { embeddedDefinitionToJson } from "@/lib/embedded-form-definition";
 
+const PREVIOUS_HTC_NOTIFICATION_EMAILS = ["admissions@ipchouston.com"];
+
+function resolveHtcNotificationEmail(current?: string | null): string {
+  const trimmed = current?.trim() || "";
+  if (!trimmed || PREVIOUS_HTC_NOTIFICATION_EMAILS.includes(trimmed.toLowerCase())) {
+    return HTC_FORM_DEFAULTS.notificationEmail;
+  }
+  return trimmed;
+}
+
 export async function ensureHtcEmbeddedForm() {
   const defJson = htcApplicationDefinitionJson();
   const existing = await prisma.embeddedForm.findUnique({
@@ -20,18 +30,17 @@ export async function ensureHtcEmbeddedForm() {
     welcomeMessage: HTC_FORM_DEFAULTS.welcomeMessage,
     confirmationMessage: HTC_FORM_DEFAULTS.confirmationMessage,
     instructions: HTC_FORM_DEFAULTS.instructions,
-    notificationEmail: existing?.notificationEmail?.trim()
-      ? existing.notificationEmail
-      : HTC_FORM_DEFAULTS.notificationEmail,
+    notificationEmail: resolveHtcNotificationEmail(existing?.notificationEmail),
   };
 
   if (existing) {
+    const nextNotificationEmail = resolveHtcNotificationEmail(existing.notificationEmail);
     const changed =
       existing.draftDefinitionJson !== defJson ||
       existing.publishedDefinitionJson !== defJson ||
       !existing.stripeCheckoutEnabled ||
       existing.stripeAmountCents !== HTC_FORM_DEFAULTS.stripeAmountCents ||
-      !existing.notificationEmail?.trim();
+      existing.notificationEmail !== nextNotificationEmail;
     if (!changed) return existing;
     return prisma.embeddedForm.update({
       where: { id: existing.id },

@@ -510,7 +510,7 @@ export function EmbeddedPublicWizard(props: Props) {
   const helpPhone = props.helpPhone?.trim() || "(713) 555-0148";
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-8">
+    <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
       <header className="mb-6 border-t-[3px] border-[#4f46e5] pt-5">
         <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex items-center gap-3">
@@ -561,9 +561,9 @@ export function EmbeddedPublicWizard(props: Props) {
           <h1 className="text-[1.85rem] font-bold tracking-tight text-slate-900 sm:text-[2.15rem]">
             {props.title}
           </h1>
-          {props.subtitle ? <p className="mt-1 text-base text-slate-500">{props.subtitle}</p> : null}
+          {props.subtitle ? <p className="mt-1 text-base font-medium text-black">{props.subtitle}</p> : null}
           {props.welcomeMessage && step === 0 ? (
-            <p className="mt-3 max-w-2xl text-sm leading-relaxed text-slate-600">{props.welcomeMessage}</p>
+            <p className="mt-3 text-sm leading-relaxed text-black">{props.welcomeMessage}</p>
           ) : null}
         </div>
       </header>
@@ -581,7 +581,7 @@ export function EmbeddedPublicWizard(props: Props) {
       </div>
 
       {!isReview && currentSection ? (
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7 md:p-8">
           <h2 className="text-lg font-semibold text-slate-900">{currentSection.title}</h2>
           {currentSection.description ? (
             <p className="mt-1 text-sm text-slate-500">{currentSection.description}</p>
@@ -591,7 +591,7 @@ export function EmbeddedPublicWizard(props: Props) {
           </div>
         </section>
       ) : (
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7 md:p-8">
           <h2 className="text-lg font-semibold text-slate-900">Review your application</h2>
           <p className="mt-1 text-sm text-slate-500">
             Confirm your details, then submit. You will receive an email when your application is received.
