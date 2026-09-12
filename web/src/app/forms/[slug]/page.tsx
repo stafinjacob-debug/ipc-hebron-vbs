@@ -72,7 +72,7 @@ export default async function PublicEmbeddedFormPage({
       : null;
 
   return (
-    <main className="min-h-screen bg-gradient-to-b from-slate-50 to-indigo-50/40">
+    <main className="min-h-screen bg-white">
       <EmbeddedPublicWizard
         slug={form.slug}
         title={form.title}

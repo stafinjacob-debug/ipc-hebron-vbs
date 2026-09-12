@@ -102,7 +102,7 @@ export default async function EmbeddedFormThanksPage({
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-gradient-to-b from-slate-50 to-indigo-50/40 px-4">
+    <main className="flex min-h-screen items-center justify-center bg-white px-4">
       <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-indigo-600">
           {paymentStatus === "paid"
