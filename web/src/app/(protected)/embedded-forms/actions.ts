@@ -11,7 +11,10 @@ import {
 } from "@/lib/embedded-form-definition";
 import { ensureHtcEmbeddedForm } from "@/lib/ensure-embedded-form";
 import { parseEmbeddedRegistrarForm } from "@/lib/embedded-form-validate";
-import { sendEmbeddedApplicationReceivedEmail } from "@/lib/email/embedded-application-email";
+import {
+  sendEmbeddedApplicationReceivedEmail,
+  sendEmbeddedApplicationStaffNotificationEmail,
+} from "@/lib/email/embedded-application-email";
 import { Prisma, type EmbeddedFormStatus, type EmbeddedSubmissionStatus } from "@/generated/prisma";
 
 async function requireEmbeddedManager() {
@@ -60,6 +63,7 @@ export async function saveEmbeddedFormSettingsAction(
         emailFromName: String(formData.get("emailFromName") ?? "").trim() || null,
         emailSubject: String(formData.get("emailSubject") ?? "").trim() || null,
         helpEmail: String(formData.get("helpEmail") ?? "").trim() || null,
+        notificationEmail: String(formData.get("notificationEmail") ?? "").trim() || null,
         helpPhone: String(formData.get("helpPhone") ?? "").trim() || null,
         applicationNumberPrefix: String(formData.get("applicationNumberPrefix") ?? "").trim() || null,
         pdfTemplateKey: String(formData.get("pdfTemplateKey") ?? "").trim() || null,
@@ -231,6 +235,29 @@ export async function resendEmbeddedApplicationEmailAction(
       return { ok: false, error: "Submission has no email address." };
     }
     return { ok: false, error: "Failed to send email." };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Failed" };
+  }
+}
+
+export async function resendEmbeddedStaffNotificationEmailAction(
+  submissionId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    await requireEmbeddedManager();
+    const result = await sendEmbeddedApplicationStaffNotificationEmail(submissionId);
+    if (result === "sent") {
+      const sub = await prisma.embeddedFormSubmission.findUnique({ where: { id: submissionId } });
+      if (sub) revalidatePath(`/embedded-forms/${sub.formId}/submissions/${submissionId}`);
+      return { ok: true };
+    }
+    if (result === "skipped_no_graph") {
+      return { ok: false, error: "Email is not configured (Microsoft Graph)." };
+    }
+    if (result === "skipped_no_email") {
+      return { ok: false, error: "No notification email is set on this form." };
+    }
+    return { ok: false, error: "Failed to send staff notification." };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Failed" };
   }

@@ -868,6 +868,8 @@ model EmbeddedForm {
   emailSubject  String?
   helpEmail     String?
   helpPhone     String?
+  /// Staff inbox for each filled application (PDF + Stripe details). Editable in admin.
+  notificationEmail String?
 
   draftDefinitionJson     String? @db.Text
   publishedDefinitionJson String? @db.Text
@@ -947,6 +949,7 @@ model EmbeddedFormSubmission {
 
   /// Stripe Checkout for application fee.
   stripeCheckoutSessionId  String?   @unique
+  stripePaymentIntentId    String?
   stripePaymentStatus      String?
   stripePaidAt             DateTime?
   stripeAmountChargedCents Int?
@@ -955,6 +958,7 @@ model EmbeddedFormSubmission {
 
   receivedAt                       DateTime?
   applicationReceivedEmailSentAt   DateTime?
+  staffNotificationEmailSentAt     DateTime?
   reviewedAt                       DateTime?
   reviewedByUserId                 String?
 

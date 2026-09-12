@@ -67,6 +67,10 @@ export default async function EmbeddedSubmissionDetailPage({
             : submission.stripePaymentStatus === "pending"
               ? "Pending Stripe checkout"
               : "Not required / not started"}
+          {submission.stripeCheckoutSessionId
+            ? ` · session ${submission.stripeCheckoutSessionId}`
+            : ""}
+          {submission.stripePaymentIntentId ? ` · PI ${submission.stripePaymentIntentId}` : ""}
         </p>
       </div>
 
@@ -76,6 +80,11 @@ export default async function EmbeddedSubmissionDetailPage({
         emailSentAt={
           submission.applicationReceivedEmailSentAt
             ? formatAppDateTime(submission.applicationReceivedEmailSentAt)
+            : null
+        }
+        staffEmailSentAt={
+          submission.staffNotificationEmailSentAt
+            ? formatAppDateTime(submission.staffNotificationEmailSentAt)
             : null
         }
       />

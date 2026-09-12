@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { sendSubmissionReceivedEmail } from "@/lib/email/registration-emails";
-import { sendEmbeddedApplicationReceivedEmail } from "@/lib/email/embedded-application-email";
+import { sendEmbeddedApplicationFollowUpEmails } from "@/lib/email/embedded-application-email";
 import { tryAutoApproveRegistrationsForSubmission } from "@/lib/auto-approve-registration";
 import { getStripeClient } from "@/lib/stripe-registration-payment";
 import { markEmbeddedSubmissionPaidFromStripeSession } from "@/lib/embedded-stripe-payment";
@@ -37,20 +37,19 @@ export async function POST(request: Request) {
 
     const embeddedSubmissionId = session.metadata?.embeddedFormSubmissionId?.trim();
     if (embeddedSubmissionId) {
+      const paymentIntentId =
+        typeof session.payment_intent === "string"
+          ? session.payment_intent
+          : session.payment_intent?.id ?? null;
       const marked = await markEmbeddedSubmissionPaidFromStripeSession({
         submissionId: embeddedSubmissionId,
         amountTotal: session.amount_total ?? null,
+        paymentIntentId,
       });
       if (marked) {
-        const submission = await prisma.embeddedFormSubmission.findUnique({
-          where: { id: embeddedSubmissionId },
-          select: { applicationReceivedEmailSentAt: true },
+        void sendEmbeddedApplicationFollowUpEmails(embeddedSubmissionId).catch((err) => {
+          console.error("[stripe webhook] sendEmbeddedApplicationFollowUpEmails", err);
         });
-        if (submission && !submission.applicationReceivedEmailSentAt) {
-          void sendEmbeddedApplicationReceivedEmail(embeddedSubmissionId).catch((err) => {
-            console.error("[stripe webhook] sendEmbeddedApplicationReceivedEmail", err);
-          });
-        }
       }
       return new Response("ok", { status: 200 });
     }

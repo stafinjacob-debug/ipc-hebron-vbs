@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import {
   resendEmbeddedApplicationEmailAction,
+  resendEmbeddedStaffNotificationEmailAction,
   saveEmbeddedRegistrarFieldsAction,
 } from "../../../actions";
 
@@ -10,10 +11,12 @@ export function EmbeddedSubmissionAdminActions({
   submissionId,
   registrar,
   emailSentAt,
+  staffEmailSentAt,
 }: {
   submissionId: string;
   registrar: Record<string, string>;
   emailSentAt: string | null;
+  staffEmailSentAt: string | null;
 }) {
   const [msg, setMsg] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -40,9 +43,24 @@ export function EmbeddedSubmissionAdminActions({
         >
           Resend receipt email
         </button>
+        <button
+          type="button"
+          disabled={pending}
+          className="rounded-md border border-foreground/15 px-3 py-2 text-sm font-medium disabled:opacity-60"
+          onClick={() =>
+            startTransition(async () => {
+              const r = await resendEmbeddedStaffNotificationEmailAction(submissionId);
+              setMsg(r.ok ? "Staff notification sent (PDF + Stripe details)." : r.error);
+            })
+          }
+        >
+          Email staff copy
+        </button>
       </div>
       <p className="text-xs text-foreground/50">
         Receipt email: {emailSentAt ? `sent ${emailSentAt}` : "not sent yet"}
+        {" · "}
+        Staff copy: {staffEmailSentAt ? `sent ${staffEmailSentAt}` : "not sent yet"}
       </p>
       {msg ? <p className="text-sm text-foreground/70">{msg}</p> : null}
 

@@ -3,6 +3,7 @@ import path from "path";
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
 import { loadEmbeddedPhotoBytes } from "@/lib/embedded-photo-storage";
 import { responseToDisplayString } from "@/lib/embedded-form-validate";
+import { HTC_OVERLAY } from "@/lib/embedded-form-htc-pdf-layout";
 
 type Pt = { x: number; y: number; size?: number; maxWidth?: number };
 
@@ -101,88 +102,85 @@ export async function renderEmbeddedApplicationPdf(
   if (pages[0]) {
     const p = pages[0];
     const photoBytes = await loadEmbeddedPhotoBytes(input.photoObjectKey);
+    const photoBox = HTC_OVERLAY.page1.photo;
     if (photoBytes) {
       try {
         const img = await pdf.embedJpg(photoBytes);
-        p.drawImage(img, { x: 458, y: 548, width: 108, height: 136 });
+        p.drawImage(img, photoBox);
       } catch {
         try {
           const img = await pdf.embedPng(photoBytes);
-          p.drawImage(img, { x: 458, y: 548, width: 108, height: 136 });
+          p.drawImage(img, photoBox);
         } catch {
           /* skip photo */
         }
       }
     }
 
-    drawText(p, font, str(r, "fullName").toUpperCase(), { x: 58, y: 508, size: 11, maxWidth: 380 });
+    const p1 = HTC_OVERLAY.page1;
+    drawText(p, font, str(r, "fullName").toUpperCase(), p1.fullName);
 
-    if (str(r, "sex") === "Male") mark(p, 78, 470);
-    if (str(r, "sex") === "Female") mark(p, 148, 470);
+    if (str(r, "sex") === "Male") mark(p, p1.sexMale.x, p1.sexMale.y);
+    if (str(r, "sex") === "Female") mark(p, p1.sexFemale.x, p1.sexFemale.y);
 
-    drawText(p, font, str(r, "dobDay"), { x: 58, y: 422, size: 10, maxWidth: 70 });
-    drawText(p, font, str(r, "dobMonth"), { x: 148, y: 422, size: 10, maxWidth: 90 });
-    drawText(p, font, str(r, "dobYear"), { x: 268, y: 422, size: 10, maxWidth: 90 });
-    drawText(p, font, str(r, "ageNow"), { x: 400, y: 422, size: 10, maxWidth: 70 });
+    drawText(p, font, str(r, "dobMonth"), p1.dobMonth);
+    drawText(p, font, str(r, "dobDay"), p1.dobDay);
+    drawText(p, font, str(r, "dobYear"), p1.dobYear);
+    drawText(p, font, str(r, "ageNow"), p1.ageNow);
 
-    drawText(p, font, str(r, "nationality"), { x: 58, y: 372, size: 10, maxWidth: 150 });
-    drawText(p, font, str(r, "state"), { x: 230, y: 372, size: 10, maxWidth: 150 });
-    drawText(p, font, str(r, "county"), { x: 400, y: 372, size: 10, maxWidth: 150 });
+    drawText(p, font, str(r, "nationality"), p1.nationality);
+    drawText(p, font, str(r, "state"), p1.state);
+    drawText(p, font, str(r, "county"), p1.county);
 
-    drawText(p, font, str(r, "occupation"), { x: 58, y: 322, size: 10, maxWidth: 230 });
-    drawText(p, font, str(r, "motherTongue"), { x: 320, y: 322, size: 10, maxWidth: 230 });
+    drawText(p, font, str(r, "occupation"), p1.occupation);
+    drawText(p, font, str(r, "primaryLanguage") || str(r, "motherTongue"), p1.primaryLanguage);
 
-    drawText(p, font, str(r, "otherLanguages"), { x: 58, y: 272, size: 10, maxWidth: 500 });
-    drawText(p, font, str(r, "addressLine1"), { x: 58, y: 222, size: 10, maxWidth: 500 });
-    drawText(p, font, str(r, "addressLine2"), { x: 58, y: 178, size: 10, maxWidth: 500 });
+    drawText(p, font, str(r, "otherLanguages"), p1.otherLanguages);
+    drawText(p, font, str(r, "addressLine1"), p1.addressLine1);
+    drawText(p, font, str(r, "addressLine2"), p1.addressLine2);
   }
 
   // ——— Page 2: contact + family + church ———
   if (pages[1]) {
     const p = pages[1];
-    drawText(p, font, str(r, "email"), { x: 58, y: 720, size: 10, maxWidth: 260 });
-    drawText(p, font, str(r, "phone"), { x: 340, y: 720, size: 10, maxWidth: 200 });
+    const p2 = HTC_OVERLAY.page2;
+    drawText(p, font, str(r, "email"), p2.email);
+    drawText(p, font, str(r, "phone"), p2.phone);
 
-    drawText(p, font, str(r, "fatherGuardianName"), { x: 58, y: 660, size: 10, maxWidth: 500 });
-    drawText(p, font, str(r, "fatherGuardianAddress"), { x: 58, y: 610, size: 10, maxWidth: 500 });
-    drawText(p, font, str(r, "fatherGuardianOccupation"), { x: 58, y: 560, size: 10, maxWidth: 500 });
+    drawText(p, font, str(r, "fatherGuardianName"), p2.fatherGuardianName);
 
-    if (str(r, "maritalStatus") === "Married") mark(p, 78, 512);
-    if (str(r, "maritalStatus") === "Unmarried") mark(p, 168, 512);
-    drawText(p, font, str(r, "dateOfMarriage"), { x: 340, y: 512, size: 10, maxWidth: 200 });
-    drawText(p, font, str(r, "spouseName"), { x: 58, y: 478, size: 10, maxWidth: 500 });
+    if (str(r, "maritalStatus") === "Married") mark(p, p2.maritalMarried.x, p2.maritalMarried.y);
+    if (str(r, "maritalStatus") === "Unmarried") mark(p, p2.maritalUnmarried.x, p2.maritalUnmarried.y);
+    drawText(p, font, str(r, "dateOfMarriage"), p2.dateOfMarriage);
+    drawText(p, font, str(r, "spouseName"), p2.spouseName);
 
-    drawText(p, font, str(r, "child1NameAge"), { x: 58, y: 438, size: 9, maxWidth: 160 });
-    drawText(p, font, str(r, "child2NameAge"), { x: 230, y: 438, size: 9, maxWidth: 160 });
-    drawText(p, font, str(r, "child3NameAge"), { x: 400, y: 438, size: 9, maxWidth: 160 });
+    drawText(p, font, str(r, "child1NameAge"), p2.child1);
+    drawText(p, font, str(r, "child2NameAge"), p2.child2);
+    drawText(p, font, str(r, "child3NameAge"), p2.child3);
 
-    drawText(p, font, str(r, "churchAffiliation"), { x: 58, y: 380, size: 10, maxWidth: 500 });
-    drawText(p, font, str(r, "localChurchNameAddress"), { x: 58, y: 330, size: 10, maxWidth: 500 });
-    drawText(p, font, str(r, "localChurchPhone"), { x: 58, y: 288, size: 10, maxWidth: 220 });
+    drawText(p, font, str(r, "churchAffiliation"), p2.churchAffiliation);
+    drawText(p, font, str(r, "localChurchNameAddress"), p2.localChurchNameAddress);
+    drawText(p, font, str(r, "localChurchPhone"), p2.localChurchPhone);
 
-    drawText(p, font, str(r, "receivedJesusWhen"), { x: 58, y: 240, size: 10, maxWidth: 500 });
-    drawText(p, font, str(r, "waterBaptismWhen"), { x: 58, y: 192, size: 10, maxWidth: 500 });
-    drawText(p, font, str(r, "filledWithHolySpirit"), { x: 58, y: 144, size: 9, maxWidth: 500 });
-    drawText(p, font, str(r, "definiteCallForService"), { x: 58, y: 96, size: 9, maxWidth: 500 });
+    drawText(p, font, str(r, "receivedJesusWhen"), p2.receivedJesusWhen);
+    drawText(p, font, str(r, "waterBaptismWhen"), p2.waterBaptismWhen);
+    drawText(p, font, str(r, "filledWithHolySpirit"), p2.filledWithHolySpirit);
+    drawText(p, font, str(r, "definiteCallForService"), p2.definiteCallForService);
+    if (str(r, "ordainedPastor") === "Yes") mark(p, p2.ordainedYes.x, p2.ordainedYes.y);
+    if (str(r, "ordainedPastor") === "No") mark(p, p2.ordainedNo.x, p2.ordainedNo.y);
   }
 
   // ——— Page 3: ministry + education + motivation ———
   if (pages[2]) {
     const p = pages[2];
-    if (str(r, "ordainedPastor") === "Yes") mark(p, 210, 720);
-    if (str(r, "ordainedPastor") === "No") mark(p, 268, 720);
-    drawText(p, font, str(r, "ordinationDetails"), { x: 58, y: 678, size: 9, maxWidth: 500 });
-    drawText(p, font, str(r, "sinceHighSchool"), { x: 58, y: 620, size: 9, maxWidth: 500 });
-    drawText(p, font, str(r, "christianMinistryDetails"), { x: 58, y: 560, size: 9, maxWidth: 500 });
-    drawText(p, font, str(r, "awardsReceived"), { x: 58, y: 500, size: 9, maxWidth: 500 });
+    const p3 = HTC_OVERLAY.page3;
+    drawText(p, font, str(r, "ordinationDetails"), p3.ordinationDetails);
+    drawText(p, font, str(r, "sinceHighSchool"), p3.sinceHighSchool);
+    drawText(p, font, str(r, "christianMinistryDetails"), p3.christianMinistryDetails);
+    drawText(p, font, str(r, "awardsReceived"), p3.awardsReceived);
 
     // Education table rows — prefer dynamic educationEntries; fall back to legacy keys
-    const eduY: Record<string, number> = {
-      "High School": 390,
-      Undergrad: 360,
-      "Graduate School": 330,
-      "Other, if any": 300,
-    };
+    const eduY: Record<string, number> = { ...p3.educationRows };
     const legacyPrefix: Record<string, string> = {
       "High School": "highSchool",
       Undergrad: "undergrad",
@@ -210,15 +208,16 @@ export async function renderEmbeddedApplicationPdf(
       const passedFailed = fromEntries
         ? String(fromEntries.passedFailed ?? "")
         : str(r, `${prefix}PassedFailed`);
-      drawText(p, font, institution, { x: 118, y, size: 8, maxWidth: 150 });
-      drawText(p, font, completionDate, { x: 280, y, size: 8, maxWidth: 70 });
-      drawText(p, font, diplomaDegree, { x: 360, y, size: 8, maxWidth: 70 });
-      drawText(p, font, classDivision, { x: 440, y, size: 8, maxWidth: 55 });
-      drawText(p, font, passedFailed, { x: 510, y, size: 8, maxWidth: 55 });
+      const cols = p3.educationCols;
+      drawText(p, font, institution, { x: cols.institution, y, size: 8, maxWidth: 150 });
+      drawText(p, font, completionDate, { x: cols.completionDate, y, size: 8, maxWidth: 70 });
+      drawText(p, font, diplomaDegree, { x: cols.diplomaDegree, y, size: 8, maxWidth: 70 });
+      drawText(p, font, classDivision, { x: cols.classDivision, y, size: 8, maxWidth: 55 });
+      drawText(p, font, passedFailed, { x: cols.passedFailed, y, size: 8, maxWidth: 55 });
     }
 
-    drawText(p, font, str(r, "whyJoinProgramme"), { x: 58, y: 220, size: 9, maxWidth: 500 });
-    drawText(p, font, str(r, "discontinuedStudies"), { x: 58, y: 140, size: 9, maxWidth: 500 });
+    drawText(p, font, str(r, "whyJoinProgramme"), p3.whyJoinProgramme);
+    drawText(p, font, str(r, "discontinuedStudies"), p3.discontinuedStudies);
   }
 
   // ——— Page 4: health + references ———
@@ -255,43 +254,45 @@ export async function renderEmbeddedApplicationPdf(
       "muscle_or_bone_pain",
       "frequent_urination",
     ];
-    const startY = 668;
-    const rowH = 22;
+    const p4 = HTC_OVERLAY.page4;
+    const startY = p4.checkboxStartY;
+    const rowH = p4.checkboxRowH;
     for (let i = 0; i < 8; i++) {
       const y = startY - i * rowH;
-      if (hasCondition(r, col1[i]!)) mark(p, 52, y);
-      if (hasCondition(r, col2[i]!)) mark(p, 230, y);
-      if (hasCondition(r, col3[i]!)) mark(p, 408, y);
+      if (hasCondition(r, col1[i]!)) mark(p, p4.checkboxColX[0], y);
+      if (hasCondition(r, col2[i]!)) mark(p, p4.checkboxColX[1], y);
+      if (hasCondition(r, col3[i]!)) mark(p, p4.checkboxColX[2], y);
     }
 
-    drawText(p, font, str(r, "illnessHistory"), { x: 58, y: 460, size: 9, maxWidth: 240 });
-    drawText(p, font, str(r, "illnessStatusNow"), { x: 320, y: 460, size: 9, maxWidth: 240 });
+    drawText(p, font, str(r, "illnessHistory"), p4.illnessHistory);
+    drawText(p, font, str(r, "illnessStatusNow"), p4.illnessStatusNow);
 
-    drawText(p, font, str(r, "refPastorName"), { x: 58, y: 370, size: 10, maxWidth: 500 });
-    drawText(p, font, str(r, "refPastorAddress"), { x: 58, y: 338, size: 9, maxWidth: 320 });
-    drawText(p, font, str(r, "refPastorPhone"), { x: 400, y: 338, size: 9, maxWidth: 150 });
+    drawText(p, font, str(r, "refPastorName"), p4.refPastorName);
+    drawText(p, font, str(r, "refPastorAddress"), p4.refPastorAddress);
+    drawText(p, font, str(r, "refPastorPhone"), p4.refPastorPhone);
 
-    drawText(p, font, str(r, "refOfficialName"), { x: 58, y: 268, size: 10, maxWidth: 500 });
-    drawText(p, font, str(r, "refOfficialAddress"), { x: 58, y: 236, size: 9, maxWidth: 320 });
-    drawText(p, font, str(r, "refOfficialPhone"), { x: 400, y: 236, size: 9, maxWidth: 150 });
+    drawText(p, font, str(r, "refOfficialName"), p4.refOfficialName);
+    drawText(p, font, str(r, "refOfficialAddress"), p4.refOfficialAddress);
+    drawText(p, font, str(r, "refOfficialPhone"), p4.refOfficialPhone);
 
-    drawText(p, font, str(r, "refFriendName"), { x: 58, y: 166, size: 10, maxWidth: 500 });
-    drawText(p, font, str(r, "refFriendAddress"), { x: 58, y: 134, size: 9, maxWidth: 320 });
-    drawText(p, font, str(r, "refFriendPhone"), { x: 400, y: 134, size: 9, maxWidth: 150 });
+    drawText(p, font, str(r, "refFriendName"), p4.refFriendName);
+    drawText(p, font, str(r, "refFriendAddress"), p4.refFriendAddress);
+    drawText(p, font, str(r, "refFriendPhone"), p4.refFriendPhone);
   }
 
   // ——— Page 5: declaration + registrar ———
   if (pages[4]) {
     const p = pages[4];
+    const p5 = HTC_OVERLAY.page5;
     const declName = str(r, "declarationName") || input.applicantFullName;
-    drawText(p, font, declName, { x: 100, y: 700, size: 11, maxWidth: 420 });
+    drawText(p, font, declName, p5.declarationName);
 
-    drawText(p, font, str(r, "applicantSignatureDate"), { x: 58, y: 488, size: 10, maxWidth: 160 });
+    drawText(p, font, str(r, "applicantSignatureDate"), p5.applicantSignatureDate);
     drawText(
       p,
       italic,
       input.signatureTypedName?.trim() || str(r, "applicantSignature") || declName,
-      { x: 260, y: 488, size: 12, maxWidth: 280 },
+      p5.applicantSignature,
     );
 
     const received = str(admin, "registrarDateReceived");
@@ -301,16 +302,16 @@ export async function renderEmbeddedApplicationPdf(
     const decisionDate = str(admin, "registrarDecisionDate");
     const registrarSig = str(admin, "registrarSignature");
 
-    drawText(p, font, received, { x: 58, y: 330, size: 10, maxWidth: 200 });
-    drawText(p, font, fees, { x: 320, y: 330, size: 10, maxWidth: 220 });
-    drawText(p, font, appNo, { x: 58, y: 275, size: 10, maxWidth: 220 });
+    drawText(p, font, received, p5.registrarDateReceived);
+    drawText(p, font, fees, p5.registrarFeesReceived);
+    drawText(p, font, appNo, p5.registrarApplicationNumber);
 
-    if (decision === "Approved") mark(p, 360, 275);
-    if (decision === "Rejected") mark(p, 440, 275);
-    if (decision === "Referred") mark(p, 520, 275);
+    if (decision === "Approved") mark(p, p5.decisionApproved.x, p5.decisionApproved.y);
+    if (decision === "Rejected") mark(p, p5.decisionRejected.x, p5.decisionRejected.y);
+    if (decision === "Referred") mark(p, p5.decisionReferred.x, p5.decisionReferred.y);
 
-    drawText(p, font, decisionDate, { x: 58, y: 210, size: 10, maxWidth: 180 });
-    drawText(p, italic, registrarSig, { x: 280, y: 210, size: 11, maxWidth: 260 });
+    drawText(p, font, decisionDate, p5.registrarDecisionDate);
+    drawText(p, italic, registrarSig, p5.registrarSignature);
   }
 
   // Page 6 remains instructions-only (no overlays).

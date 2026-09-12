@@ -32,13 +32,11 @@ const requiredKeys = [
   "nationality",
   "state",
   "occupation",
-  "motherTongue",
+  "primaryLanguage",
   "addressLine1",
   "email",
   "phone",
   "fatherGuardianName",
-  "fatherGuardianAddress",
-  "fatherGuardianOccupation",
   "maritalStatus",
   "spouseName",
   "dateOfMarriage",
@@ -112,10 +110,21 @@ assert(
   "submission section should not include passport photo",
 );
 
+assert(!applicantKeys.has("motherTongue"), "motherTongue should be primaryLanguage");
+assert(!applicantKeys.has("fatherGuardianAddress"), "father/guardian address was removed");
+assert(!applicantKeys.has("fatherGuardianOccupation"), "father/guardian occupation was removed");
+const marital = def.fields.find((f) => f.key === "maritalStatus");
+assert(marital?.label.startsWith("9."), "maritalStatus should be field 9");
 const spouse = def.fields.find((f) => f.key === "spouseName");
+assert(spouse?.label.startsWith("10."), "spouseName should be field 10");
 assert(spouse?.showWhen?.equals === "Married", "spouseName should show when Married");
 const child1 = def.fields.find((f) => f.key === "child1NameAge");
 assert(child1?.showWhen?.equals === "Married", "children should show when Married");
+const dobMonth = def.fields.find((f) => f.key === "dobMonth");
+const dobDay = def.fields.find((f) => f.key === "dobDay");
+assert((dobMonth?.order ?? 99) < (dobDay?.order ?? 0), "DOB should be Month then Day");
+const primaryLang = def.fields.find((f) => f.key === "primaryLanguage");
+assert(primaryLang?.label === "Primary language", "primaryLanguage label mismatch");
 
 const ordination = def.fields.find((f) => f.key === "ordinationDetails");
 assert(ordination?.showWhen?.fieldKey === "ordainedPastor", "ordinationDetails conditional missing");

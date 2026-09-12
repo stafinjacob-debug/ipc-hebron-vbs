@@ -90,13 +90,22 @@ export async function createEmbeddedApplicationStripeCheckout(params: {
 export async function markEmbeddedSubmissionPaidFromStripeSession(args: {
   submissionId: string;
   amountTotal: number | null;
+  paymentIntentId?: string | null;
 }): Promise<boolean> {
   const existing = await prisma.embeddedFormSubmission.findUnique({
     where: { id: args.submissionId },
     select: { stripePaymentStatus: true },
   });
   if (!existing) return false;
-  if (existing.stripePaymentStatus === "paid") return true;
+  if (existing.stripePaymentStatus === "paid") {
+    if (args.paymentIntentId?.trim()) {
+      await prisma.embeddedFormSubmission.update({
+        where: { id: args.submissionId },
+        data: { stripePaymentIntentId: args.paymentIntentId.trim() },
+      });
+    }
+    return true;
+  }
 
   const paidAt = new Date();
   await prisma.embeddedFormSubmission.update({
@@ -106,6 +115,9 @@ export async function markEmbeddedSubmissionPaidFromStripeSession(args: {
       stripePaidAt: paidAt,
       ...(args.amountTotal != null && args.amountTotal > 0
         ? { stripeAmountChargedCents: args.amountTotal }
+        : {}),
+      ...(args.paymentIntentId?.trim()
+        ? { stripePaymentIntentId: args.paymentIntentId.trim() }
         : {}),
     },
   });

@@ -59,6 +59,7 @@ export default async function EmbeddedFormDetailPage({
         emailFromName={form.emailFromName ?? ""}
         emailSubject={form.emailSubject ?? ""}
         helpEmail={form.helpEmail ?? ""}
+        notificationEmail={form.notificationEmail ?? ""}
         helpPhone={form.helpPhone ?? ""}
         applicationNumberPrefix={form.applicationNumberPrefix ?? ""}
         pdfTemplateKey={form.pdfTemplateKey ?? ""}

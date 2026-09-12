@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getStripeClient } from "@/lib/stripe-registration-payment";
 import { markEmbeddedSubmissionPaidFromStripeSession } from "@/lib/embedded-stripe-payment";
-import { sendEmbeddedApplicationReceivedEmail } from "@/lib/email/embedded-application-email";
+import { sendEmbeddedApplicationFollowUpEmails } from "@/lib/email/embedded-application-email";
 import { formatUsdFromCents } from "@/lib/stripe-fee-math";
 
 export default async function EmbeddedFormThanksPage({
@@ -36,9 +36,14 @@ export default async function EmbeddedFormThanksPage({
         const session = await stripe.checkout.sessions.retrieve(sp.session_id.trim());
         const submissionId = session.metadata?.embeddedFormSubmissionId?.trim();
         if (submissionId && session.payment_status === "paid") {
+          const paymentIntentId =
+            typeof session.payment_intent === "string"
+              ? session.payment_intent
+              : session.payment_intent?.id ?? null;
           await markEmbeddedSubmissionPaidFromStripeSession({
             submissionId,
             amountTotal: session.amount_total ?? null,
+            paymentIntentId,
           });
           const submission = await prisma.embeddedFormSubmission.findUnique({
             where: { id: submissionId },
@@ -47,8 +52,8 @@ export default async function EmbeddedFormThanksPage({
             applicationNumber = submission.applicationNumber;
             paymentStatus = "paid";
             chargedCents = submission.stripeAmountChargedCents;
-            if (!submission.applicationReceivedEmailSentAt) {
-              void sendEmbeddedApplicationReceivedEmail(submission.id).catch((err) => {
+            if (!submission.applicationReceivedEmailSentAt || !submission.staffNotificationEmailSentAt) {
+              void sendEmbeddedApplicationFollowUpEmails(submission.id).catch((err) => {
                 console.error("[embedded thanks email]", err);
               });
             }

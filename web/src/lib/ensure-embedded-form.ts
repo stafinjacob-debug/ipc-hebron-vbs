@@ -20,6 +20,9 @@ export async function ensureHtcEmbeddedForm() {
     welcomeMessage: HTC_FORM_DEFAULTS.welcomeMessage,
     confirmationMessage: HTC_FORM_DEFAULTS.confirmationMessage,
     instructions: HTC_FORM_DEFAULTS.instructions,
+    notificationEmail: existing?.notificationEmail?.trim()
+      ? existing.notificationEmail
+      : HTC_FORM_DEFAULTS.notificationEmail,
   };
 
   if (existing) {
@@ -27,7 +30,8 @@ export async function ensureHtcEmbeddedForm() {
       existing.draftDefinitionJson !== defJson ||
       existing.publishedDefinitionJson !== defJson ||
       !existing.stripeCheckoutEnabled ||
-      existing.stripeAmountCents !== HTC_FORM_DEFAULTS.stripeAmountCents;
+      existing.stripeAmountCents !== HTC_FORM_DEFAULTS.stripeAmountCents ||
+      !existing.notificationEmail?.trim();
     if (!changed) return existing;
     return prisma.embeddedForm.update({
       where: { id: existing.id },
@@ -57,6 +61,7 @@ export async function ensureHtcEmbeddedForm() {
       emailSubject: HTC_FORM_DEFAULTS.emailSubject,
       helpEmail: HTC_FORM_DEFAULTS.helpEmail,
       helpPhone: HTC_FORM_DEFAULTS.helpPhone,
+      notificationEmail: HTC_FORM_DEFAULTS.notificationEmail,
       draftDefinitionJson: defJson,
       publishedDefinitionJson: defJson,
       publishedAt: new Date(),

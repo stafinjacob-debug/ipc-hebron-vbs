@@ -19,6 +19,7 @@ export function EmbeddedFormAdminPanel({
   emailFromName,
   emailSubject,
   helpEmail,
+  notificationEmail,
   helpPhone,
   applicationNumberPrefix,
   pdfTemplateKey,
@@ -36,6 +37,7 @@ export function EmbeddedFormAdminPanel({
   emailFromName: string;
   emailSubject: string;
   helpEmail: string;
+  notificationEmail: string;
   helpPhone: string;
   applicationNumberPrefix: string;
   pdfTemplateKey: string;
@@ -141,8 +143,21 @@ export function EmbeddedFormAdminPanel({
             <input name="emailSubject" defaultValue={emailSubject} className="w-full rounded-md border border-foreground/15 bg-transparent px-3 py-2" />
           </label>
           <label className="block text-sm">
-            <span className="mb-1 block text-foreground/60">Help email</span>
+            <span className="mb-1 block text-foreground/60">Help email (shown to applicants)</span>
             <input name="helpEmail" defaultValue={helpEmail} className="w-full rounded-md border border-foreground/15 bg-transparent px-3 py-2" />
+          </label>
+          <label className="block text-sm md:col-span-2">
+            <span className="mb-1 block text-foreground/60">Submission notification email</span>
+            <input
+              name="notificationEmail"
+              type="email"
+              defaultValue={notificationEmail}
+              className="w-full rounded-md border border-foreground/15 bg-transparent px-3 py-2"
+            />
+            <span className="mt-1 block text-xs text-foreground/50">
+              Each paid application is emailed here with every field response, the filled PDF, and Stripe
+              transaction details. Change this anytime.
+            </span>
           </label>
           <label className="block text-sm">
             <span className="mb-1 block text-foreground/60">Help phone</span>
@@ -165,6 +180,10 @@ export function EmbeddedFormAdminPanel({
           <span className="mb-1 block text-foreground/60">Instructions (shown on receipt / PDF page 6 context)</span>
           <textarea name="instructions" defaultValue={instructions} rows={3} className="w-full rounded-md border border-foreground/15 bg-transparent px-3 py-2" />
         </label>
+        <p className="text-xs text-foreground/50">
+          Stripe application fee is $50 (same church Stripe credentials). Card processing is included so
+          the college receives the full $50.
+        </p>
         <button type="submit" disabled={pending} className="rounded-md bg-foreground px-3 py-2 text-sm font-semibold text-background disabled:opacity-60">
           Save settings
         </button>

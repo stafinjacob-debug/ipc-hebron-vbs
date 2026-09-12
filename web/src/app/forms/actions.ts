@@ -7,7 +7,7 @@ import { parseEmbeddedApplicantForm } from "@/lib/embedded-form-validate";
 import { storeEmbeddedCandidatePhoto } from "@/lib/embedded-photo-storage";
 import { storeEmbeddedAcademicDocuments } from "@/lib/embedded-document-storage";
 import { issueEmbeddedApplicationNumber } from "@/lib/ensure-embedded-form";
-import { sendEmbeddedApplicationReceivedEmail } from "@/lib/email/embedded-application-email";
+import { sendEmbeddedApplicationFollowUpEmails } from "@/lib/email/embedded-application-email";
 import { createEmbeddedApplicationStripeCheckout } from "@/lib/embedded-stripe-payment";
 import { Prisma } from "@/generated/prisma";
 
@@ -179,7 +179,7 @@ export async function submitEmbeddedFormPublic(
       };
     }
 
-    void sendEmbeddedApplicationReceivedEmail(submission.id).catch((err) => {
+    void sendEmbeddedApplicationFollowUpEmails(submission.id).catch((err) => {
       console.error("[embedded submit email]", err);
     });
 
