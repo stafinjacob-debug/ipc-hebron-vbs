@@ -70,7 +70,6 @@ export async function ensureHtcEmbeddedForm() {
       emailSubject: HTC_FORM_DEFAULTS.emailSubject,
       helpEmail: HTC_FORM_DEFAULTS.helpEmail,
       helpPhone: HTC_FORM_DEFAULTS.helpPhone,
-      notificationEmail: HTC_FORM_DEFAULTS.notificationEmail,
       draftDefinitionJson: defJson,
       publishedDefinitionJson: defJson,
       publishedAt: new Date(),
