@@ -233,7 +233,7 @@ export function CheckInPacketForm({
           accept=".pdf,.png,.jpg,.jpeg,.webp,.doc,.docx,application/pdf,image/png,image/jpeg,image/webp"
           className="mt-1 block w-full text-sm text-foreground file:mr-3 file:rounded-md file:border-0 file:bg-brand/10 file:px-3 file:py-2 file:text-sm file:font-medium file:text-brand hover:file:bg-brand/15"
         />
-        <p className="mt-1 text-xs text-muted">PDF, PNG, JPEG, WebP, DOC, or DOCX — max 3 MB.</p>
+        <p className="mt-1 text-xs text-muted">PDF, PNG, JPEG, WebP, DOC, or DOCX — max 10 MB.</p>
       </div>
 
       <div className="space-y-3 rounded-lg border border-amber-500/25 bg-amber-500/5 px-4 py-3">

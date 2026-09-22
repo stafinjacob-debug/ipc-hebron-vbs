@@ -1,5 +1,5 @@
 import type { GraphMailAttachment } from "@/lib/email/microsoft-graph";
-import { sendMailViaMicrosoftGraph } from "@/lib/email/microsoft-graph";
+import { sendMailViaMicrosoftGraphAllowingLargeAttachments } from "@/lib/email/microsoft-graph";
 import { compactTicketBlock, emailShell } from "@/lib/email/registration-emails";
 import type { RegistrationContactFooterInput } from "@/lib/email/registration-contact-footer-html";
 import { registrationContactFooterHtml } from "@/lib/email/registration-contact-footer-html";
@@ -108,7 +108,7 @@ export async function sendCheckInPacketEmail(args: {
     ${registrationContactFooterHtml(args.contactFooter ?? defaultContactFooter())}
   `;
 
-  const result = await sendMailViaMicrosoftGraph({
+  const result = await sendMailViaMicrosoftGraphAllowingLargeAttachments({
     toAddress: args.recipient.email,
     toName: args.recipient.guardianName,
     subject: args.subject,

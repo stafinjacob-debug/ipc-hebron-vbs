@@ -28,7 +28,7 @@ export type CheckInPacketActionState = {
 };
 
 const MAX_CHECK_IN_PACKET_RECIPIENTS = 1000;
-const MAX_ATTACHMENT_BYTES = 3 * 1024 * 1024;
+const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
 
 const ALLOWED_ATTACHMENT_TYPES = new Set([
   "application/pdf",
@@ -54,7 +54,7 @@ async function parseCheckInPacketAttachment(
   }
 
   if (file.size > MAX_ATTACHMENT_BYTES) {
-    return { ok: false, error: "Attachment must be 3 MB or smaller." };
+    return { ok: false, error: "Attachment must be 10 MB or smaller." };
   }
 
   const contentType = file.type.trim() || "application/octet-stream";
