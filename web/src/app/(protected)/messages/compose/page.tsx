@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { ComposeEmailForm } from "@/app/(protected)/messages/compose-email-form";
 import { MessagesFolderNav } from "@/app/(protected)/messages/messages-folder-nav";
+import { configuredGraphMailboxAddress } from "@/lib/messages/graph-mailbox";
 import { prisma } from "@/lib/prisma";
 import { canManageDirectory, canViewOperations } from "@/lib/roles";
 
@@ -13,6 +14,7 @@ export default async function ComposeMessagePage() {
   if (!canViewOperations(session.user.role)) redirect("/dashboard");
   if (!canManageDirectory(session.user.role)) redirect("/messages");
 
+  const mailbox = configuredGraphMailboxAddress();
   const seasons = await prisma.vbsSeason.findMany({
     orderBy: [{ year: "desc" }, { startDate: "desc" }],
     select: { id: true, name: true, year: true },
@@ -26,7 +28,11 @@ export default async function ComposeMessagePage() {
             <Mail className="size-6 text-brand" aria-hidden />
             Compose email
           </h1>
-          <p className="mt-1 text-sm text-muted">Sends from your configured Microsoft 365 mailbox.</p>
+          <p className="mt-1 text-sm text-muted">
+            {mailbox
+              ? <>Sends from <span className="font-medium text-foreground">{mailbox}</span>.</>
+              : "Sends from your configured Microsoft 365 mailbox."}
+          </p>
         </div>
         <MessagesFolderNav current="compose" showCompose />
       </div>

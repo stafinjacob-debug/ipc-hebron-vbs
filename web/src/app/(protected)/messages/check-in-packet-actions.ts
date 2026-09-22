@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
 import {
+  COMPOSE_TO_EMAIL_RE,
   parseComposeRegistrantAudience,
   recipientsForCheckInPacketAudience,
   statsForCheckInPacketAudience,
@@ -104,6 +105,101 @@ export async function previewCheckInPacketAudienceAction(
   return { ok: true, ...stats };
 }
 
+async function loadCheckInPacketSendContext(seasonId: string) {
+  const emailCtx = await loadRegistrationEmailContext(seasonId);
+  const season = await prisma.vbsSeason.findUnique({
+    where: { id: seasonId },
+    select: { publicRegistrationSlug: true, name: true },
+  });
+  return {
+    portal: { publicRegistrationSlug: season?.publicRegistrationSlug ?? null },
+    fromName: season?.name?.trim() || null,
+    contactFooter: emailCtx ? registrationContactFooterInput(emailCtx) : null,
+  };
+}
+
+export async function sendCheckInPacketTestAction(
+  _prevState: CheckInPacketActionState,
+  formData: FormData,
+): Promise<CheckInPacketActionState> {
+  void _prevState;
+
+  const session = await auth();
+  if (!session?.user?.role || !canManageDirectory(session.user.role)) {
+    return { ok: false, error: "You do not have permission to send check-in packets." };
+  }
+
+  if (!isMicrosoftGraphEmailConfigured()) {
+    return { ok: false, error: "Microsoft Graph email is not configured on the server." };
+  }
+
+  const seasonId = String(formData.get("seasonId") ?? "").trim();
+  const audienceRaw = String(formData.get("registrantAudience") ?? "").trim();
+  const subject = String(formData.get("subject") ?? "").trim();
+  const body = String(formData.get("body") ?? "").trim();
+  const testTo = String(formData.get("testTo") ?? "").trim();
+
+  if (!seasonId) return { ok: false, error: "Choose a season." };
+  if (!subject) return { ok: false, error: "Subject is required." };
+  if (!testTo || !COMPOSE_TO_EMAIL_RE.test(testTo)) {
+    return { ok: false, error: "Enter a valid test email address." };
+  }
+
+  const audience = parseComposeRegistrantAudience(audienceRaw);
+  if (!audience) return { ok: false, error: "Choose a registrant group." };
+
+  const attachmentResult = await parseCheckInPacketAttachment(formData);
+  if (!attachmentResult.ok) return { ok: false, error: attachmentResult.error };
+
+  const { recipients } = await recipientsForCheckInPacketAudience(seasonId, audience);
+  if (recipients.length === 0) {
+    return {
+      ok: false,
+      error:
+        "No families with check-in cards match this group, so there is no sample packet to send. Confirm registrations first.",
+    };
+  }
+
+  const sample = recipients[0]!;
+  const { portal, fromName, contactFooter } = await loadCheckInPacketSendContext(seasonId);
+  const testSubject = subject.startsWith("[TEST]") ? subject : `[TEST] ${subject}`;
+  const testBanner =
+    `<p style="margin:0 0 14px;padding:10px 12px;border-radius:8px;background:#fef3c7;color:#92400e;font-size:14px;">` +
+    `<strong>Test send only.</strong> This uses sample check-in cards from ` +
+    `${sample.guardianName} (${sample.children.length} child card${sample.children.length === 1 ? "" : "s"}). ` +
+    `Families were not emailed.</p>`;
+  const introHtml = `${testBanner}${plainTextEmailBodyToHtml(body)}`;
+
+  const result = await sendCheckInPacketEmail({
+    recipient: {
+      email: testTo,
+      guardianName: sample.guardianName,
+      children: sample.children,
+    },
+    subject: testSubject,
+    introHtml,
+    attachment: attachmentResult.attachment,
+    portal,
+    fromName,
+    contactFooter,
+  });
+
+  if (!result.ok) {
+    return { ok: false, error: result.error || "Could not send the test check-in packet." };
+  }
+
+  revalidatePath("/messages/sent");
+  revalidatePath("/messages/check-in-packet");
+
+  const attachNote = attachmentResult.attachment
+    ? ` Attachment "${attachmentResult.attachment.fileName}" included.`
+    : "";
+  return {
+    ok: true,
+    message: `Test check-in packet sent to ${testTo} (sample: ${sample.guardianName}, ${sample.children.length} child card${sample.children.length === 1 ? "" : "s"}).${attachNote}`,
+  };
+}
+
 export async function sendCheckInPacketAction(
   _prevState: CheckInPacketActionState,
   formData: FormData,
@@ -134,14 +230,7 @@ export async function sendCheckInPacketAction(
   if (!attachmentResult.ok) return { ok: false, error: attachmentResult.error };
 
   const { recipients, stats } = await recipientsForCheckInPacketAudience(seasonId, audience);
-  const emailCtx = await loadRegistrationEmailContext(seasonId);
-  const season = await prisma.vbsSeason.findUnique({
-    where: { id: seasonId },
-    select: { publicRegistrationSlug: true, name: true },
-  });
-  const portal = { publicRegistrationSlug: season?.publicRegistrationSlug ?? null };
-  const fromName = season?.name?.trim() || null;
-  const contactFooter = emailCtx ? registrationContactFooterInput(emailCtx) : null;
+  const { portal, fromName, contactFooter } = await loadCheckInPacketSendContext(seasonId);
   if (recipients.length === 0) {
     return {
       ok: false,

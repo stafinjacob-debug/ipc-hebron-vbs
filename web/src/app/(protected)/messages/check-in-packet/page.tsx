@@ -40,7 +40,7 @@ export default async function CheckInPacketPage() {
       </p>
 
       <div className="max-w-3xl rounded-xl border border-foreground/10 bg-surface-elevated p-5">
-        <CheckInPacketForm seasons={seasons} />
+        <CheckInPacketForm seasons={seasons} defaultTestTo={session.user.email ?? ""} />
       </div>
     </section>
   );

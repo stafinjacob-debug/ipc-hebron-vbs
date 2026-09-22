@@ -7,6 +7,7 @@ import { MessageSyncButton } from "@/app/(protected)/messages/message-sync-butto
 import { MessagesFolderNav } from "@/app/(protected)/messages/messages-folder-nav";
 import { SentMessagesTable } from "@/app/(protected)/messages/sent-messages-table";
 import { prisma } from "@/lib/prisma";
+import { configuredGraphMailboxAddress } from "@/lib/messages/graph-mailbox";
 import { canManageDirectory, canViewOperations } from "@/lib/roles";
 import { formatAppDateTime } from "@/lib/app-timezone";
 
@@ -23,6 +24,7 @@ export default async function IncomingMessagesPage({
   if (!session?.user?.role) redirect("/login");
   if (!canViewOperations(session.user.role)) redirect("/dashboard");
 
+  const mailbox = configuredGraphMailboxAddress();
   const sp = await searchParams;
   const view = (sp.view ?? "").trim().toLowerCase() === "sent" ? "sent" : "inbox";
   const q = (sp.q ?? "").trim();
@@ -71,7 +73,11 @@ export default async function IncomingMessagesPage({
               <Mail className="size-6 text-brand" aria-hidden />
               Sent messages
             </h1>
-            <p className="mt-1 text-sm text-muted">Synced from your Microsoft 365 Sent Items folder.</p>
+            <p className="mt-1 text-sm text-muted">
+              {mailbox
+                ? <>Synced from <span className="font-medium text-foreground">{mailbox}</span> Sent Items.</>
+                : "Synced from your Microsoft 365 Sent Items folder."}
+            </p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <MessagesFolderNav current="sent" showCompose={showCompose} />
@@ -159,7 +165,11 @@ export default async function IncomingMessagesPage({
             <Mail className="size-6 text-brand" aria-hidden />
             Incoming messages
           </h1>
-          <p className="mt-1 text-sm text-muted">Synced from your Microsoft 365 inbox.</p>
+          <p className="mt-1 text-sm text-muted">
+            {mailbox
+              ? <>Synced from <span className="font-medium text-foreground">{mailbox}</span>.</>
+              : "Synced from your Microsoft 365 inbox."}
+          </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <MessagesFolderNav current="inbox" showCompose={showCompose} />
