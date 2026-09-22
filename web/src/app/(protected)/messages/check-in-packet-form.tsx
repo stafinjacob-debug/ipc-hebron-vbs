@@ -240,8 +240,8 @@ export function CheckInPacketForm({
         <div>
           <p className="text-sm font-medium text-foreground">Send a test first</p>
           <p className="mt-0.5 text-xs text-muted">
-            Delivers one sample packet (real check-in cards from the first matching family) only to the address below.
-            Families are not emailed.
+            Delivers one sample packet only to the address below (real check-in cards when available, otherwise a demo
+            card). Families are not emailed.
           </p>
         </div>
         <div>

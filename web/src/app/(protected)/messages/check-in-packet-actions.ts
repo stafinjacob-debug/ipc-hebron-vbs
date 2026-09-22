@@ -7,6 +7,7 @@ import {
   parseComposeRegistrantAudience,
   recipientsForCheckInPacketAudience,
   statsForCheckInPacketAudience,
+  type CheckInPacketRecipient,
 } from "@/lib/compose-registrant-audience";
 import {
   sendCheckInPacketEmail,
@@ -19,6 +20,7 @@ import {
 import { isMicrosoftGraphEmailConfigured } from "@/lib/email/microsoft-graph";
 import { plainTextEmailBodyToHtml } from "@/lib/email/plain-text-email-html";
 import { prisma } from "@/lib/prisma";
+import { makeCheckInToken } from "@/lib/registration-identity";
 import { canManageDirectory } from "@/lib/roles";
 
 export type CheckInPacketActionState = {
@@ -109,12 +111,97 @@ async function loadCheckInPacketSendContext(seasonId: string) {
   const emailCtx = await loadRegistrationEmailContext(seasonId);
   const season = await prisma.vbsSeason.findUnique({
     where: { id: seasonId },
-    select: { publicRegistrationSlug: true, name: true },
+    select: { publicRegistrationSlug: true, name: true, year: true },
   });
   return {
     portal: { publicRegistrationSlug: season?.publicRegistrationSlug ?? null },
     fromName: season?.name?.trim() || null,
+    seasonName: season?.name?.trim() || "VBS",
+    seasonYear: season?.year ?? new Date().getFullYear(),
     contactFooter: emailCtx ? registrationContactFooterInput(emailCtx) : null,
+  };
+}
+
+/** Prefer audience match, then any season card, then a synthetic demo packet for layout tests. */
+async function resolveCheckInPacketTestSample(
+  seasonId: string,
+  audience: NonNullable<ReturnType<typeof parseComposeRegistrantAudience>>,
+): Promise<{
+  recipient: CheckInPacketRecipient;
+  source: "audience" | "season" | "demo";
+}> {
+  const { recipients } = await recipientsForCheckInPacketAudience(seasonId, audience);
+  if (recipients[0]) {
+    return { recipient: recipients[0], source: "audience" };
+  }
+
+  const row = await prisma.registration.findFirst({
+    where: {
+      seasonId,
+      registrationNumber: { not: null },
+      checkInToken: { not: null },
+      child: { guardian: { email: { not: null } } },
+    },
+    select: {
+      registrationNumber: true,
+      checkInToken: true,
+      status: true,
+      child: {
+        select: {
+          firstName: true,
+          lastName: true,
+          guardian: { select: { email: true, firstName: true, lastName: true } },
+        },
+      },
+      classroom: { select: { name: true } },
+      season: { select: { name: true } },
+    },
+    orderBy: [{ child: { firstName: "asc" } }],
+  });
+
+  const registrationNumber = row?.registrationNumber?.trim() ?? "";
+  const checkInToken = row?.checkInToken?.trim() ?? "";
+  const email = row?.child.guardian.email?.trim() ?? "";
+  if (row && registrationNumber && checkInToken && email && COMPOSE_TO_EMAIL_RE.test(email)) {
+    const guardian = row.child.guardian;
+    return {
+      source: "season",
+      recipient: {
+        email,
+        guardianName: `${guardian.firstName} ${guardian.lastName}`.trim() || email,
+        children: [
+          {
+            firstName: row.child.firstName,
+            lastName: row.child.lastName,
+            registrationNumber,
+            checkInToken,
+            status: row.status,
+            classroomName: row.classroom?.name ?? null,
+            seasonName: row.season.name,
+          },
+        ],
+      },
+    };
+  }
+
+  const ctx = await loadCheckInPacketSendContext(seasonId);
+  return {
+    source: "demo",
+    recipient: {
+      email: "demo@example.com",
+      guardianName: "Sample Parent",
+      children: [
+        {
+          firstName: "Sample",
+          lastName: "Child",
+          registrationNumber: `TEST-${ctx.seasonYear}-001`,
+          checkInToken: makeCheckInToken(),
+          status: "CONFIRMED",
+          classroomName: "Sample Class",
+          seasonName: ctx.seasonName,
+        },
+      ],
+    },
   };
 }
 
@@ -151,30 +238,27 @@ export async function sendCheckInPacketTestAction(
   const attachmentResult = await parseCheckInPacketAttachment(formData);
   if (!attachmentResult.ok) return { ok: false, error: attachmentResult.error };
 
-  const { recipients } = await recipientsForCheckInPacketAudience(seasonId, audience);
-  if (recipients.length === 0) {
-    return {
-      ok: false,
-      error:
-        "No families with check-in cards match this group, so there is no sample packet to send. Confirm registrations first.",
-    };
-  }
-
-  const sample = recipients[0]!;
+  const sample = await resolveCheckInPacketTestSample(seasonId, audience);
   const { portal, fromName, contactFooter } = await loadCheckInPacketSendContext(seasonId);
   const testSubject = subject.startsWith("[TEST]") ? subject : `[TEST] ${subject}`;
+
+  const sourceNote =
+    sample.source === "demo"
+      ? "This uses a demo check-in card (no matching families with QR tokens yet)."
+      : sample.source === "season"
+        ? `No cards in the selected group — using a sample from another family in this season (${sample.recipient.guardianName}).`
+        : `This uses sample check-in cards from ${sample.recipient.guardianName} (${sample.recipient.children.length} child card${sample.recipient.children.length === 1 ? "" : "s"}).`;
+
   const testBanner =
     `<p style="margin:0 0 14px;padding:10px 12px;border-radius:8px;background:#fef3c7;color:#92400e;font-size:14px;">` +
-    `<strong>Test send only.</strong> This uses sample check-in cards from ` +
-    `${sample.guardianName} (${sample.children.length} child card${sample.children.length === 1 ? "" : "s"}). ` +
-    `Families were not emailed.</p>`;
+    `<strong>Test send only.</strong> ${sourceNote} Families were not emailed.</p>`;
   const introHtml = `${testBanner}${plainTextEmailBodyToHtml(body)}`;
 
   const result = await sendCheckInPacketEmail({
     recipient: {
       email: testTo,
-      guardianName: sample.guardianName,
-      children: sample.children,
+      guardianName: sample.recipient.guardianName,
+      children: sample.recipient.children,
     },
     subject: testSubject,
     introHtml,
@@ -194,9 +278,13 @@ export async function sendCheckInPacketTestAction(
   const attachNote = attachmentResult.attachment
     ? ` Attachment "${attachmentResult.attachment.fileName}" included.`
     : "";
+  const sampleNote =
+    sample.source === "demo"
+      ? "demo check-in card"
+      : `${sample.recipient.guardianName}, ${sample.recipient.children.length} child card${sample.recipient.children.length === 1 ? "" : "s"}`;
   return {
     ok: true,
-    message: `Test check-in packet sent to ${testTo} (sample: ${sample.guardianName}, ${sample.children.length} child card${sample.children.length === 1 ? "" : "s"}).${attachNote}`,
+    message: `Test check-in packet sent to ${testTo} (sample: ${sampleNote}).${attachNote}`,
   };
 }
 
