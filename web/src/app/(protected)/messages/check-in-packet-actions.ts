@@ -113,10 +113,13 @@ async function loadCheckInPacketSendContext(seasonId: string) {
     where: { id: seasonId },
     select: { publicRegistrationSlug: true, name: true, year: true },
   });
+  const seasonName = season?.name?.trim() || emailCtx?.eventName?.trim() || "VBS";
   return {
     portal: { publicRegistrationSlug: season?.publicRegistrationSlug ?? null },
-    fromName: season?.name?.trim() || null,
-    seasonName: season?.name?.trim() || "VBS",
+    fromName: seasonName,
+    eventName: seasonName,
+    teamPhrase: emailCtx?.teamPhrase ?? null,
+    seasonName,
     seasonYear: season?.year ?? new Date().getFullYear(),
     contactFooter: emailCtx ? registrationContactFooterInput(emailCtx) : null,
   };
@@ -239,7 +242,8 @@ export async function sendCheckInPacketTestAction(
   if (!attachmentResult.ok) return { ok: false, error: attachmentResult.error };
 
   const sample = await resolveCheckInPacketTestSample(seasonId, audience);
-  const { portal, fromName, contactFooter } = await loadCheckInPacketSendContext(seasonId);
+  const { portal, fromName, eventName, teamPhrase, contactFooter } =
+    await loadCheckInPacketSendContext(seasonId);
   const testSubject = subject.startsWith("[TEST]") ? subject : `[TEST] ${subject}`;
 
   const sourceNote =
@@ -265,6 +269,8 @@ export async function sendCheckInPacketTestAction(
     attachment: attachmentResult.attachment,
     portal,
     fromName,
+    eventName,
+    teamPhrase,
     contactFooter,
   });
 
@@ -318,7 +324,8 @@ export async function sendCheckInPacketAction(
   if (!attachmentResult.ok) return { ok: false, error: attachmentResult.error };
 
   const { recipients, stats } = await recipientsForCheckInPacketAudience(seasonId, audience);
-  const { portal, fromName, contactFooter } = await loadCheckInPacketSendContext(seasonId);
+  const { portal, fromName, eventName, teamPhrase, contactFooter } =
+    await loadCheckInPacketSendContext(seasonId);
   if (recipients.length === 0) {
     return {
       ok: false,
@@ -346,6 +353,8 @@ export async function sendCheckInPacketAction(
       attachment: attachmentResult.attachment,
       portal,
       fromName,
+      eventName,
+      teamPhrase,
       contactFooter,
     });
     if (result.ok) {

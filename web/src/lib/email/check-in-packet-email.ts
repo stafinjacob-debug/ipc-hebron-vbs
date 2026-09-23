@@ -15,7 +15,7 @@ function escapeHtml(s: string): string {
     .replace(/"/g, "&quot;");
 }
 
-function brandName(): string {
+function defaultBrandName(): string {
   return (
     process.env.REGISTRATION_EMAIL_BRAND?.trim() ||
     process.env.EMAIL_FROM_DISPLAY_NAME?.trim() ||
@@ -47,10 +47,15 @@ export async function sendCheckInPacketEmail(args: {
   portal?: { publicRegistrationSlug: string | null | undefined };
   /** Graph sender display name (e.g. season / event name). */
   fromName?: string | null;
+  /** Large header title in the email shell — prefer the season / event name. */
+  eventName?: string | null;
+  teamPhrase?: string | null;
   contactFooter?: RegistrationContactFooterInput | null;
 }): Promise<CheckInPacketSendResult> {
   const base = getPublicAppBaseUrl();
   const portal = args.portal ?? { publicRegistrationSlug: null };
+  const eventTitle =
+    args.eventName?.trim() || args.fromName?.trim() || defaultBrandName();
   const attachments: GraphMailAttachment[] = [];
   let blocks = "";
   let ticketIndex = 0;
@@ -93,16 +98,11 @@ export async function sendCheckInPacketEmail(args: {
 
   const intro = args.introHtml.trim()
     ? `<div style="margin:0 0 16px;">${args.introHtml}</div>`
-    : `<p style="margin:0 0 14px;">Your check-in details for <strong>${escapeHtml(brandName())}</strong> are below. Save this email and show each QR code at the welcome desk.</p>`;
-
-  const attachmentNote = args.attachment
-    ? `<p style="margin:0 0 14px;font-size:14px;color:#475569;">A file is attached to this email: <strong>${escapeHtml(args.attachment.fileName)}</strong>.</p>`
-    : "";
+    : `<p style="margin:0 0 14px;">Your check-in details for <strong>${escapeHtml(eventTitle)}</strong> are below. Save this email and show each QR code at the welcome desk.</p>`;
 
   const inner = `
     <p style="margin:0 0 12px;">Hi ${escapeHtml(args.recipient.guardianName)},</p>
     ${intro}
-    ${attachmentNote}
     <table role="presentation" width="100%" cellspacing="0" cellpadding="0">${blocks}</table>
     <p style="margin:10px 0 0;font-size:13px;color:#64748b;">Show each child&apos;s digital card (QR code) at check-in. Screenshot for offline use if helpful.</p>
     ${registrationContactFooterHtml(args.contactFooter ?? defaultContactFooter())}
@@ -112,7 +112,12 @@ export async function sendCheckInPacketEmail(args: {
     toAddress: args.recipient.email,
     toName: args.recipient.guardianName,
     subject: args.subject,
-    htmlBody: emailShell(inner),
+    htmlBody: emailShell(inner, {
+      brandName: eventTitle,
+      eventName: "Check-in",
+      teamPhrase: args.teamPhrase?.trim() || undefined,
+      isLegacyVbs: false,
+    }),
     attachments,
     fromName: args.fromName,
   });

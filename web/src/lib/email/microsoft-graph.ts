@@ -315,6 +315,8 @@ async function sendMailViaDraftAndUpload(
           name: attachment.name,
           contentType: attachment.contentType,
           contentBytes: attachment.contentBytesBase64,
+          isInline: attachment.isInline ?? false,
+          ...(attachment.contentId ? { contentId: attachment.contentId } : {}),
         }),
       });
       if (!add.ok) {
@@ -360,7 +362,7 @@ async function sendMailViaDraftAndUpload(
   return { ok: true };
 }
 
-/** Sends one or more Graph messages so supporting documents are not dropped by the 4 MB sendMail limit. */
+/** Sends mail with attachments, using draft upload when needed so file attachments stay on one message. */
 export async function sendMailViaMicrosoftGraphAllowingLargeAttachments(
   input: SendGraphMailInput,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
@@ -368,33 +370,19 @@ export async function sendMailViaMicrosoftGraphAllowingLargeAttachments(
   if (attachments.length === 0) return sendMailViaMicrosoftGraph(input);
 
   const total = attachments.reduce((sum, a) => sum + graphAttachmentRawBytes(a), 0);
-  if (total <= GRAPH_SIMPLE_SEND_ATTACHMENT_BUDGET) {
-    return sendMailViaMicrosoftGraph(input);
-  }
+  const hasDownloadable = attachments.some((a) => !a.isInline);
 
-  const draft = await sendMailViaDraftAndUpload(input);
-  if (draft.ok) return draft;
-  console.error("[graph mail] draft/upload failed, falling back to batched sendMail", draft.error);
-
-  const batches = packGraphAttachmentBatches(attachments);
-  let sent = 0;
-  for (let i = 0; i < batches.length; i++) {
-    const batch = batches[i]!;
-    if (batch.some((a) => graphAttachmentRawBytes(a) > GRAPH_SIMPLE_SEND_ATTACHMENT_BUDGET)) {
-      continue;
+  // Keep downloadable files on the same message as the HTML body. Batched sendMail can leave the
+  // body email with only a filename note while the PDF goes to a separate (or failed) message.
+  if (hasDownloadable || total > GRAPH_SIMPLE_SEND_ATTACHMENT_BUDGET) {
+    const draft = await sendMailViaDraftAndUpload(input);
+    if (draft.ok) return draft;
+    console.error("[graph mail] draft/upload failed", draft.error);
+    if (total <= GRAPH_SIMPLE_SEND_ATTACHMENT_BUDGET) {
+      return sendMailViaMicrosoftGraph(input);
     }
-    const result = await sendMailViaMicrosoftGraph({
-      ...input,
-      subject: i === 0 ? input.subject : `${input.subject} (supporting documents ${i + 1})`,
-      htmlBody:
-        i === 0
-          ? input.htmlBody
-          : "<p>Additional supporting documents for this application are attached.</p>",
-      attachments: batch,
-    });
-    if (!result.ok) return result;
-    sent += 1;
+    return draft;
   }
-  if (sent === 0) return draft;
-  return { ok: true };
+
+  return sendMailViaMicrosoftGraph(input);
 }
