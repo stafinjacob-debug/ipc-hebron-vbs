@@ -115,7 +115,7 @@ export async function sendCheckInPacketEmail(args: {
     htmlBody: emailShell(inner, {
       brandName: eventTitle,
       eventName: "Check-in",
-      teamPhrase: args.teamPhrase?.trim() || undefined,
+      ...(args.teamPhrase?.trim() ? { teamPhrase: args.teamPhrase.trim() } : {}),
       isLegacyVbs: false,
     }),
     attachments,
