@@ -187,7 +187,12 @@ async function main() {
     console.log("season", season.name, season.id);
 
     const { recipients, stats } = await recipientsForCheckInPacketAudience(season.id, "all_active");
-    const remaining = recipients.filter((r) => !ALREADY_SENT.has(r.email.trim().toLowerCase()));
+    const onlyEmail = process.env.ONLY_EMAIL?.trim().toLowerCase() || "";
+    let remaining = recipients.filter((r) => !ALREADY_SENT.has(r.email.trim().toLowerCase()));
+    if (onlyEmail) {
+      remaining = recipients.filter((r) => r.email.trim().toLowerCase() === onlyEmail);
+      console.log("onlyEmailFilter", onlyEmail, "matched", remaining.length);
+    }
 
     console.log("audienceStats", stats);
     console.log("alreadySentExcluded", ALREADY_SENT.size);
@@ -236,9 +241,11 @@ async function main() {
         contactFooter,
       });
       if (result.ok) return result;
-      const retryable = /429|IncomingBytes|throttl|rate.?limit/i.test(result.error);
-      if (retryable && attempt < 6) {
-        const waitMs = Math.min(120_000, 8_000 * 2 ** (attempt - 1));
+      const retryable = /429|IncomingBytes|throttl|rate.?limit|504|Gateway Timeout|timeout/i.test(
+        result.error,
+      );
+      if (retryable && attempt < 8) {
+        const waitMs = Math.min(180_000, 10_000 * 2 ** (attempt - 1));
         console.log("retryWait", recipient.email, `attempt=${attempt}`, `waitMs=${waitMs}`, result.error);
         await new Promise((r) => setTimeout(r, waitMs));
         return sendWithRetry(recipient, attempt + 1);

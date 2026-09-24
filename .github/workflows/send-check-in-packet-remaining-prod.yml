@@ -13,6 +13,10 @@ on:
         description: "Must be yes to actually send"
         required: true
         default: "no"
+      only_email:
+        description: "Optional: send only to this one email (skip exclude list)"
+        required: false
+        default: ""
 
 jobs:
   send:
@@ -75,4 +79,5 @@ jobs:
           CANONICAL_PUBLIC_URL: https://events.ipchouston.com
           DRY_RUN: ${{ inputs.dry_run }}
           CONFIRM_SEND: ${{ inputs.confirm_send }}
+          ONLY_EMAIL: ${{ inputs.only_email }}
         run: npx tsx scripts/send-check-in-packet-remaining.ts
