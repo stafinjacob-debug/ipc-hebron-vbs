@@ -245,6 +245,130 @@ jobs:
                   statuses: [...f.statuses],
                 })),
             );
+
+            // Payment audiences (same filters as compose/packet UI)
+            const { mergeRegistrationPaymentStatusFilter } = await import(
+              "./src/lib/registration-list-payment.ts"
+            );
+            for (const kind of ["paid", "due", "checkout_pending", "not_required"] as const) {
+              const where = {
+                seasonId: united.id,
+                status: { in: ["PENDING", "CONFIRMED", "WAITLIST"] as RegistrationStatus[] },
+              };
+              mergeRegistrationPaymentStatusFilter(where, kind);
+              const payRows = await prisma.registration.findMany({
+                where,
+                select: {
+                  registrationNumber: true,
+                  checkInToken: true,
+                  child: { select: { guardian: { select: { email: true } } } },
+                },
+              });
+              const elig = new Set<string>();
+              for (const r of payRows) {
+                const email = r.child.guardian.email?.trim().toLowerCase() ?? "";
+                if (!email || !EMAIL_RE.test(email)) continue;
+                if (!r.registrationNumber?.trim() || !r.checkInToken?.trim()) continue;
+                elig.add(email);
+              }
+              const known = [
+                "mathew.joshua@gmail.com","jobyt3@gmail.com","jomon3@outlook.com","litty27@hotmail.com",
+                "wtmathew@gmail.com","bencyab@hotmail.com","andrewbabu06@gmail.com","jomy.george26@gmail.com",
+                "wvarkey@gmail.com","alanjohngeorge75@gmail.com","biju360@yahoo.com","cbcofjc@sbcglobal.net",
+                "jbkuriyan@gmail.com","gbewin@yahoo.com",
+              ];
+              console.log(
+                "paymentAudience",
+                JSON.stringify({
+                  kind,
+                  regs: payRows.length,
+                  eligFamilies: elig.size,
+                  known14Overlap: known.filter((e) => elig.has(e)).length,
+                  exactMatchKnown14: elig.size === 14 && known.every((e) => elig.has(e)),
+                }),
+              );
+            }
+
+            // Profile the 14 who actually received mail
+            const knownEmails = [
+              "mathew.joshua@gmail.com","jobyt3@gmail.com","jomon3@outlook.com","litty27@hotmail.com",
+              "wtmathew@gmail.com","bencyab@hotmail.com","andrewbabu06@gmail.com","jomy.george26@gmail.com",
+              "wvarkey@gmail.com","alanjohngeorge75@gmail.com","biju360@yahoo.com","cbcofjc@sbcglobal.net",
+              "jbkuriyan@gmail.com","gbewin@yahoo.com",
+            ];
+            const knownRows = await prisma.registration.findMany({
+              where: {
+                seasonId: united.id,
+                child: { guardian: { email: { in: knownEmails, mode: "insensitive" } } },
+              },
+              select: {
+                status: true,
+                expectsPayment: true,
+                paymentReceivedAt: true,
+                classroomId: true,
+                classroom: { select: { name: true } },
+                formSubmission: { select: { stripePaymentStatus: true, payLaterChosen: true } },
+                child: { select: { guardian: { select: { email: true } } } },
+              },
+            });
+            const byStatus: Record<string, number> = {};
+            const byClass: Record<string, number> = {};
+            const byPay: Record<string, number> = {};
+            const famStatus = new Map<string, Set<string>>();
+            for (const r of knownRows) {
+              byStatus[r.status] = (byStatus[r.status] || 0) + 1;
+              const cls = r.classroom?.name ?? "(unassigned)";
+              byClass[cls] = (byClass[cls] || 0) + 1;
+              const payKey = `expects=${r.expectsPayment};paidAt=${Boolean(r.paymentReceivedAt)};stripe=${r.formSubmission?.stripePaymentStatus ?? "none"};payLater=${r.formSubmission?.payLaterChosen ?? false}`;
+              byPay[payKey] = (byPay[payKey] || 0) + 1;
+              const e = r.child.guardian.email!.trim().toLowerCase();
+              if (!famStatus.has(e)) famStatus.set(e, new Set());
+              famStatus.get(e)!.add(r.status);
+            }
+            console.log("known14_regCount", knownRows.length);
+            console.log("known14_byStatus", byStatus);
+            console.log("known14_byClass", byClass);
+            console.log("known14_byPay", byPay);
+            const famMix: Record<string, number> = {};
+            for (const s of famStatus.values()) {
+              const k = [...s].sort().join("+");
+              famMix[k] = (famMix[k] || 0) + 1;
+            }
+            console.log("known14_familyStatusMix", famMix);
+
+            // Classroom-assigned active families (possible mental filter)
+            const assigned = activeRows.filter((r) => {
+              // need classroom - refetch light
+              return true;
+            });
+            void assigned;
+            const withClass = await prisma.registration.findMany({
+              where: {
+                seasonId: united.id,
+                status: { in: activeStatuses },
+                classroomId: { not: null },
+              },
+              select: {
+                registrationNumber: true,
+                checkInToken: true,
+                child: { select: { guardian: { select: { email: true } } } },
+              },
+            });
+            const classElig = new Set<string>();
+            for (const r of withClass) {
+              const email = r.child.guardian.email?.trim().toLowerCase() ?? "";
+              if (!email || !EMAIL_RE.test(email)) continue;
+              if (!r.registrationNumber?.trim() || !r.checkInToken?.trim()) continue;
+              classElig.add(email);
+            }
+            console.log(
+              "classroomAssignedEligibleFamilies",
+              classElig.size,
+              "known14Overlap",
+              knownEmails.filter((e) => classElig.has(e)).length,
+              "exactMatchKnown14",
+              classElig.size === 14 && knownEmails.every((e) => classElig.has(e)),
+            );
           }
 
           main()
