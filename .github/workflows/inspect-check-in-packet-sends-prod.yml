@@ -1,0 +1,103 @@
+# One-off read-only: inspect production Graph Sent Items for check-in packet bulk sends.
+# Does not send email.
+name: Inspect Check-In Packet Sends (Production)
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install dependencies
+        env:
+          DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
+        run: npm ci
+
+      - name: Azure Login (production)
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.PROD_AZURE_CREDENTIALS }}
+
+      - name: Load Graph settings from prod App Service
+        id: graph
+        env:
+          WEBAPP_NAME: ${{ secrets.PROD_AZURE_WEBAPP_NAME }}
+        run: |
+          set -euo pipefail
+          RG=rg-ipc-hebron-vbs-prod
+          NAME="$WEBAPP_NAME"
+          echo "webapp=$NAME rg=$RG"
+          # Export settings into GITHUB_ENV without printing secret values
+          for key in MICROSOFT_GRAPH_TENANT_ID MICROSOFT_GRAPH_CLIENT_ID MICROSOFT_GRAPH_CLIENT_SECRET MICROSOFT_GRAPH_MAILBOX EMAIL_FROM_DISPLAY_NAME; do
+            val=$(az webapp config appsettings list -g "$RG" -n "$NAME" --query "[?name=='$key'].value | [0]" -o tsv)
+            if [ -z "$val" ] || [ "$val" = "None" ]; then
+              echo "missing_setting=$key" >> "$GITHUB_OUTPUT"
+              echo "Missing app setting: $key"
+            else
+              echo "$key=$val" >> "$GITHUB_ENV"
+              if [ "$key" = "MICROSOFT_GRAPH_MAILBOX" ] || [ "$key" = "EMAIL_FROM_DISPLAY_NAME" ]; then
+                echo "setting $key=$val"
+              else
+                echo "setting $key=(set, ${#val} chars)"
+              fi
+            fi
+          done
+
+      - name: Inspect Graph Sent Items (read-only)
+        run: npx tsx scripts/inspect-check-in-packet-sends.ts
+
+      - name: Inspect synced SentMailboxMessage rows (read-only)
+        env:
+          DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
+        run: |
+          npx tsx <<'EOF'
+          import { PrismaClient } from "./src/generated/prisma";
+          const prisma = new PrismaClient();
+          async function main() {
+            const since = new Date(Date.now() - 14 * 24 * 3600 * 1000);
+            const rows = await prisma.sentMailboxMessage.findMany({
+              where: { sentAt: { gte: since } },
+              orderBy: { sentAt: "desc" },
+              take: 300,
+              select: { subject: true, toDisplay: true, sentAt: true, bodyPreview: true },
+            });
+            console.log("dbSentLast14d", rows.length);
+            const packet = rows.filter(
+              (m) =>
+                /packet|check-?in|welcome|retreat/i.test(m.subject) ||
+                /check-?in|digital card|registration #/i.test(m.bodyPreview ?? ""),
+            );
+            console.log("dbPacketRelated", packet.length);
+            const counts = new Map<string, number>();
+            for (const m of packet) counts.set(m.subject, (counts.get(m.subject) || 0) + 1);
+            console.log(
+              "dbPacketBySubject",
+              [...counts.entries()].sort((a, b) => b[1] - a[1]),
+            );
+            console.log(
+              "dbSample",
+              packet.slice(0, 25).map((m) => ({
+                subject: m.subject,
+                to: m.toDisplay,
+                sentAt: m.sentAt.toISOString(),
+              })),
+            );
+            await prisma.$disconnect();
+          }
+          main().catch(async (e) => {
+            console.error(e);
+            process.exit(1);
+          });
+          EOF
