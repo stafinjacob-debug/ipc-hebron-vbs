@@ -58,46 +58,202 @@ jobs:
       - name: Inspect Graph Sent Items (read-only)
         run: npx tsx scripts/inspect-check-in-packet-sends.ts
 
-      - name: Inspect synced SentMailboxMessage rows (read-only)
+      - name: Inspect packet eligibility vs active registrations (read-only)
         env:
           DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
         run: |
           npx tsx <<'EOF'
-          import { PrismaClient } from "./src/generated/prisma";
-          const prisma = new PrismaClient();
+          import { PrismaPg } from "@prisma/adapter-pg";
+          import { Pool } from "pg";
+          import { PrismaClient, type RegistrationStatus } from "./src/generated/prisma";
+
+          const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+          const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+          const prisma = new PrismaClient({ adapter: new PrismaPg(pool) });
+
           async function main() {
-            const since = new Date(Date.now() - 14 * 24 * 3600 * 1000);
-            const rows = await prisma.sentMailboxMessage.findMany({
-              where: { sentAt: { gte: since } },
-              orderBy: { sentAt: "desc" },
-              take: 300,
-              select: { subject: true, toDisplay: true, sentAt: true, bodyPreview: true },
+            const seasons = await prisma.vbsSeason.findMany({
+              select: { id: true, name: true, year: true, isActive: true },
+              orderBy: { year: "desc" },
             });
-            console.log("dbSentLast14d", rows.length);
-            const packet = rows.filter(
-              (m) =>
-                /packet|check-?in|welcome|retreat/i.test(m.subject) ||
-                /check-?in|digital card|registration #/i.test(m.bodyPreview ?? ""),
-            );
-            console.log("dbPacketRelated", packet.length);
-            const counts = new Map<string, number>();
-            for (const m of packet) counts.set(m.subject, (counts.get(m.subject) || 0) + 1);
+            console.log("seasons", seasons.map((s) => `${s.year} ${s.name} active=${s.isActive}`));
+
+            const united =
+              seasons.find((s) => /united/i.test(s.name)) ??
+              seasons.find((s) => s.isActive) ??
+              seasons[0];
+            if (!united) throw new Error("no season");
+            console.log("usingSeason", united.name, united.id);
+
+            const statuses = ["PENDING", "CONFIRMED", "WAITLIST", "CANCELLED", "CHECKED_OUT"] as RegistrationStatus[];
+            const byStatus: Record<string, number> = {};
+            for (const st of statuses) {
+              byStatus[st] = await prisma.registration.count({
+                where: { seasonId: united.id, status: st },
+              });
+            }
+            console.log("registrationsByStatus", byStatus);
+
+            const activeStatuses = ["PENDING", "CONFIRMED", "WAITLIST"] as RegistrationStatus[];
+            const activeRows = await prisma.registration.findMany({
+              where: { seasonId: united.id, status: { in: activeStatuses } },
+              select: {
+                status: true,
+                registrationNumber: true,
+                checkInToken: true,
+                child: {
+                  select: {
+                    guardian: { select: { email: true, firstName: true, lastName: true } },
+                  },
+                },
+              },
+            });
+
+            function stats(rows: typeof activeRows) {
+              const families = new Set<string>();
+              const eligFamilies = new Set<string>();
+              let skipEmail = 0;
+              let skipId = 0;
+              let eligKids = 0;
+              for (const row of rows) {
+                const email = row.child.guardian.email?.trim() ?? "";
+                const key =
+                  email && EMAIL_RE.test(email)
+                    ? email.toLowerCase()
+                    : `name:${row.child.guardian.firstName}|${row.child.guardian.lastName}`.toLowerCase();
+                families.add(key);
+                if (!email || !EMAIL_RE.test(email)) {
+                  skipEmail += 1;
+                  continue;
+                }
+                if (!row.registrationNumber?.trim() || !row.checkInToken?.trim()) {
+                  skipId += 1;
+                  continue;
+                }
+                eligKids += 1;
+                eligFamilies.add(email.toLowerCase());
+              }
+              return {
+                registrations: rows.length,
+                families: families.size,
+                packetEligibleFamilies: eligFamilies.size,
+                packetEligibleChildren: eligKids,
+                skippedRegsNoEmail: skipEmail,
+                skippedRegsNoRegNumOrToken: skipId,
+              };
+            }
+
+            console.log("audienceAllActive", stats(activeRows));
+            console.log("audienceConfirmedDefault", stats(activeRows.filter((r) => r.status === "CONFIRMED")));
+            console.log("audiencePending", stats(activeRows.filter((r) => r.status === "PENDING")));
+            console.log("audienceWaitlist", stats(activeRows.filter((r) => r.status === "WAITLIST")));
+
+            // Family-level: who would / would not get a packet under all_active
+            type Fam = {
+              email: string;
+              name: string;
+              elig: number;
+              missingId: number;
+              noEmail: number;
+              statuses: Set<string>;
+            };
+            const famMap = new Map<string, Fam>();
+            for (const row of activeRows) {
+              const g = row.child.guardian;
+              const email = g.email?.trim() ?? "";
+              const key =
+                email && EMAIL_RE.test(email)
+                  ? email.toLowerCase()
+                  : `name:${g.firstName}|${g.lastName}`.toLowerCase();
+              let f = famMap.get(key);
+              if (!f) {
+                f = {
+                  email: email && EMAIL_RE.test(email) ? email.toLowerCase() : "(no valid email)",
+                  name: `${g.firstName} ${g.lastName}`.trim(),
+                  elig: 0,
+                  missingId: 0,
+                  noEmail: 0,
+                  statuses: new Set(),
+                };
+                famMap.set(key, f);
+              }
+              f.statuses.add(row.status);
+              if (!email || !EMAIL_RE.test(email)) {
+                f.noEmail += 1;
+                continue;
+              }
+              if (!row.registrationNumber?.trim() || !row.checkInToken?.trim()) {
+                f.missingId += 1;
+                continue;
+              }
+              f.elig += 1;
+            }
+            const fams = [...famMap.values()];
+            const would = fams.filter((f) => f.elig > 0);
+            const wouldNot = fams.filter((f) => f.elig === 0);
             console.log(
-              "dbPacketBySubject",
-              [...counts.entries()].sort((a, b) => b[1] - a[1]),
+              "activeFamilyPacketSplit",
+              JSON.stringify(
+                {
+                  totalActiveFamilies: fams.length,
+                  wouldReceivePacket_allActiveAudience: would.length,
+                  wouldNotReceivePacket: wouldNot.length,
+                  reasonNoValidEmail: wouldNot.filter((f) => f.email === "(no valid email)").length,
+                  reasonMissingRegNumOrQrToken: wouldNot.filter((f) => f.email !== "(no valid email)").length,
+                },
+                null,
+                2,
+              ),
             );
+
+            const statusMix: Record<string, number> = {};
+            for (const f of wouldNot) {
+              const k = [...f.statuses].sort().join("+");
+              statusMix[k] = (statusMix[k] || 0) + 1;
+            }
+            console.log("familiesNotReceiving_statusMix", statusMix);
+
+            const known = [
+              "mathew.joshua@gmail.com","jobyt3@gmail.com","jomon3@outlook.com","litty27@hotmail.com",
+              "wtmathew@gmail.com","bencyab@hotmail.com","andrewbabu06@gmail.com","jomy.george26@gmail.com",
+              "wvarkey@gmail.com","alanjohngeorge75@gmail.com","biju360@yahoo.com","cbcofjc@sbcglobal.net",
+              "jbkuriyan@gmail.com","gbewin@yahoo.com",
+            ];
+            const elig = new Set(would.map((f) => f.email));
+            console.log("known14InEligible", known.filter((e) => elig.has(e)).length, "of", known.length);
+            console.log("eligibleBeyondKnown14Count", [...elig].filter((e) => !known.includes(e)).length);
+
+            // Confirmed-only eligible list size vs known 14
+            const confirmedElig = new Set(
+              fams
+                .filter((f) => f.elig > 0 && [...f.statuses].includes("CONFIRMED"))
+                .map((f) => f.email),
+            );
+            // More accurate: recompute confirmed-only from rows
+            const confirmedStats = stats(activeRows.filter((r) => r.status === "CONFIRMED"));
+            console.log("confirmedEligibleMatchesKnown14", confirmedStats.packetEligibleFamilies === 14);
+
             console.log(
-              "dbSample",
-              packet.slice(0, 25).map((m) => ({
-                subject: m.subject,
-                to: m.toDisplay,
-                sentAt: m.sentAt.toISOString(),
-              })),
+              "sampleWouldNot_missingIdentity",
+              wouldNot
+                .filter((f) => f.email !== "(no valid email)")
+                .slice(0, 15)
+                .map((f) => ({
+                  name: f.name,
+                  email: f.email,
+                  kidsMissingToken: f.missingId,
+                  statuses: [...f.statuses],
+                })),
             );
-            await prisma.$disconnect();
           }
-          main().catch(async (e) => {
-            console.error(e);
-            process.exit(1);
-          });
+
+          main()
+            .catch((e) => {
+              console.error(e);
+              process.exit(1);
+            })
+            .finally(async () => {
+              await prisma.$disconnect();
+              await pool.end();
+            });
           EOF
