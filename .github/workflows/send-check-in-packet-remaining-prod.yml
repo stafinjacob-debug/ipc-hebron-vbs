@@ -47,19 +47,27 @@ jobs:
           set -euo pipefail
           RG=rg-ipc-hebron-vbs-prod
           NAME="$WEBAPP_NAME"
-          for key in MICROSOFT_GRAPH_TENANT_ID MICROSOFT_GRAPH_CLIENT_ID MICROSOFT_GRAPH_CLIENT_SECRET MICROSOFT_GRAPH_MAILBOX EMAIL_FROM_DISPLAY_NAME; do
+          for key in MICROSOFT_GRAPH_TENANT_ID MICROSOFT_GRAPH_CLIENT_ID MICROSOFT_GRAPH_CLIENT_SECRET MICROSOFT_GRAPH_MAILBOX; do
             val=$(az webapp config appsettings list -g "$RG" -n "$NAME" --query "[?name=='$key'].value | [0]" -o tsv)
             if [ -z "$val" ] || [ "$val" = "None" ]; then
               echo "Missing app setting: $key"
               exit 1
             fi
             echo "$key=$val" >> "$GITHUB_ENV"
-            if [ "$key" = "MICROSOFT_GRAPH_MAILBOX" ] || [ "$key" = "EMAIL_FROM_DISPLAY_NAME" ]; then
+            if [ "$key" = "MICROSOFT_GRAPH_MAILBOX" ]; then
               echo "setting $key=$val"
             else
               echo "setting $key=(set, ${#val} chars)"
             fi
           done
+          # Optional display name
+          val=$(az webapp config appsettings list -g "$RG" -n "$NAME" --query "[?name=='EMAIL_FROM_DISPLAY_NAME'].value | [0]" -o tsv)
+          if [ -n "$val" ] && [ "$val" != "None" ]; then
+            echo "EMAIL_FROM_DISPLAY_NAME=$val" >> "$GITHUB_ENV"
+            echo "setting EMAIL_FROM_DISPLAY_NAME=$val"
+          else
+            echo "EMAIL_FROM_DISPLAY_NAME not set on App Service (ok)"
+          fi
 
       - name: Send remaining check-in packets
         env:
