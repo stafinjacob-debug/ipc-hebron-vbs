@@ -1,0 +1,70 @@
+# Send UNITED ‘26 check-in packets to remaining families (excludes the 14 already sent).
+# Uses the same subject/body/PDF from Sent Items + personalized check-in cards.
+name: Send Check-In Packet Remaining (Production)
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Set to 1 to list recipients only (no send)"
+        required: false
+        default: "0"
+      confirm_send:
+        description: "Must be yes to actually send"
+        required: true
+        default: "no"
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install dependencies
+        env:
+          DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
+        run: npm ci
+
+      - name: Azure Login (production)
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.PROD_AZURE_CREDENTIALS }}
+
+      - name: Load Graph settings from prod App Service
+        env:
+          WEBAPP_NAME: ${{ secrets.PROD_AZURE_WEBAPP_NAME }}
+        run: |
+          set -euo pipefail
+          RG=rg-ipc-hebron-vbs-prod
+          NAME="$WEBAPP_NAME"
+          for key in MICROSOFT_GRAPH_TENANT_ID MICROSOFT_GRAPH_CLIENT_ID MICROSOFT_GRAPH_CLIENT_SECRET MICROSOFT_GRAPH_MAILBOX EMAIL_FROM_DISPLAY_NAME; do
+            val=$(az webapp config appsettings list -g "$RG" -n "$NAME" --query "[?name=='$key'].value | [0]" -o tsv)
+            if [ -z "$val" ] || [ "$val" = "None" ]; then
+              echo "Missing app setting: $key"
+              exit 1
+            fi
+            echo "$key=$val" >> "$GITHUB_ENV"
+            if [ "$key" = "MICROSOFT_GRAPH_MAILBOX" ] || [ "$key" = "EMAIL_FROM_DISPLAY_NAME" ]; then
+              echo "setting $key=$val"
+            else
+              echo "setting $key=(set, ${#val} chars)"
+            fi
+          done
+
+      - name: Send remaining check-in packets
+        env:
+          DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
+          CANONICAL_PUBLIC_URL: https://events.ipchouston.com
+          DRY_RUN: ${{ inputs.dry_run }}
+          CONFIRM_SEND: ${{ inputs.confirm_send }}
+        run: npx tsx scripts/send-check-in-packet-remaining.ts
