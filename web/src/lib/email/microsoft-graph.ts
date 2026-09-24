@@ -364,8 +364,8 @@ async function sendMailViaDraftAndUpload(
 
 /**
  * Sends mail with attachments.
- * Prefer `/sendMail` (Mail.Send) when the payload fits. Draft/upload is only used for larger
- * payloads and needs Mail.ReadWrite — if that 403s, fall back to `/sendMail` when possible.
+ * Prefer `/sendMail` (Mail.Send) first — draft/upload needs Mail.ReadWrite and can burn
+ * Graph IncomingBytes quota even when it 403s. Fall back to draft only if simple send fails.
  */
 export async function sendMailViaMicrosoftGraphAllowingLargeAttachments(
   input: SendGraphMailInput,
@@ -373,31 +373,30 @@ export async function sendMailViaMicrosoftGraphAllowingLargeAttachments(
   const attachments = input.attachments ?? [];
   if (attachments.length === 0) return sendMailViaMicrosoftGraph(input);
 
-  const total = attachments.reduce((sum, a) => sum + graphAttachmentRawBytes(a), 0);
+  const simple = await sendMailViaMicrosoftGraph(input);
+  if (simple.ok) return simple;
 
-  // Mail.Send + /sendMail keeps inline QR images and the PDF on one message when size allows.
+  const total = attachments.reduce((sum, a) => sum + graphAttachmentRawBytes(a), 0);
   if (total <= GRAPH_SIMPLE_SEND_ATTACHMENT_BUDGET) {
-    return sendMailViaMicrosoftGraph(input);
+    return simple;
   }
 
   const draft = await sendMailViaDraftAndUpload(input);
   if (draft.ok) return draft;
 
-  console.error("[graph mail] draft/upload failed", draft.error);
+  console.error("[graph mail] draft/upload failed after sendMail", draft.error, "sendMail:", simple.error);
+
   const denied =
     /403|access is denied|forbidden|insufficient privileges/i.test(draft.error) ||
     draft.error.includes("Access is denied");
-
-  // One more attempt via /sendMail — Graph sometimes accepts payloads near the documented limit.
-  const simple = await sendMailViaMicrosoftGraph(input);
-  if (simple.ok) return simple;
 
   if (denied) {
     return {
       ok: false,
       error:
+        simple.error ||
         "This attachment is too large for simple send, and Graph draft upload is blocked (needs Mail.ReadWrite on the app). " +
-        "Grant Microsoft Graph Application permission Mail.ReadWrite with admin consent, or use a smaller file (under ~3 MB with the QR cards).",
+          "Grant Microsoft Graph Application permission Mail.ReadWrite with admin consent, or use a smaller file (under ~3 MB with the QR cards).",
     };
   }
 

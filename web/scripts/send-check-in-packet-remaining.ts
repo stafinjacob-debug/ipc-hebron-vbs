@@ -16,9 +16,10 @@ import {
   registrationContactFooterInput,
 } from "../src/lib/email/registration-email-context";
 
-/** Families who already received the bulk UNITED ‘26 check-in packet today. */
+/** Families who already received a UNITED ‘26 check-in packet (original bulk + partial retry). */
 const ALREADY_SENT = new Set(
   [
+    // Original bulk of 14
     "mathew.joshua@gmail.com",
     "jobyt3@gmail.com",
     "jomon3@outlook.com",
@@ -33,6 +34,21 @@ const ALREADY_SENT = new Set(
     "cbcofjc@sbcglobal.net",
     "jbkuriyan@gmail.com",
     "gbewin@yahoo.com",
+    // Sent successfully in first remaining run (14 of 80)
+    "bg0fven@tamu.edu",
+    "soyagrapeson@gmail.com",
+    "bri.grapeson@outlook.com",
+    "mathew.ranjini@gmail.com",
+    "mjohn28@hotmail.com",
+    "benc988@gmail.com",
+    "edittiju@gmail.com",
+    "christineechacko@gmail.com",
+    "sschris01@gmail.com",
+    "vsaj478@gmail.com",
+    "yamihe70@gmail.com",
+    "sanju_mon1@yahoo.com",
+    "blessanbabu@yahoo.com",
+    "blessjosh22@gmail.com",
   ].map((e) => e.toLowerCase()),
 );
 
@@ -204,7 +220,10 @@ async function main() {
     let failed = 0;
     const failures: Array<{ email: string; error: string }> = [];
 
-    for (const recipient of remaining) {
+    async function sendWithRetry(
+      recipient: (typeof remaining)[number],
+      attempt = 1,
+    ): Promise<{ ok: true } | { ok: false; error: string }> {
       const result = await sendCheckInPacketEmail({
         recipient,
         subject: template.subject,
@@ -216,6 +235,19 @@ async function main() {
         teamPhrase: emailCtx?.teamPhrase ?? null,
         contactFooter,
       });
+      if (result.ok) return result;
+      const retryable = /429|IncomingBytes|throttl|rate.?limit/i.test(result.error);
+      if (retryable && attempt < 6) {
+        const waitMs = Math.min(120_000, 8_000 * 2 ** (attempt - 1));
+        console.log("retryWait", recipient.email, `attempt=${attempt}`, `waitMs=${waitMs}`, result.error);
+        await new Promise((r) => setTimeout(r, waitMs));
+        return sendWithRetry(recipient, attempt + 1);
+      }
+      return result;
+    }
+
+    for (const recipient of remaining) {
+      const result = await sendWithRetry(recipient);
       if (result.ok) {
         sent += 1;
         console.log("sent", sent, recipient.email, recipient.guardianName);
@@ -224,8 +256,8 @@ async function main() {
         failures.push({ email: recipient.email, error: result.error });
         console.error("failed", recipient.email, result.error);
       }
-      // Light pacing for Graph
-      await new Promise((r) => setTimeout(r, 400));
+      // Pace sends to stay under Graph IncomingBytes limits (~8MB PDF each)
+      await new Promise((r) => setTimeout(r, 5_000));
     }
 
     console.log("done", { sent, failed, remaining: remaining.length });
