@@ -311,24 +311,24 @@ jobs:
                 child: { select: { guardian: { select: { email: true } } } },
               },
             });
-            const byStatus: Record<string, number> = {};
-            const byClass: Record<string, number> = {};
-            const byPay: Record<string, number> = {};
+            const knownByStatus: Record<string, number> = {};
+            const knownByClass: Record<string, number> = {};
+            const knownByPay: Record<string, number> = {};
             const famStatus = new Map<string, Set<string>>();
             for (const r of knownRows) {
-              byStatus[r.status] = (byStatus[r.status] || 0) + 1;
+              knownByStatus[r.status] = (knownByStatus[r.status] || 0) + 1;
               const cls = r.classroom?.name ?? "(unassigned)";
-              byClass[cls] = (byClass[cls] || 0) + 1;
+              knownByClass[cls] = (knownByClass[cls] || 0) + 1;
               const payKey = `expects=${r.expectsPayment};paidAt=${Boolean(r.paymentReceivedAt)};stripe=${r.formSubmission?.stripePaymentStatus ?? "none"};payLater=${r.formSubmission?.payLaterChosen ?? false}`;
-              byPay[payKey] = (byPay[payKey] || 0) + 1;
+              knownByPay[payKey] = (knownByPay[payKey] || 0) + 1;
               const e = r.child.guardian.email!.trim().toLowerCase();
               if (!famStatus.has(e)) famStatus.set(e, new Set());
               famStatus.get(e)!.add(r.status);
             }
             console.log("known14_regCount", knownRows.length);
-            console.log("known14_byStatus", byStatus);
-            console.log("known14_byClass", byClass);
-            console.log("known14_byPay", byPay);
+            console.log("known14_byStatus", knownByStatus);
+            console.log("known14_byClass", knownByClass);
+            console.log("known14_byPay", knownByPay);
             const famMix: Record<string, number> = {};
             for (const s of famStatus.values()) {
               const k = [...s].sort().join("+");
