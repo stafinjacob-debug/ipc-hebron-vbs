@@ -1,0 +1,53 @@
+# Read-only: zip signed waiver PDFs for active registrations in a production season.
+# Output is a short-lived private artifact (contains family PII).
+name: Export Season Waivers (Production)
+
+on:
+  workflow_dispatch:
+    inputs:
+      season_name_contains:
+        description: "Season name match"
+        required: true
+        default: "United"
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install dependencies
+        env:
+          DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
+        run: npm ci
+
+      - name: Download signed waivers (read-only)
+        env:
+          DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
+          AZURE_STORAGE_CONNECTION_STRING: ${{ secrets.PROD_AZURE_STORAGE_CONNECTION_STRING }}
+          SEASON_NAME_CONTAINS: ${{ inputs.season_name_contains }}
+          OUT_DIR: ${{ runner.temp }}/waivers-export
+        run: npx tsx scripts/export-season-waivers.ts
+
+      - name: Zip PDFs into one flat folder
+        working-directory: ${{ runner.temp }}/waivers-export
+        run: |
+          mkdir -p out
+          (cd pdfs && zip -q -r ../out/signed-waivers.zip .)
+          cp waiver-manifest.csv out/
+          ls -la out
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: signed-waivers
+          path: ${{ runner.temp }}/waivers-export/out
+          retention-days: 1
